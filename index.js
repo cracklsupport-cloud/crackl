@@ -1,4 +1,10 @@
 import { registerRootComponent } from 'expo';
+import { Platform } from 'react-native';
+
+// Load cinematic design system on web
+if (Platform.OS === 'web') {
+  require('./global.css');
+}
 
 import App from './App';
 
