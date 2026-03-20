@@ -39,3 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Sensitive and unnecessary files
+CRACKL-backend/.env
+CRACKL-backend/node_modules/
+server_code_backup.js
+restore.py
+*.jpg
+*.png
+!assets/
