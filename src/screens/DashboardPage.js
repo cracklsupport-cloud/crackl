@@ -265,7 +265,7 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
                 fontWeight: '900',
                 fontSize: 13,
                 letterSpacing: 1,
-              }}>ENTER FOR 100 COINS →</Text>
+              }}>ENTER FOR 100 Intel →</Text>
             </TouchableOpacity>
           </View>
 
@@ -420,7 +420,7 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
             {[['500', '40'], ['1,500', '160'], ['5,000', '800'], ['15,000', '2,800']].map(([c, r]) => (
               <View key={c} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: cardBorder }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Icons.CoinIcon size={12} color={Colors.textSecondary} />
+                  <Icons.IntelIcon size={12} color={Colors.textSecondary} />
                   <Text style={{ color: Colors.textSecondary, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 13 }}>{c}</Text>
                 </View>
                 <Text style={{ color: Colors.emerald, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 13, fontWeight: '800' }}>₹{r}</Text>

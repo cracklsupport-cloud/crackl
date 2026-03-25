@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 
-const TWELVE_HOURS_MS = 10 * 1000;
+const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 const CHECK_INTERVAL_MS = 60 * 1000; // Check every minute (in case user leaves app open across 12hr boundary)
 
 /**

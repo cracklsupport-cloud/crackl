@@ -21,7 +21,7 @@ export default function GauntletScreen({ user, go, update }) {
   async function loadRiddle() {
     setLoading(true); setRiddle(null); setSelected(null); setResult(null); clearInterval(timerRef.current);
     try {
-      const res = await fetch(`${BACKEND}/riddle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0 }) });
+      const res = await fetch(`${BACKEND}/riddle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0, mode:'gauntlet' }) });
       const data = await res.json();
       if (data.success && data.riddle) { setRiddle(data.riddle); setTimeLeft(20); let t=20; timerRef.current=setInterval(()=>{t--;setTimeLeft(t);if(t<=0){clearInterval(timerRef.current);autoSubmit('__timeout__');}},1000); }
     } catch {}

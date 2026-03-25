@@ -12,7 +12,7 @@ export default function ProfilePage({ user, go }) {
   const badges = [
     { icon: Icons.ZapIcon, name:'Hot Streak', desc:'5 in a row', earned:(user?.streak||0)>=5, color:Colors.orange },
     { icon: Icons.DatabaseIcon, name:'Brain Blast', desc:'Used type mode', earned:(user?.xp||0)>0, color:Colors.purple },
-    { icon: Icons.CoinIcon, name:'Coin Hoarder', desc:'500+ coins', earned:(user?.coins||0)>=500, color:Colors.gold },
+    { icon: Icons.IntelIcon, name:'Intel Hoarder', desc:'500+ Intel', earned:(user?.coins||0)>=500, color:Colors.gold },
     { icon: Icons.TrophyIcon, name:'Champion', desc:'Top 10 rank', earned:false, color:Colors.cyan },
     { icon: Icons.SwordsIcon, name:'Socialite', desc:'Multiplayer win', earned:false, color:Colors.fuchsia },
     { icon: Icons.ShieldIcon, name:'Riddler', desc:'Reach Riddler rank', earned:['Riddler','Mastermind','Genius','Legend'].includes(user?.level), color:Colors.emerald },
@@ -52,7 +52,7 @@ export default function ProfilePage({ user, go }) {
           </View>
           {/* Stats Row */}
           <View style={{ flexDirection:'row', gap:8, marginTop:12 }}>
-            {[[Icons.CoinIcon,user?.coins??0,'Credits',Colors.gold],[Icons.ZapIcon,user?.streak??0,'Streak',Colors.orange],[Icons.TerminalIcon,user?.xp??0,'XP',Colors.purpleLight]].map(([IconComp,v,lbl,col]) => (
+            {[[Icons.IntelIcon,user?.coins??0,'Credits',Colors.gold],[Icons.ZapIcon,user?.streak??0,'Streak',Colors.orange],[Icons.TerminalIcon,user?.xp??0,'Crack Score',Colors.purpleLight]].map(([IconComp,v,lbl,col]) => (
               <View key={lbl} style={{ flex:1, alignItems:'center', padding:16, backgroundColor:'rgba(15,15,26,0.6)', borderRadius:12, borderWidth:1, borderColor:Colors.borderDefault}}>
                 <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                   <IconComp size={14} color={col} />

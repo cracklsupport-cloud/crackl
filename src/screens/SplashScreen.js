@@ -148,7 +148,7 @@ export default function SplashScreen() {
           </Text>
         ))}
         <View style={{ marginTop: 20, gap: 8 }}>
-          {['Neural Net', 'Riddle Engine', 'Coin Vault'].map((label, i) => (
+          {['Neural Net', 'Riddle Engine', 'Intel Vault'].map((label, i) => (
             <View key={label} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
               <Text style={{ color: Colors.textMuted, fontFamily: 'Share Tech Mono', fontSize: 10, fontWeight: '700', width: 80, letterSpacing: 1 }}>{label}</Text>
               <View style={{ flex: 1, height: 3, backgroundColor: Colors.borderDefault, borderRadius: 2, overflow: 'hidden' }}>

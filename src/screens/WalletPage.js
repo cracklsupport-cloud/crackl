@@ -12,7 +12,7 @@ export default function WalletPage({ user, update }) {
 
   async function redeem(t) {
     if (!upi.trim()) { setMsg('Enter your UPI ID first!'); return; }
-    if ((user?.coins||0) < t.c) { setMsg(`Need ${t.c-user.coins} more coins!`); return; }
+    if ((user?.coins||0) < t.c) { setMsg(`Need ${t.c-user.coins} more Intel!`); return; }
     setLoading(true); setMsg('');
     try {
       const res = await fetch(`${BACKEND}/cashback`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, coinsToRedeem:t.c, upiId:upi }) });
@@ -37,7 +37,7 @@ export default function WalletPage({ user, update }) {
             <Text style={{ color: Colors.textSecondary, fontFamily: 'Chakra Petch', fontSize: 13, marginBottom: 16, fontWeight: '700', letterSpacing: 1 }}>ASSET BALANCE</Text>
             
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <Icons.CoinIcon size={42} color={Colors.gold} />
+              <Icons.IntelIcon size={42} color={Colors.gold} />
               <Text style={{ color: Colors.gold, fontFamily: 'Share Tech Mono', fontSize: 56, fontWeight: '900' }}>{(user?.coins ?? 0).toLocaleString()}</Text>
             </View>
             
@@ -80,7 +80,7 @@ export default function WalletPage({ user, update }) {
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between'}} onPress={() => !loading && ok && redeem(t)} disabled={loading || !ok} activeOpacity={0.7}>
                   <View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                      <Icons.CoinIcon size={14} color={Colors.textPrimary} />
+                      <Icons.IntelIcon size={14} color={Colors.textPrimary} />
                       <Text style={{ color: Colors.textPrimary, fontFamily: 'Share Tech Mono', fontWeight: '800', fontSize: 16 }}>{t.c.toLocaleString()}</Text>
                     </View>
                     <Text style={{ color: ok ? Colors.emerald : Colors.textMuted, fontFamily: 'Chakra Petch', fontSize: 11, marginTop: 6, fontWeight: '600', textTransform: 'uppercase' }}>

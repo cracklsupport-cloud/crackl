@@ -60,7 +60,7 @@ export default function MultiRoomScreen({ user, go, room, update }) {
         <Text style={{ color:Colors.fuchsia, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:13, letterSpacing:1 }}>NODE: {room.id}</Text>
       </View>
       <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor:Colors.gold+'10', borderWidth:1, borderColor:Colors.gold+'30' }}>
-        <Icons.CoinIcon size={14} color={Colors.gold} />
+        <Icons.IntelIcon size={14} color={Colors.gold} />
         <Text style={{ color:Colors.gold, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:14 }}>{user?.coins??0}</Text>
       </View>
     </View>
@@ -156,7 +156,7 @@ export default function MultiRoomScreen({ user, go, room, update }) {
                 <Text style={{ fontFamily:'Share Tech Mono', fontSize:18, width:36, textAlign:'center', color:i===0?Colors.gold:i===1?'#C0C0C0':i===2?'#CD7F32':Colors.textSecondary, fontWeight:'900' }}>{i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</Text>
                 <Text style={{ flex:1, color:Colors.textPrimary, fontFamily:'Chakra Petch', fontSize:16, fontWeight:'700', letterSpacing:0.5 }}>{p.username}</Text>
                 {p.is_correct ? <Icons.TargetIcon size={16} color={Colors.emerald} /> : <Icons.XIcon size={16} color={Colors.rose} />}
-                <Text style={{ color:p.is_correct?Colors.gold:Colors.textMuted, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:14 }}>{p.is_correct?`+${p.coins_earned} 🪙`:'—'}</Text>
+                <Text style={{ color:p.is_correct?Colors.gold:Colors.textMuted, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:14 }}>{p.is_correct?`+${p.coins_earned} 💾`:'—'}</Text>
               </View>
             ))}
             

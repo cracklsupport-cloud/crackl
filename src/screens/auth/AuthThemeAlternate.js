@@ -1,274 +1,350 @@
-/**
- * ALTERNATE LOGIN THEME — CRACKL 12.0 Cyber-Noir
- * Shows every 12 hours (alternating with AuthThemeDefault).
- * Design: Dark charcoal, gold accent, circuit board bg, hexagonal brain frame.
- */
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Animated, Platform, KeyboardAvoidingView, Image, TextInput } from 'react-native';
+import React, { useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, ActivityIndicator, Animated, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as THREE from 'three';
 import Icons from '../../components/Icons';
-import { isWeb, BrainImage } from './authShared';
+import { isWeb, BrainImage, GlassLabel, GlassField } from './authShared';
 
-const AltLabel = ({ children }) => (
-  <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#6b7280', fontSize: 10, fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>{children}</Text>
-);
+/* ═══════════════════════════════════════════════════════════════
+   EXACT ANTIGRAVITY WEBGL GALAXY
+   - Full 100vw x 100vh coverage
+   - Custom GLSL Shaders for soft, glowing points
+   - Google Brand Palette
+   ═══════════════════════════════════════════════════════════════ */
+function ThreeBackground() {
+  const containerRef = useRef(null);
 
-const AltField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, onSubmitEditing, leftIcon, rightElement, isWeb }) => {
-  const [isFocused, setIsFocused] = useState(false);
-  return (
-    <View style={{ position: 'relative', justifyContent: 'center' }}>
-      {leftIcon && (
-        <View style={{ position: 'absolute', left: 16, zIndex: 10, height: '100%', justifyContent: 'center' }}>{leftIcon}</View>
-      )}
-      {rightElement && (
-        <View style={{ position: 'absolute', right: 16, zIndex: 10, height: '100%', justifyContent: 'center' }}>{rightElement}</View>
-      )}
-      <TextInput
-        style={[{
-          backgroundColor: isFocused ? 'rgba(197, 160, 112, 0.06)' : '#000000',
-          borderWidth: 1,
-          borderColor: isFocused ? '#C5A070' : 'rgba(255,255,255,0.08)',
-          borderRadius: 10,
-          paddingVertical: 16,
-          paddingLeft: leftIcon ? 48 : 16,
-          paddingRight: rightElement ? 48 : 16,
-          color: '#ffffff',
-          fontSize: 14,
-          fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-          outlineStyle: 'none',
-        }, isFocused && isWeb ? { boxShadow: '0 0 12px rgba(197,160,112,0.15)' } : {}]}
-        placeholder={placeholder}
-        placeholderTextColor="#4b5563"
-        value={value}
-        onChangeText={onChangeText}
-        secureTextEntry={secure}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize || 'none'}
-        maxLength={maxLength}
-        onSubmitEditing={onSubmitEditing}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-      />
-    </View>
-  );
-};
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !containerRef.current) return;
 
-export default function AuthThemeAlternate(props) {
+    const container = containerRef.current;
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+
+    // 1. Scene & Camera Setup
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x000000, 0.0006);
+
+    const camera = new THREE.PerspectiveCamera(60, width / height, 1, 3000);
+    camera.position.z = 1000;
+
+    const renderer = new THREE.WebGLRenderer({ alpha: true, antialias: true, powerPreference: "high-performance" });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(width, height);
+    container.appendChild(renderer.domElement);
+
+    // 2. Google Color Palette
+    const palette = [
+      new THREE.Color('#4285F4'), // Blue
+      new THREE.Color('#EA4335'), // Red
+      new THREE.Color('#FBBC05'), // Yellow
+      new THREE.Color('#34A853'), // Green
+      new THREE.Color('#ffffff'), // White
+      new THREE.Color('#a855f7'), // Crackl Purple
+    ];
+
+    const particleCount = 2000;
+    const geometry = new THREE.BufferGeometry();
+    const positions = new Float32Array(particleCount * 3);
+    const colors = new Float32Array(particleCount * 3);
+    const sizes = new Float32Array(particleCount);
+
+    // Distribute in a massive swirling sphere
+    for (let i = 0; i < particleCount; i++) {
+      const r = 200 + Math.random() * 1200;
+      const theta = Math.random() * 2 * Math.PI;
+      const phi = Math.acos(Math.random() * 2 - 1);
+
+      positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+      positions[i * 3 + 2] = r * Math.cos(phi);
+
+      const color = palette[Math.floor(Math.random() * palette.length)];
+      colors[i * 3] = color.r;
+      colors[i * 3 + 1] = color.g;
+      colors[i * 3 + 2] = color.b;
+
+      sizes[i] = Math.random() * 3.0 + 1.0;
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+    // 3. Custom GLSL Shaders
+    const material = new THREE.ShaderMaterial({
+      uniforms: {
+        time: { value: 0 },
+      },
+      vertexShader: `
+        attribute float size;
+        attribute vec3 color;
+        varying vec3 vColor;
+        uniform float time;
+        void main() {
+          vColor = color;
+          vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+          // Scale by depth so closer particles are larger
+          gl_PointSize = size * (1200.0 / -mvPosition.z);
+          gl_Position = projectionMatrix * mvPosition;
+        }
+      `,
+      fragmentShader: `
+        varying vec3 vColor;
+        void main() {
+          // Perfect, soft-edged circle
+          vec2 xy = gl_PointCoord.xy - vec2(0.5);
+          float ll = length(xy);
+          if (ll > 0.5) discard;
+          
+          float alpha = pow(1.0 - (ll * 2.0), 1.5);
+          gl_FragColor = vec4(vColor, alpha * 0.9);
+        }
+      `,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+
+    const particles = new THREE.Points(geometry, material);
+    scene.add(particles);
+
+    // 4. Parallax & Animation Loop
+    let mouseX = 0;
+    let mouseY = 0;
+    let targetX = 0;
+    let targetY = 0;
+
+    function onMouseMove(event) {
+      mouseX = (event.clientX - width / 2) * 0.001;
+      mouseY = (event.clientY - height / 2) * 0.001;
+    }
+    window.addEventListener('mousemove', onMouseMove);
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+    window.addEventListener('resize', onWindowResize);
+
+    let animationFrameId;
+    const clock = new THREE.Clock();
+
+    function animate() {
+      animationFrameId = requestAnimationFrame(animate);
+      const elapsedTime = clock.getElapsedTime();
+
+      material.uniforms.time.value = elapsedTime;
+
+      targetX = mouseX * 0.5;
+      targetY = mouseY * 0.5;
+
+      camera.position.x += (targetX * 800 - camera.position.x) * 0.02;
+      camera.position.y += (-targetY * 800 - camera.position.y) * 0.02;
+      camera.lookAt(scene.position);
+
+      // Orbital rotation
+      particles.rotation.y = elapsedTime * 0.03;
+      particles.rotation.x = elapsedTime * 0.015;
+
+      renderer.render(scene, camera);
+    }
+    animate();
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('resize', onWindowResize);
+      cancelAnimationFrame(animationFrameId);
+      if (container.contains(renderer.domElement)) {
+        container.removeChild(renderer.domElement);
+      }
+      geometry.dispose();
+      material.dispose();
+      renderer.dispose();
+    };
+  }, []);
+
+  if (Platform.OS !== 'web') return null;
+  return <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }} />;
+}
+
+/* ═══ AUTH THEME DEFAULT ═══ */
+export default function AuthThemeDefault(props) {
   const {
     step, loginId, setLoginId, email, setEmail, tag, pass, setPass, pass2, setPass2, otp, setOtp,
-    showPass, setShowPass, remember, setRemember, loading, err, tagAvail,
+    showPass, remember, setRemember, loading, err, tagAvail,
     switchStep, checkTag, handleAction, promptAsync, request,
     fadeAnim,
   } = props;
 
-  const gold = '#C5A070';
-  const purpleStart = '#9333ea';
-  const purpleEnd = '#6b21a8';
-
-  const bg = '#000000';
-
   return (
-    <View style={{ width: isWeb ? '100vw' : '100%', height: isWeb ? '100vh' : '100%', flexDirection: isWeb ? 'row' : 'column', backgroundColor: bg, overflow: 'hidden' }}>
-      {/* LEFT PANEL */}
-      <View style={{ width: isWeb ? '60%' : '100%', height: isWeb ? '100%' : 'auto', flexDirection: 'column', justifyContent: 'center', position: 'relative', overflow: 'hidden', backgroundColor: bg, zIndex: 2 }}>
-        <View style={{ position: isWeb ? 'absolute' : 'relative', top: isWeb ? 48 : 24, left: isWeb ? 48 : 24, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-          <View style={{ width: 52, height: 52, backgroundColor: bg, borderColor: 'rgba(197,160,112,0.3)', borderWidth: 1, borderRadius: 8, alignItems: 'center', justifyContent: 'center', padding: 4 }}>
-            <Image source={BrainImage} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
-          </View>
-          <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontWeight: 'bold', letterSpacing: 2, fontSize: 20, color: '#9ca3af' }}>
-            CRACKL <Text style={{ color: gold }}>12.0</Text>
-          </Text>
-        </View>
+    // Root container with relative positioning
+    <View style={{ width: isWeb ? '100vw' : '100%', height: isWeb ? '100vh' : '100%', position: 'relative', backgroundColor: '#000000', overflow: 'hidden' }}>
 
-        {/* Brain centered - no hexagon */}
-        <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: bg }}>
-          <Image
-            source={BrainImage}
-            style={{
-              width: 2200,
-              height: undefined,
-              aspectRatio: 1,
-              resizeMode: 'contain',
-              opacity: 1,
-              transform: [{ translateX: 200 }],
-              backgroundColor: bg,
-            }}
-          />
-        </View>
+      {/* 1. FULL SCREEN 3D WEBGL GALAXY - Mounted at the absolute root */}
+      <ThreeBackground />
 
-        <View style={{ position: 'relative', zIndex: 20, maxWidth: 576, paddingLeft: isWeb ? 48 : 24, paddingRight: isWeb ? 48 : 24, marginTop: isWeb ? 0 : 32 }}>
-          <View style={{ marginBottom: 24 }}>
-            <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: isWeb ? 48: 24, fontWeight: 'bold', lineHeight: isWeb ? 56 : 46, textTransform: 'uppercase', letterSpacing: -0.5, color: '#ffffff' }}>
-              THE ULTIMATE
-            </Text>
-            <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: isWeb ? 48 : 24, fontWeight: 'bold', lineHeight: isWeb ? 56 : 46, textTransform: 'uppercase', letterSpacing: -0.5, color: gold }}>
-              BRAIN CRACK
-            </Text>
-            <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: isWeb ? 48: 24, fontWeight: 'bold', lineHeight: isWeb ? 56 : 46, textTransform: 'uppercase', letterSpacing: -0.5, color: '#ffffff' }}>
-              ARENA
-            </Text>
-          </View>
+      {/* 2. CONTENT WRAPPER - Lays out the left and right panes OVER the background */}
+      <View style={{ flex: 1, flexDirection: isWeb ? 'row' : 'column', zIndex: 10, pointerEvents: 'box-none' }}>
 
-          <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 12, color: '#6b7280', letterSpacing: 1, lineHeight: 22, marginBottom: 40, textTransform: 'uppercase' }}>
-            Outsmart the architect.{'\n'}Claim the arena. Win real cash.
-          </Text>
+        {/* LEFT PANE - Completely transparent */}
+        <View style={{ width: isWeb ? '60%' : '100%', height: isWeb ? '100%' : 'auto', flexDirection: 'column', justifyContent: 'center', position: 'relative', backgroundColor: 'transparent', pointerEvents: 'box-none' }}>
 
-          <View style={{ flexDirection: 'row', gap: 12 }}>
-            {[
-              { label: 'STATUS', value: '12 n/h', icon: '▲' },
-              { label: 'SESSION', value: 'DIRECT', icon: '🔒' },
-              { label: 'MISSIONS', value: '100', icon: '👤' },
-            ].map(stat => (
-              <View key={stat.label} style={[{ backgroundColor: bg, borderWidth: 1, borderColor: 'rgba(197,160,112,0.15)', borderRadius: 10, paddingHorizontal: 18, paddingVertical: 14, minWidth: 110 }, isWeb ? { backdropFilter: 'blur(12px)' } : {}]}>
-                <Text style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 6 }}>{stat.label}</Text>
-                <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 13, color: gold }}>{stat.icon} {stat.value}</Text>
-              </View>
-            ))}
-          </View>
-        </View>
-      </View>
-
-      {/* RIGHT PANEL */}
-      <View style={{ width: isWeb ? '40%' : '100%', height: isWeb ? '100%' : 'auto', backgroundColor: bg, justifyContent: 'center', paddingHorizontal: isWeb ? 48 : 24, paddingVertical: isWeb ? 48 : 28, zIndex: 30 }}>
-        <Animated.View style={{ opacity: fadeAnim, flex: 1, justifyContent: 'center' }}>
-          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%', maxWidth: 420, alignSelf: 'center' }}>
-            <View style={[{ width: '100%', borderRadius: 14, paddingHorizontal: 24, paddingVertical: 28, backgroundColor: bg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' }, isWeb ? { boxShadow: '0 4px 24px rgba(0,0,0,0.3)' } : {}]}>
-
-              <View style={{ marginBottom: 32 }}>
-                <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: 22, fontWeight: 'bold', color: '#ffffff', marginBottom: 6 }}>
-                  <Text style={{ color: gold, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>{'> '}</Text>
-                  {step === 'login' ? 'Initialize Session' : step === 'signup' ? 'Create Identity' : step === 'forgot' ? 'Override Protocol' : 'Decrypt Protocol'}
-                </Text>
-                <Text style={{ color: '#6b7280', fontSize: 13, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, letterSpacing: -0.5 }}>
-                  {step === 'login' ? 'Enter your credentials to access the arena.' : step === 'signup' ? 'Forge your alias. 100 starting credits.' : 'Follow the recovery process.'}
-                </Text>
-              </View>
-
-              {err ? (
-                <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 12, borderRadius: 8, marginBottom: 16, borderWidth: 1, borderColor: 'rgba(239,68,68,0.2)' }}>
-                  <Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', textAlign: 'center' }}>{err}</Text>
-                </View>
-              ) : null}
-
-              {step === 'login' && (
-                <View>
-                  <AltLabel>USER ID / EMAIL</AltLabel>
-                  <AltField placeholder="Identity / Login" value={loginId} onChangeText={setLoginId} leftIcon={<Icons.UserIcon size={14} color="#6b7280" />} isWeb={isWeb} />
-
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 }}>
-                    <AltLabel>PASSWORD</AltLabel>
-                    <TouchableOpacity onPress={() => switchStep('forgot')} style={{ marginBottom: 8 }}>
-                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: gold, fontSize: 10 }}>FORGOT?</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <AltField
-                    placeholder="••••••••"
-                    value={pass}
-                    onChangeText={setPass}
-                    secure={!showPass}
-                    leftIcon={<Icons.LockIcon size={14} color="#6b7280" />}
-                    rightElement={
-                      <TouchableOpacity onPress={() => setShowPass && setShowPass(!showPass)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-                        {showPass ? <Icons.EyeOffIcon size={16} color="#6b7280" /> : <Icons.EyeIcon size={16} color="#6b7280" />}
-                      </TouchableOpacity>
-                    }
-                    onSubmitEditing={handleAction}
-                    isWeb={isWeb}
-                  />
-
-                  <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, marginBottom: 24 }} onPress={() => setRemember(!remember)}>
-                    <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: gold, backgroundColor: remember ? gold : 'transparent', alignItems: 'center', justifyContent: 'center' }}>
-                      {remember && <Text style={{ color: '#121212', fontSize: 11, fontWeight: 'bold' }}>✓</Text>}
-                    </View>
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 12 }}>Stay connected</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity onPress={handleAction} disabled={loading} style={[{ marginTop: 24, borderRadius: 10, opacity: loading ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(147,51,234,0.25)', cursor: 'pointer' } : {}]}>
-                    <LinearGradient colors={[purpleStart, purpleEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 10, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
-                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 }}>{'> LOGIN TO CRACKL -'}</Text>}
-                    </LinearGradient>
-                  </TouchableOpacity>
-
-                  <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 28, marginBottom: 20 }}>
-                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(197,160,112,0.2)' }} />
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#4b5563', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', paddingHorizontal: 14 }}>Social Link</Text>
-                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(197,160,112,0.2)' }} />
-                  </View>
-
-                  <TouchableOpacity onPress={() => promptAsync()} disabled={!request} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: bg, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 10, paddingVertical: 16 }}>
-                    <Icons.GoogleIcon size={18} />
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#d1d5db', fontSize: 14 }}>Login with Google</Text>
-                  </TouchableOpacity>
-
-                  <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 36 }}>
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#4b5563', fontSize: 11 }}>New contender? </Text>
-                    <TouchableOpacity onPress={() => switchStep('signup')}>
-                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: gold, fontSize: 11 }}>Get in to connect</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {step === 'signup' && (
-                <View>
-                  <AltLabel>Gamer Tag</AltLabel>
-                  <AltField placeholder="InvinciblePlayer" value={tag} onChangeText={checkTag} leftIcon={<Icons.UserIcon size={14} color="#6b7280" />} isWeb={isWeb} />
-                  <AltLabel>Secure Email</AltLabel>
-                  <AltField placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" leftIcon={<Text style={{ color: '#6b7280', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 14 }}>@</Text>} isWeb={isWeb} />
-                  <AltLabel>Access Key</AltLabel>
-                  <AltField placeholder="•••••••••" value={pass} onChangeText={setPass} secure leftIcon={<Icons.LockIcon size={14} color="#6b7280" />} isWeb={isWeb} />
-                  <AltLabel>Confirm Key</AltLabel>
-                  <AltField placeholder="•••••••••" value={pass2} onChangeText={setPass2} secure onSubmitEditing={handleAction} leftIcon={<Icons.LockIcon size={14} color="#6b7280" />} isWeb={isWeb} />
-                  <TouchableOpacity onPress={handleAction} disabled={loading || tagAvail === false} style={[{ marginTop: 32, borderRadius: 10, opacity: loading || tagAvail === false ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(147,51,234,0.25)', cursor: 'pointer' } : {}]}>
-                    <LinearGradient colors={[purpleStart, purpleEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 10, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
-                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 }}>{'> REGISTER IDENTITY ->'}</Text>}
-                    </LinearGradient>
-                  </TouchableOpacity>
-                  <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 36 }}>
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#4b5563', fontSize: 11 }}>Already established? </Text>
-                    <TouchableOpacity onPress={() => switchStep('login')}>
-                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: gold, fontSize: 11 }}>Initialize Session</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              )}
-
-              {step === 'forgot' && (
-                <View>
-                  <TouchableOpacity onPress={() => switchStep('login')} style={{ marginBottom: 24 }}>
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: gold, fontSize: 12, fontWeight: 'bold' }}>{'< BACK TO LOGIN'}</Text>
-                  </TouchableOpacity>
-                  <AltLabel>Secure Email</AltLabel>
-                  <AltField placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" onSubmitEditing={handleAction} leftIcon={<Text style={{ color: '#6b7280', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 14 }}>@</Text>} isWeb={isWeb} />
-                  <TouchableOpacity onPress={handleAction} disabled={loading || !email} style={[{ marginTop: 32, borderRadius: 10, opacity: loading || !email ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(147,51,234,0.25)', cursor: 'pointer' } : {}]}>
-                    <LinearGradient colors={[purpleStart, purpleEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 10, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
-                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 }}>{'> REQUEST TOKEN ->'}</Text>}
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {step === 'forgot_sent' && (
-                <View>
-                  <TouchableOpacity onPress={() => switchStep('login')} style={{ marginBottom: 24 }}>
-                    <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: gold, fontSize: 12, fontWeight: 'bold' }}>{'< BACK TO LOGIN'}</Text>
-                  </TouchableOpacity>
-                  <AltLabel>Encrypted Token (OTP)</AltLabel>
-                  <AltField placeholder="000000" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} leftIcon={<Text style={{ color: '#6b7280', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 14 }}>#</Text>} isWeb={isWeb} />
-                  <AltLabel>New Access Key</AltLabel>
-                  <AltField placeholder="•••••••••" value={pass} onChangeText={setPass} secure leftIcon={<Icons.LockIcon size={14} color="#6b7280" />} isWeb={isWeb} />
-                  <AltLabel>Confirm New Key</AltLabel>
-                  <AltField placeholder="•••••••••" value={pass2} onChangeText={setPass2} secure onSubmitEditing={handleAction} leftIcon={<Icons.LockIcon size={14} color="#6b7280" />} isWeb={isWeb} />
-                  <TouchableOpacity onPress={handleAction} disabled={loading || otp.length < 5} style={[{ marginTop: 32, borderRadius: 10, opacity: loading || otp.length < 5 ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(147,51,234,0.25)', cursor: 'pointer' } : {}]}>
-                    <LinearGradient colors={[purpleStart, purpleEnd]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 10, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
-                      {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 1 }}>{'> CONFIRM OVERRIDE ->'}</Text>}
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              )}
+          <View style={{ position: isWeb ? 'absolute' : 'relative', top: isWeb ? 48 : 24, left: isWeb ? 48 : 24, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <View style={{ width: 52, height: 52, backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center', padding: 4 }}>
+              <Image source={BrainImage} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
             </View>
-          </KeyboardAvoidingView>
-        </Animated.View>
+            <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontWeight: 'bold', letterSpacing: 2, fontSize: 20, color: '#9ca3af' }}>
+              CRACKL <Text style={{ color: '#a855f7' }}>V5.0</Text>
+            </Text>
+          </View>
+
+          {/* THE BLACK BOX FIX: Using a raw HTML <img> to guarantee mixBlendMode works on the web */}
+          <View pointerEvents="none" style={{ position: 'absolute', inset: 0, zIndex: 10, alignItems: 'center', justifyContent: 'center' }}>
+            {isWeb ? (
+              <img
+                src={BrainImage}
+                style={{
+                  width: '100%',
+                  maxWidth: '900px',
+                  height: 'auto',
+                  objectFit: 'contain',
+                  opacity: 0.98,
+                  transform: 'translateX(270px)',
+                  mixBlendMode: 'screen'
+                }}
+                alt="Brain"
+              />
+            ) : (
+              <Image
+                source={BrainImage}
+                style={{ width: '1000%', height: undefined, aspectRatio: 1, resizeMode: 'contain', opacity: 0.98, transform: [{ translateX: 270 }, { scale: 1.06 }] }}
+              />
+            )}
+          </View>
+
+          <View style={{ position: 'relative', zIndex: 20, maxWidth: 576, paddingLeft: isWeb ? 48 : 24, paddingRight: isWeb ? 48 : 24, marginTop: isWeb ? 0 : 32 }}>
+            <View style={{ marginBottom: 24, maxWidth: isWeb ? 680 : undefined }}>
+              {['THE ULTIMATE', 'BRAIN CRACK', 'ARENA'].map((line) => (
+                <Text key={line} numberOfLines={1} ellipsizeMode="clip" adjustsFontSizeToFit minimumFontScale={0.75} style={[{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: isWeb ? 56 : 48, fontWeight: 'bold', lineHeight: isWeb ? 66 : 52, textTransform: 'uppercase', letterSpacing: -1, color: '#ffffff', flexShrink: 0 }, isWeb ? { textShadow: '0 4px 10px rgba(0,0,0,0.5)', whiteSpace: 'nowrap', wordBreak: 'keep-all' } : { textShadowColor: 'rgba(0,0,0,0.5)', textShadowOffset: { width: 0, height: 4 }, textShadowRadius: 10 }]}>{line}</Text>
+              ))}
+            </View>
+            <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 12, color: '#6b7280', letterSpacing: 1, lineHeight: 22, marginBottom: 40, textTransform: 'uppercase' }}>Outsmart the architect.{'\n'}Claim the arena. Win real cash.</Text>
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              {[{ label: 'ACTIVE', value: '👥 12.4K' }, { label: 'LATENCY', value: '⏱ 14ms' }, { label: 'PROTOCOL', value: '🔒 AES-256' }].map(stat => (
+                <View key={stat.label} style={[{ backgroundColor: 'rgba(0,0,0,0.8)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 4, paddingHorizontal: 20, paddingVertical: 12, minWidth: 120 }, isWeb ? { backdropFilter: 'blur(12px)' } : {}]}>
+                  <Text style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 2, marginBottom: 4 }}>{stat.label}</Text>
+                  <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 14, color: stat.label === 'LATENCY' ? '#c084fc' : '#e5e7eb' }}>{stat.value}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        </View>
+
+        {/* RIGHT PANE - Transparent black with blur to see 3D effect behind it */}
+        <View style={[{ width: isWeb ? '40%' : '100%', height: isWeb ? '100%' : 'auto', backgroundColor: isWeb ? 'rgba(0,0,0,0.4)' : '#000000', borderLeftWidth: 1, borderColor: 'rgba(255,255,255,0.06)', justifyContent: 'center', paddingHorizontal: isWeb ? 56 : 24, paddingVertical: isWeb ? 48 : 28, zIndex: 30 }, isWeb ? { backdropFilter: 'blur(20px)', boxShadow: '-10px 0 50px rgba(0, 0, 0, 0.5)' } : {}]}>
+          <Animated.View style={{ opacity: fadeAnim, flex: 1, justifyContent: 'center' }}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ width: '100%', maxWidth: 460, alignSelf: 'center' }}>
+              <View style={[{ width: '100%', borderRadius: 14, paddingHorizontal: 26, paddingVertical: 28, backgroundColor: 'rgba(15,15,26,0.85)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }, isWeb ? { backdropFilter: 'blur(16px)', boxShadow: '0 20px 40px rgba(0,0,0,0.45)' } : {}]}>
+
+                <View style={{ marginBottom: 48 }}>
+                  <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: 24, fontWeight: 'bold', color: '#ffffff', marginBottom: 8 }}>
+                    <Text style={{ color: '#a855f7', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>{'>_ '}</Text>
+                    {step === 'login' ? 'Initialize Session' : step === 'signup' ? 'Create Identity' : step === 'forgot' ? 'Override Protocol' : 'Decrypt Protocol'}
+                  </Text>
+                  <Text style={{ color: '#6b7280', fontSize: 14, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, letterSpacing: -0.5 }}>
+                    {step === 'login' ? 'Enter your credentials to access the arena.' : step === 'signup' ? 'Forge your alias. 100 starting credits.' : 'Follow the recovery process.'}
+                  </Text>
+                </View>
+
+                {err ? <View style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: 12, borderRadius: 6, marginBottom: 16 }}><Text style={{ color: '#ef4444', fontSize: 12, fontWeight: '700', textAlign: 'center' }}>{err}</Text></View> : null}
+
+                {step === 'login' && (
+                  <View>
+                    <GlassLabel>Gamer Tag or Email</GlassLabel>
+                    <GlassField placeholder="Identity code..." value={loginId} onChangeText={setLoginId} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>@</Text>} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 }}>
+                      <GlassLabel>Access Key</GlassLabel>
+                      <TouchableOpacity onPress={() => switchStep('forgot')} style={{ marginBottom: 8 }}><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 10 }}>FORGOT?</Text></TouchableOpacity>
+                    </View>
+                    <GlassField placeholder="••••••••" value={pass} onChangeText={setPass} secure={!showPass} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} onSubmitEditing={handleAction} />
+                    <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, marginBottom: 24 }} onPress={() => setRemember(!remember)}>
+                      <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: '#374151', backgroundColor: remember ? '#9333ea' : '#111827', alignItems: 'center', justifyContent: 'center' }}>{remember && <Text style={{ color: '#fff', fontSize: 10 }}>✓</Text>}</View>
+                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 12 }}>Stay synced</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={handleAction} disabled={loading} style={[{ marginTop: 24, borderRadius: 4, opacity: loading ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(139,92,246,0.3)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}>
+                      <LinearGradient colors={['#9333ea', '#6b21a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 4, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>{'>_ LOGIN TO CRACKL ->'}</Text>}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 32, marginBottom: 24 }}>
+                      <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#4b5563', fontSize: 9, letterSpacing: 2, textTransform: 'uppercase', paddingHorizontal: 16 }}>Social Link</Text>
+                      <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.1)' }} />
+                    </View>
+                    <TouchableOpacity onPress={() => promptAsync()} disabled={!request} style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, backgroundColor: 'rgba(255,255,255,0.02)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 4, paddingVertical: 16 }}>
+                      <Icons.GoogleIcon size={16} /><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#d1d5db', fontSize: 14 }}>Google</Text>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 40 }}>
+                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#4b5563', fontSize: 11 }}>New contender? </Text>
+                      <TouchableOpacity onPress={() => switchStep('signup')}><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 11, transition: isWeb ? 'color 0.2s' : undefined }}>Create an account</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {step === 'signup' && (
+                  <View>
+                    <GlassLabel>Gamer Tag</GlassLabel>
+                    <GlassField placeholder="InvinciblePlayer" value={tag} onChangeText={checkTag} icon={<Icons.UserIcon size={14} color="#4b5563" />} />
+                    <GlassLabel>Secure Email</GlassLabel>
+                    <GlassField placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>@</Text>} />
+                    <GlassLabel>Access Key</GlassLabel>
+                    <GlassField placeholder="•••••••••" value={pass} onChangeText={setPass} secure icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} />
+                    <GlassLabel>Confirm Key</GlassLabel>
+                    <GlassField placeholder="•••••••••" value={pass2} onChangeText={setPass2} secure onSubmitEditing={handleAction} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} />
+                    <TouchableOpacity onPress={handleAction} disabled={loading || tagAvail === false} style={[{ marginTop: 32, borderRadius: 4, opacity: loading || tagAvail === false ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(139,92,246,0.3)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}>
+                      <LinearGradient colors={['#9333ea', '#6b21a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 4, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>{'>_ REGISTER IDENTITY ->'}</Text>}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                    <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 40 }}>
+                      <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#4b5563', fontSize: 11 }}>Already established? </Text>
+                      <TouchableOpacity onPress={() => switchStep('login')}><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 11, transition: isWeb ? 'color 0.2s' : undefined }}>Initialize Session</Text></TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {step === 'forgot' && (
+                  <View>
+                    <TouchableOpacity onPress={() => switchStep('login')} style={{ marginBottom: 24 }}><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 12, fontWeight: 'bold' }}>{'< BACK TO LOGIN'}</Text></TouchableOpacity>
+                    <GlassLabel>Secure Email</GlassLabel>
+                    <GlassField placeholder="your@email.com" value={email} onChangeText={setEmail} keyboardType="email-address" onSubmitEditing={handleAction} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>@</Text>} />
+                    <TouchableOpacity onPress={handleAction} disabled={loading || !email} style={[{ marginTop: 32, borderRadius: 4, opacity: loading || !email ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(139,92,246,0.3)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}>
+                      <LinearGradient colors={['#9333ea', '#6b21a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 4, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>{'>_ REQUEST TOKEN ->'}</Text>}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {step === 'forgot_sent' && (
+                  <View>
+                    <TouchableOpacity onPress={() => switchStep('login')} style={{ marginBottom: 24 }}><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 12, fontWeight: 'bold' }}>{'< BACK TO LOGIN'}</Text></TouchableOpacity>
+                    <GlassLabel>Encrypted Token (OTP)</GlassLabel>
+                    <GlassField placeholder="000000" value={otp} onChangeText={setOtp} keyboardType="number-pad" maxLength={6} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>#</Text>} />
+                    <GlassLabel>New Access Key</GlassLabel>
+                    <GlassField placeholder="•••••••••" value={pass} onChangeText={setPass} secure icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} />
+                    <GlassLabel>Confirm New Key</GlassLabel>
+                    <GlassField placeholder="•••••••••" value={pass2} onChangeText={setPass2} secure onSubmitEditing={handleAction} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} />
+                    <TouchableOpacity onPress={handleAction} disabled={loading || otp.length < 5} style={[{ marginTop: 32, borderRadius: 4, opacity: loading || otp.length < 5 ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(139,92,246,0.3)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}>
+                      <LinearGradient colors={['#9333ea', '#6b21a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 4, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
+                        {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>{'>_ CONFIRM OVERRIDE ->'}</Text>}
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            </KeyboardAvoidingView>
+          </Animated.View>
+        </View>
       </View>
     </View>
   );

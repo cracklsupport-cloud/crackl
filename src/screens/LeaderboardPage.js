@@ -84,7 +84,7 @@ export default function LeaderboardPage({ user }) {
                 <Text style={{ width: 120, textAlign: 'center', color: Colors.textSecondary, fontFamily: 'Chakra Petch', fontSize: 13, textTransform: 'uppercase' }}>{p.city}</Text>
                 <Text style={{ width: 100, textAlign: 'center', color: Colors.textMuted, fontFamily: 'Share Tech Mono', fontSize: 13 }}>{p.level || '—'}</Text>
                 <View style={{ width: 120, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
-                  <Icons.CoinIcon size={12} color={Colors.gold} />
+                  <Icons.IntelIcon size={12} color={Colors.gold} />
                   <Text style={{ color: Colors.gold, fontFamily: 'Share Tech Mono', fontWeight: '800', fontSize: 14 }}>{(p.coins || 0).toLocaleString()}</Text>
                 </View>
               </View>

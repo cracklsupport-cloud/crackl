@@ -112,7 +112,7 @@ export default function DailyDropScreen({ user, go, update }) {
               </View>
               
               <View style={{ flexDirection:'row', alignItems:'center', gap:10, marginTop:32 }}>
-                <Icons.CoinIcon size={24} color={result.coinsChange>0?Colors.gold:Colors.rose} />
+                <Icons.IntelIcon size={24} color={result.coinsChange>0?Colors.gold:Colors.rose} />
                 <Text style={{ color:result.coinsChange>0?Colors.gold:Colors.rose, fontFamily:'Share Tech Mono', fontSize:36, fontWeight:'900' }}>{result.coinsChange>0?'+':''}{result.coinsChange}</Text>
               </View>
               

@@ -43,7 +43,7 @@ export default function BlackMarketScreen({ user, go }) {
             onPress={() => buyItem(id, cost)}
             disabled={coins < cost}
           >
-            <Icons.CoinIcon size={14} color={color} />
+            <Icons.IntelIcon size={14} color={color} />
             <Text style={{ color: color, fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 16 }}>{cost}</Text>
           </TouchableOpacity>
         </View>
@@ -68,7 +68,7 @@ export default function BlackMarketScreen({ user, go }) {
           <Text style={{ color: Colors.purple, fontFamily: 'Share Tech Mono', fontSize: 12, fontWeight: '800', letterSpacing: 1 }}>LEAVE MARKET</Text>
         </TouchableOpacity>
         <View style={{ backgroundColor: Colors.cardSurface, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: Colors.gold+'40'}}>
-          <Icons.CoinIcon size={14} color={Colors.gold} />
+          <Icons.IntelIcon size={14} color={Colors.gold} />
           <Text style={{ color: Colors.gold, fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 16 }}>{coins}</Text>
         </View>
       </View>

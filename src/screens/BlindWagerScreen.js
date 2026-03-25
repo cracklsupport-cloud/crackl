@@ -15,11 +15,11 @@ export default function BlindWagerScreen({ user, go, update }) {
   const timerRef = useRef(null);
 
   async function placeBet() {
-    if (wager < 10) { alert('Minimum stake is 10 coins'); return; }
+    if (wager < 10) { alert('Minimum stake is 10 Intel'); return; }
     if (wager > (user.coins||0)) { alert(`Insufficient funds. You have ${user.coins||0} coins.`); return; }
     setLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/riddle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0 }) });
+      const res = await fetch(`${BACKEND}/riddle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0, mode:'wager' }) });
       const data = await res.json();
       if (data.success && data.riddle) { setRiddle(data.riddle); setPhase('reveal'); let t=data.riddle.timeLimit||30; setTimeLeft(t); timerRef.current=setInterval(()=>{t--;setTimeLeft(t);if(t<=0){clearInterval(timerRef.current);submitWager('__timeout__');}},1000); }
     } catch {} setLoading(false);
@@ -30,7 +30,7 @@ export default function BlindWagerScreen({ user, go, update }) {
     try {
       const ansRes = await fetch(`${BACKEND}/answer`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, riddleId:riddle.id, userAnswer:ans, timeTaken:(riddle?.timeLimit||30)-timeLeft, mode:'mcq' }) });
       const ansData = await ansRes.json(); setResult(ansData);
-      await fetch(`${BACKEND}/wager/settle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, wageredCoins:wager, isCorrect:ansData.isCorrect }) });
+      await fetch(`${BACKEND}/wager/settle`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, wageredIntel:wager, isCorrect:ansData.isCorrect }) });
       const newCoins = (user.coins||0) + (ansData.isCorrect ? wager : -wager);
       update({...user, coins:Math.max(0,newCoins), xp:ansData.newXp, level:ansData.newLevel}); setPhase('done');
     } catch {}
@@ -47,7 +47,7 @@ export default function BlindWagerScreen({ user, go, update }) {
         <Text style={{ color:Colors.fuchsia, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:13, letterSpacing:1 }}>BLIND WAGER</Text>
       </View>
       <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor:Colors.gold+'10', borderWidth:1, borderColor:Colors.gold+'30' }}>
-        <Icons.CoinIcon size={14} color={Colors.gold} />
+        <Icons.IntelIcon size={14} color={Colors.gold} />
         <Text style={{ color:Colors.gold, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:14 }}>{user?.coins||0}</Text>
       </View>
     </View>
@@ -63,7 +63,7 @@ export default function BlindWagerScreen({ user, go, update }) {
         <View style={{ flexDirection:'row', gap:12, marginTop:40, flexWrap:'wrap', justifyContent:'center' }}>
           {[25,50,100,250,500].map(v => (
             <TouchableOpacity key={v} style={{ flexDirection:'row', alignItems:'center', gap:8, paddingHorizontal:24, paddingVertical:16, borderRadius:12, backgroundColor:wager===v?Colors.fuchsia+'20':'rgba(15,15,26,0.6)', borderWidth:1.5, borderColor:wager===v?Colors.fuchsia:Colors.borderDefault}} onPress={() => setWager(v)}>
-              <Icons.CoinIcon size={16} color={wager===v?Colors.fuchsia:Colors.textSecondary} />
+              <Icons.IntelIcon size={16} color={wager===v?Colors.fuchsia:Colors.textSecondary} />
               <Text style={{ color:wager===v?Colors.fuchsia:Colors.textSecondary, fontFamily:'Share Tech Mono', fontWeight:'900', fontSize:16 }}>{v}</Text>
             </TouchableOpacity>
           ))}
@@ -105,7 +105,7 @@ export default function BlindWagerScreen({ user, go, update }) {
       <ScrollView contentContainerStyle={{ maxWidth:700, alignSelf:'center', width:'100%', padding:32, paddingBottom:64 }} showsVerticalScrollIndicator={false}>
         <View style={{ backgroundColor:Colors.fuchsia+'10', borderRadius:12, padding:20, marginBottom:24, flexDirection:'row', justifyContent:'space-between', alignItems:'center', borderWidth:1, borderColor:Colors.fuchsia+'35'}}>
           <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>
-            <Icons.CoinIcon size={16} color={Colors.fuchsia} />
+            <Icons.IntelIcon size={16} color={Colors.fuchsia} />
             <Text style={{ color:Colors.fuchsia, fontFamily:'Share Tech Mono', fontWeight:'900', fontSize:16 }}>STAKE: {wager}</Text>
           </View>
           <View style={{ flexDirection:'row', alignItems:'center', gap:8 }}>

@@ -60,7 +60,7 @@ export default function OnboardingScreen({ user, go, update }) {
             <Feature icon={Icons.ZapIcon} title="Quick Crack" desc="4 options. Pick fast. Earn coins instantly." />
             <Feature icon={Icons.DatabaseIcon} title="Brain Blast" desc="Type your answer. AI understands. 1.5x coins." />
             <Feature icon={Icons.SwordsIcon} title="Multiplayer" desc="Battle 2-5 friends in real-time rooms." />
-            <Feature icon={Icons.CoinIcon} title="Real Cashback" desc="Coins → ₹ straight to your UPI." />
+            <Feature icon={Icons.IntelIcon} title="Real Cashback" desc="Coins → ₹ straight to your UPI." />
           </ScrollView>
 
           <View style={{ paddingVertical: 20 }}>

@@ -145,11 +145,18 @@ export const ShieldIcon = (props) => (
   </IconBase>
 );
 
-export const CoinIcon = (props) => (
+export const IntelIcon = (props) => (
   <IconBase {...props}>
-    <circle cx="12" cy="12" r="10" />
-    <line x1="12" y1="8" x2="12" y2="16" />
-    <line x1="8" y1="12" x2="16" y2="12" />
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+    <rect x="8" y="8" width="8" height="8" />
+    <line x1="8" y1="1" x2="8" y2="3" />
+    <line x1="16" y1="1" x2="16" y2="3" />
+    <line x1="8" y1="21" x2="8" y2="23" />
+    <line x1="16" y1="21" x2="16" y2="23" />
+    <line x1="1" y1="8" x2="3" y2="8" />
+    <line x1="1" y1="16" x2="3" y2="16" />
+    <line x1="21" y1="8" x2="23" y2="8" />
+    <line x1="21" y1="16" x2="23" y2="16" />
   </IconBase>
 );
 
@@ -336,7 +343,7 @@ export default {
   HomeIcon, CompassIcon, UsersIcon, SearchIcon, InfoIcon,
   LightningIcon, BrainIcon, FlameIcon, LinkIcon, EyeIcon, EyeOffIcon,
   SettingsIcon, PlayIcon, ChevronRightIcon, ClockIcon, TargetIcon,
-  ShieldIcon, CoinIcon, LockIcon, UnlockIcon, ArrowRightIcon, CrosshairIcon, LogOutIcon, BellIcon,
+  ShieldIcon, IntelIcon, LockIcon, UnlockIcon, ArrowRightIcon, CrosshairIcon, LogOutIcon, BellIcon,
   TimerIcon, DatabaseIcon, UserIcon, ZapIcon, TrophyIcon, ChevronLeftIcon,
   SwordsIcon, PlusIcon, XIcon, AlertTriangleIcon, TerminalIcon, SunIcon, BombIcon, DiceIcon, GoogleIcon
 };

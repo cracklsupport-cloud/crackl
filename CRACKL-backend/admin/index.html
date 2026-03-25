@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRACKL Admin</title>
+  <style>
+    :root {
+      --bg: #07070f;
+      --card: #0f0f1a;
+      --card2: #14141f;
+      --border: #1f1f35;
+      --purple: #7c3aed;
+      --purple-light: #a78bfa;
+      --purple-dim: rgba(124,58,237,0.15);
+      --green: #00c97a;
+      --yellow: #fbbf24;
+      --red: #f43f5e;
+      --text: #f0f0ff;
+      --text2: #9ca3af;
+      --text3: #4b5563;
+      --easy: #00c97a;
+      --medium: #fbbf24;
+      --hard: #f43f5e;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+    input, textarea, select { background: #0c0c18; color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 13px; font-family: inherit; width: 100%; outline: none; transition: border-color .2s; }
+    input:focus, textarea:focus, select:focus { border-color: var(--purple); }
+    textarea { resize: vertical; min-height: 80px; }
+    button { cursor: pointer; border: none; border-radius: 6px; font-size: 13px; font-family: inherit; font-weight: 600; padding: 8px 16px; transition: all .2s; }
+    label { font-size: 12px; color: var(--text2); margin-bottom: 4px; display: block; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; }
+
+    /* ── Login ── */
+    #login-screen { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .login-box { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 40px; width: 340px; text-align: center; }
+    .login-box h1 { font-size: 26px; font-weight: 900; letter-spacing: 4px; color: var(--purple-light); margin-bottom: 4px; }
+    .login-box p { color: var(--text2); font-size: 12px; letter-spacing: 1px; margin-bottom: 28px; }
+    .login-box input { margin-bottom: 12px; }
+    .login-box button { width: 100%; background: var(--purple); color: #fff; padding: 11px; font-size: 14px; letter-spacing: 1px; }
+    .login-box button:hover { background: #6d28d9; }
+    #login-error { color: var(--red); font-size: 12px; margin-top: 8px; min-height: 18px; }
+    .login-box .server-row { display: flex; gap: 6px; margin-bottom: 12px; }
+    .login-box .server-row input { flex: 1; }
+
+    /* ── App Shell ── */
+    #app { display: none; height: 100vh; flex-direction: column; }
+    #app.visible { display: flex; }
+    header { background: var(--card); border-bottom: 1px solid var(--border); padding: 0 24px; height: 54px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+    header h1 { font-size: 16px; font-weight: 900; letter-spacing: 3px; color: var(--purple-light); }
+    header .right { display: flex; align-items: center; gap: 12px; }
+    .maint-badge { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; letter-spacing: 1px; }
+    .maint-on { background: rgba(244,63,94,0.15); color: var(--red); border: 1px solid rgba(244,63,94,0.3); }
+    .maint-off { background: rgba(0,201,122,0.1); color: var(--green); border: 1px solid rgba(0,201,122,0.25); }
+    .logout-btn { background: transparent; color: var(--text3); border: 1px solid var(--border); padding: 5px 12px; font-size: 11px; }
+    .logout-btn:hover { color: var(--text2); }
+
+    /* ── Tabs ── */
+    .tabs { background: var(--card); border-bottom: 1px solid var(--border); display: flex; gap: 2px; padding: 0 16px; flex-shrink: 0; }
+    .tab { padding: 14px 18px; font-size: 12px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all .2s; background: none; border-radius: 0; }
+    .tab:hover { color: var(--text2); }
+    .tab.active { color: var(--purple-light); border-bottom-color: var(--purple); }
+    .tab-content { display: none; flex: 1; overflow-y: auto; padding: 24px; }
+    .tab-content.active { display: block; }
+
+    /* ── Cards / Grids ── */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-bottom: 24px; }
+    .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+    .stat-card .val { font-size: 28px; font-weight: 900; color: var(--text); }
+    .stat-card .lbl { font-size: 11px; color: var(--text2); letter-spacing: .8px; text-transform: uppercase; margin-top: 4px; }
+    .stat-card.purple { border-color: rgba(124,58,237,.3); }
+    .stat-card.green { border-color: rgba(0,201,122,.25); }
+    .stat-card.yellow { border-color: rgba(251,191,36,.25); }
+    .stat-card.red { border-color: rgba(244,63,94,.25); }
+
+    /* ── Section ── */
+    .section { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; margin-bottom: 20px; }
+    .section h2 { font-size: 13px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text2); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+
+    /* ── Maintenance Toggle ── */
+    .maint-block { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .maint-btn { font-size: 13px; font-weight: 800; padding: 10px 24px; letter-spacing: 1px; }
+    .maint-btn.on { background: rgba(244,63,94,0.15); color: var(--red); border: 1px solid rgba(244,63,94,0.4); }
+    .maint-btn.on:hover { background: rgba(244,63,94,0.25); }
+    .maint-btn.off { background: rgba(0,201,122,0.12); color: var(--green); border: 1px solid rgba(0,201,122,0.35); }
+    .maint-btn.off:hover { background: rgba(0,201,122,0.22); }
+    .maint-msg-input { flex: 1; min-width: 200px; }
+
+    /* ── Alerts ── */
+    .alert-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .alert-chip { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; background: rgba(244,63,94,0.12); color: var(--red); border: 1px solid rgba(244,63,94,0.3); cursor: pointer; }
+    .alert-chip:hover { background: rgba(244,63,94,0.2); }
+
+    /* ── Form ── */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .form-group { display: flex; flex-direction: column; gap: 4px; }
+    .btn-primary { background: var(--purple); color: #fff; padding: 10px 24px; }
+    .btn-primary:hover { background: #6d28d9; }
+    .btn-success { background: rgba(0,201,122,0.15); color: var(--green); border: 1px solid rgba(0,201,122,0.3); }
+    .btn-success:hover { background: rgba(0,201,122,0.25); }
+    .btn-danger { background: rgba(244,63,94,0.12); color: var(--red); border: 1px solid rgba(244,63,94,0.3); }
+    .btn-danger:hover { background: rgba(244,63,94,0.22); }
+    .btn-ghost { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+    .btn-ghost:hover { border-color: var(--purple); color: var(--purple-light); }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+    .toggle-group { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+    .toggle-group label { text-transform: none; font-size: 13px; color: var(--text2); margin: 0; }
+    input[type=checkbox] { width: auto; accent-color: var(--purple); }
+
+    /* ── Results ── */
+    .result-banner { padding: 12px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    .result-banner.success { background: rgba(0,201,122,0.1); color: var(--green); border: 1px solid rgba(0,201,122,0.25); }
+    .result-banner.error { background: rgba(244,63,94,0.1); color: var(--red); border: 1px solid rgba(244,63,94,0.3); }
+    .result-banner.info { background: var(--purple-dim); color: var(--purple-light); border: 1px solid rgba(124,58,237,.3); }
+
+    /* ── Table ── */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border); white-space: nowrap; }
+    td { padding: 10px 12px; border-bottom: 1px solid #0d0d1a; vertical-align: middle; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+    .q-text { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+    .badge { font-size: 10px; font-weight: 800; padding: 3px 8px; border-radius: 12px; letter-spacing: .5px; white-space: nowrap; }
+    .badge-easy { background: rgba(0,201,122,.12); color: var(--easy); }
+    .badge-medium { background: rgba(251,191,36,.12); color: var(--medium); }
+    .badge-hard { background: rgba(244,63,94,.12); color: var(--hard); }
+    .badge-mode { background: rgba(124,58,237,.12); color: var(--purple-light); }
+    .badge-inactive { background: rgba(75,85,99,.15); color: #6b7280; }
+    .badge-onboard { background: rgba(96,165,250,.1); color: #60a5fa; }
+    .actions { display: flex; gap: 6px; align-items: center; }
+    .pagination { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+    .pagination button { padding: 6px 12px; font-size: 12px; }
+    .pagination span { color: var(--text2); font-size: 12px; }
+
+    /* ── Filter Bar ── */
+    .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
+    .filter-bar select, .filter-bar input { width: auto; min-width: 130px; }
+    .filter-bar button { flex-shrink: 0; }
+
+    /* ── Pool Health Grid ── */
+    .pool-grid { display: grid; grid-template-columns: 100px repeat(3, 1fr); gap: 4px; }
+    .pool-cell { background: var(--card2); border: 1px solid var(--border); border-radius: 6px; padding: 12px; text-align: center; }
+    .pool-cell.header { background: transparent; border: none; font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text3); display: flex; align-items: center; justify-content: center; }
+    .pool-cell.mode-label { font-size: 12px; font-weight: 700; color: var(--text2); display: flex; align-items: center; justify-content: center; }
+    .pool-cell .num { font-size: 20px; font-weight: 900; }
+    .pool-cell .sub { font-size: 10px; color: var(--text3); margin-top: 2px; }
+    .pool-cell.ok { border-color: rgba(0,201,122,.25); }
+    .pool-cell.ok .num { color: var(--green); }
+    .pool-cell.warn { border-color: rgba(251,191,36,.3); }
+    .pool-cell.warn .num { color: var(--yellow); }
+    .pool-cell.low { border-color: rgba(244,63,94,.3); background: rgba(244,63,94,.04); }
+    .pool-cell.low .num { color: var(--red); }
+
+    /* ── Chain Sets ── */
+    .chain-set { background: var(--card2); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; }
+    .chain-set-header { padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .chain-set-header h3 { font-size: 13px; font-weight: 700; color: var(--purple-light); }
+    .chain-set-header .meta { font-size: 11px; color: var(--text3); }
+    .chain-set-body { padding: 12px 16px; }
+    .chain-riddle { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #0d0d18; font-size: 12px; }
+    .chain-riddle:last-child { border-bottom: none; }
+    .chain-num { width: 22px; height: 22px; border-radius: 50%; background: var(--purple-dim); color: var(--purple-light); font-size: 11px; font-weight: 800; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .chain-q { flex: 1; color: var(--text2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .chain-ans { color: var(--green); font-size: 11px; font-weight: 600; }
+    .chain-diff { flex-shrink: 0; }
+
+    /* ── Modal / Overlay ── */
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+    .overlay.open { display: flex; }
+    .modal { background: var(--card); border: 1px solid var(--border); border-radius: 12px; width: 100%; max-width: 580px; max-height: 90vh; overflow-y: auto; padding: 24px; }
+    .modal h2 { font-size: 15px; font-weight: 800; margin-bottom: 20px; color: var(--text); }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+    /* ── Misc ── */
+    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .6s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .hint-text { font-size: 11px; color: var(--text3); margin-top: 4px; font-style: italic; }
+    .empty { text-align: center; padding: 40px; color: var(--text3); font-size: 13px; }
+    .sep { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
+    hr.sep { border-top: 1px solid var(--border); }
+    .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .tag { font-size: 10px; font-weight: 800; padding: 2px 8px; border-radius: 10px; }
+    .tag-onboard { background: rgba(96,165,250,.12); color: #60a5fa; }
+    .refresh-note { font-size: 11px; color: var(--text3); }
+    .top-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+    .top-row h2 { font-size: 13px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--text2); }
+    .json-sample { background: #080810; border: 1px solid var(--border); border-radius: 6px; padding: 12px; font-family: 'Courier New', monospace; font-size: 11px; color: #a78bfa; white-space: pre; overflow-x: auto; margin-bottom: 8px; }
+    .inline-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; }
+    .toggle-switch { position: relative; width: 32px; height: 18px; }
+    .toggle-switch input { opacity: 0; width: 0; height: 0; }
+    .toggle-slider { position: absolute; inset: 0; background: #2a2a3a; border-radius: 18px; transition: .2s; cursor: pointer; }
+    .toggle-slider::before { content: ''; position: absolute; width: 12px; height: 12px; background: #fff; border-radius: 50%; bottom: 3px; left: 3px; transition: .2s; }
+    .toggle-switch input:checked + .toggle-slider { background: var(--purple); }
+    .toggle-switch input:checked + .toggle-slider::before { transform: translateX(14px); }
+    .copy-btn { background: transparent; color: var(--text3); border: 1px solid var(--border); padding: 3px 8px; font-size: 11px; }
+    .copy-btn:hover { color: var(--text2); }
+  </style>
+</head>
+<body>
+
+<!-- ═══ LOGIN ═══ -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>CRACKL</h1>
+    <p>ADMIN PANEL</p>
+    <div class="server-row">
+      <input id="server-url" type="text" value="http://localhost:3000" placeholder="Backend URL" />
+    </div>
+    <input id="admin-key" type="password" placeholder="Admin Key" />
+    <button onclick="doLogin()">ENTER</button>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app">
+  <header>
+    <h1>CRACKL ADMIN</h1>
+    <div class="right">
+      <div id="maint-badge" class="maint-badge maint-off">LIVE</div>
+      <span class="refresh-note" id="last-refresh"></span>
+      <button class="logout-btn" onclick="doLogout()">LOGOUT</button>
+    </div>
+  </header>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab(0)">Overview</button>
+    <button class="tab" onclick="switchTab(1)">Add Riddles</button>
+    <button class="tab" onclick="switchTab(2)">Manage Riddles</button>
+    <button class="tab" onclick="switchTab(3)">Pool Health</button>
+    <button class="tab" onclick="switchTab(4)">Chain Sets</button>
+  </div>
+
+  <!-- ═══ TAB 0: OVERVIEW ═══ -->
+  <div class="tab-content active" id="tab-0">
+    <div class="top-row">
+      <h2>Real-Time Overview</h2>
+      <button class="btn-ghost btn-sm" onclick="loadStats()">↻ Refresh</button>
+    </div>
+    <div class="stats-grid" id="stats-grid">
+      <div class="stat-card purple"><div class="val" id="s-total">—</div><div class="lbl">Total Riddles</div></div>
+      <div class="stat-card green"><div class="val" id="s-served">—</div><div class="lbl">Served Today</div></div>
+      <div class="stat-card yellow"><div class="val" id="s-users">—</div><div class="lbl">Active Users (24h)</div></div>
+      <div class="stat-card"><div class="val" id="s-arena">—</div><div class="lbl">Arena</div></div>
+      <div class="stat-card"><div class="val" id="s-daily">—</div><div class="lbl">Daily Drop</div></div>
+      <div class="stat-card"><div class="val" id="s-gauntlet">—</div><div class="lbl">Gauntlet</div></div>
+      <div class="stat-card"><div class="val" id="s-chain">—</div><div class="lbl">Chain</div></div>
+      <div class="stat-card"><div class="val" id="s-wager">—</div><div class="lbl">Blind Wager</div></div>
+      <div class="stat-card"><div class="val" id="s-bounty">—</div><div class="lbl">Bounty</div></div>
+    </div>
+
+    <!-- Maintenance -->
+    <div class="section">
+      <h2>Maintenance Mode</h2>
+      <div class="maint-block">
+        <button id="maint-toggle-btn" class="maint-btn off" onclick="toggleMaintenance()">Turn ON Maintenance</button>
+        <input id="maint-msg-input" class="maint-msg-input" type="text" placeholder="Maintenance message shown to users…" />
+        <button class="btn-ghost btn-sm" onclick="saveMaintMsg()">Save Message</button>
+      </div>
+      <p class="hint-text" style="margin-top:10px">When ON: players cannot log in. Only admin accounts can access the app. Turn on while uploading new riddles.</p>
+    </div>
+
+    <!-- Low stock alerts -->
+    <div class="section" id="alerts-section" style="display:none">
+      <h2>⚠️ Low Stock Alerts</h2>
+      <div class="alert-list" id="alerts-list"></div>
+      <p class="hint-text" style="margin-top:8px">Tap an alert to go to Pool Health. Red = under 10 riddles remaining today for that combination.</p>
+    </div>
+
+    <!-- Per difficulty -->
+    <div class="section">
+      <h2>By Difficulty</h2>
+      <div class="stats-grid">
+        <div class="stat-card green"><div class="val" id="s-easy">—</div><div class="lbl">Easy</div></div>
+        <div class="stat-card yellow"><div class="val" id="s-medium">—</div><div class="lbl">Medium</div></div>
+        <div class="stat-card red"><div class="val" id="s-hard">—</div><div class="lbl">Hard</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB 1: ADD RIDDLES ═══ -->
+  <div class="tab-content" id="tab-1">
+    <!-- Single Riddle -->
+    <div class="section">
+      <h2>Add Single Riddle</h2>
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>Question *</label>
+          <textarea id="f-question" rows="3" placeholder="Enter the riddle question…"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>Answer *</label>
+          <input id="f-answer" type="text" placeholder="Correct answer" />
+        </div>
+        <div class="form-group">
+          <label>Game Mode *</label>
+          <select id="f-mode">
+            <option value="">Select mode…</option>
+            <option value="arena">Arena</option>
+            <option value="daily">Daily Drop</option>
+            <option value="gauntlet">Gauntlet</option>
+            <option value="chain">Chain</option>
+            <option value="wager">Blind Wager</option>
+            <option value="bounty">Bounty</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Difficulty *</label>
+          <select id="f-diff">
+            <option value="">Select difficulty…</option>
+            <option value="Easy">Easy</option>
+            <option value="Medium">Medium</option>
+            <option value="Hard">Hard</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>Options (for MCQ)</label>
+          <input id="f-options" type="text" placeholder="Option A, Option B, Option C, Option D" />
+          <p class="hint-text">Comma-separated. Leave empty for typed-answer riddles.</p>
+        </div>
+        <div class="form-group">
+          <label>Hint</label>
+          <input id="f-hint" type="text" placeholder="Optional hint…" />
+        </div>
+        <div class="form-group">
+          <label>Category</label>
+          <input id="f-category" type="text" placeholder="e.g. Science, History…" />
+        </div>
+        <div class="form-group full">
+          <label>Fun Fact</label>
+          <input id="f-funfact" type="text" placeholder="Shown after answer is revealed…" />
+        </div>
+        <div class="form-group full">
+          <label>Explanation</label>
+          <textarea id="f-explanation" rows="2" placeholder="Why is the answer correct?"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Family ID</label>
+          <input id="f-family" type="text" placeholder="e.g. chain-space-001" />
+          <p class="hint-text">Group variant riddles together. Users who see one will never get another from the same family.</p>
+        </div>
+        <div class="form-group">
+          <label>Custom Timer (seconds)</label>
+          <input id="f-timer" type="number" placeholder="Default: 30/45/60 by difficulty" />
+        </div>
+        <div class="form-group">
+          <div class="toggle-group">
+            <input type="checkbox" id="f-onboard" />
+            <label for="f-onboard" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">Onboarding riddle (shown to new players first)</label>
+          </div>
+        </div>
+      </div>
+      <div style="margin-top:16px; display:flex; gap:10px; align-items:center">
+        <button class="btn-primary" onclick="submitSingle()">Add Riddle</button>
+        <button class="btn-ghost btn-sm" onclick="clearForm()">Clear</button>
+        <span id="single-result"></span>
+      </div>
+    </div>
+
+    <hr class="sep" />
+
+    <!-- Bulk Upload -->
+    <div class="section">
+      <h2>Bulk Upload (JSON)</h2>
+      <p class="hint-text" style="margin-bottom:12px">Paste a JSON array of riddles. Required fields: <strong>question, answer, game_mode, difficulty</strong></p>
+      <div class="json-sample">[
+  {
+    "question": "What has keys but no locks?",
+    "answer": "A keyboard",
+    "game_mode": "arena",
+    "difficulty": "Easy",
+    "hint": "You use it every day",
+    "fun_fact": "The first keyboard was invented in 1868",
+    "options": ["A piano","A keyboard","A safe","A car"],
+    "family_id": null,
+    "is_onboarding": false
+  }
+]</div>
+      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
+        <label style="text-transform:none;font-size:12px;color:var(--text2);margin:0">Game modes: arena | daily | gauntlet | chain | wager | bounty</label>
+        <label style="text-transform:none;font-size:12px;color:var(--text2);margin:0 0 0 12px">Difficulties: Easy | Medium | Hard</label>
+      </div>
+      <textarea id="bulk-json" rows="14" placeholder='[{"question":"...","answer":"...","game_mode":"arena","difficulty":"Easy"}]'></textarea>
+      <div style="margin-top:12px; display:flex; gap:10px; align-items:center">
+        <button class="btn-primary" onclick="submitBulk()">Upload All</button>
+        <button class="btn-ghost btn-sm" onclick="document.getElementById('bulk-json').value=''">Clear</button>
+      </div>
+      <div id="bulk-result" style="margin-top:14px"></div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB 2: MANAGE RIDDLES ═══ -->
+  <div class="tab-content" id="tab-2">
+    <div class="filter-bar">
+      <div>
+        <label>Mode</label>
+        <select id="mg-mode">
+          <option value="">All Modes</option>
+          <option value="arena">Arena</option>
+          <option value="daily">Daily Drop</option>
+          <option value="gauntlet">Gauntlet</option>
+          <option value="chain">Chain</option>
+          <option value="wager">Blind Wager</option>
+          <option value="bounty">Bounty</option>
+        </select>
+      </div>
+      <div>
+        <label>Difficulty</label>
+        <select id="mg-diff">
+          <option value="">All</option>
+          <option value="Easy">Easy</option>
+          <option value="Medium">Medium</option>
+          <option value="Hard">Hard</option>
+        </select>
+      </div>
+      <div>
+        <label>Status</label>
+        <select id="mg-active">
+          <option value="">All</option>
+          <option value="true">Active</option>
+          <option value="false">Inactive</option>
+        </select>
+      </div>
+      <div>
+        <label>Search</label>
+        <input id="mg-search" type="text" placeholder="Search question…" style="min-width:180px" />
+      </div>
+      <div style="padding-top:18px">
+        <button class="btn-primary btn-sm" onclick="loadManage(1)">Search</button>
+      </div>
+    </div>
+    <div id="manage-result" style="margin-bottom:10px"></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Question</th>
+            <th>Mode</th>
+            <th>Diff</th>
+            <th>Served</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="manage-tbody">
+          <tr><td colspan="6" class="empty">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="pagination" id="manage-pagination"></div>
+  </div>
+
+  <!-- ═══ TAB 3: POOL HEALTH ═══ -->
+  <div class="tab-content" id="tab-3">
+    <div class="top-row">
+      <h2>Pool Health — Riddles Available Today</h2>
+      <button class="btn-ghost btn-sm" onclick="loadPool()">↻ Refresh</button>
+    </div>
+    <p class="hint-text" style="margin-bottom:16px">Each cell shows: <strong>remaining / total / served today</strong>. Green = healthy. Yellow = low. Red = critical (under 10).</p>
+    <div class="pool-grid" id="pool-grid">
+      <div class="empty" style="grid-column:1/-1">Loading…</div>
+    </div>
+  </div>
+
+  <!-- ═══ TAB 4: CHAIN SETS ═══ -->
+  <div class="tab-content" id="tab-4">
+    <div class="top-row">
+      <h2>Chain Mode — Riddle Sets</h2>
+      <div style="display:flex;gap:8px">
+        <button class="btn-ghost btn-sm" onclick="loadChainSets()">↻ Refresh</button>
+        <button class="btn-primary btn-sm" onclick="openNewChainModal()">+ New Chain Set</button>
+      </div>
+    </div>
+    <p class="hint-text" style="margin-bottom:16px">
+      Chain mode serves riddles sequentially. Group linked riddles using the same <strong>Family ID</strong>.
+      A user who gets one riddle from a family will never get others from it — so chain sets work as a unit.
+      Each set below is grouped by Family ID.
+    </p>
+    <div id="chain-content">
+      <div class="empty">Loading…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ EDIT MODAL ═══ -->
+<div class="overlay" id="edit-overlay">
+  <div class="modal">
+    <h2>Edit Riddle</h2>
+    <input type="hidden" id="edit-id" />
+    <div class="form-grid">
+      <div class="form-group full">
+        <label>Question</label>
+        <textarea id="edit-question" rows="3"></textarea>
+      </div>
+      <div class="form-group full">
+        <label>Answer</label>
+        <input id="edit-answer" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Game Mode</label>
+        <select id="edit-mode">
+          <option value="arena">Arena</option>
+          <option value="daily">Daily Drop</option>
+          <option value="gauntlet">Gauntlet</option>
+          <option value="chain">Chain</option>
+          <option value="wager">Blind Wager</option>
+          <option value="bounty">Bounty</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Difficulty</label>
+        <select id="edit-diff">
+          <option value="Easy">Easy</option>
+          <option value="Medium">Medium</option>
+          <option value="Hard">Hard</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Options (comma-separated)</label>
+        <input id="edit-options" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Hint</label>
+        <input id="edit-hint" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input id="edit-category" type="text" />
+      </div>
+      <div class="form-group full">
+        <label>Fun Fact</label>
+        <input id="edit-funfact" type="text" />
+      </div>
+      <div class="form-group full">
+        <label>Explanation</label>
+        <textarea id="edit-explanation" rows="2"></textarea>
+      </div>
+      <div class="form-group">
+        <label>Family ID</label>
+        <input id="edit-family" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Custom Timer (seconds)</label>
+        <input id="edit-timer" type="number" />
+      </div>
+      <div class="form-group">
+        <div class="toggle-group">
+          <input type="checkbox" id="edit-onboard" />
+          <label for="edit-onboard" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">Onboarding riddle</label>
+        </div>
+      </div>
+      <div class="form-group">
+        <div class="toggle-group">
+          <input type="checkbox" id="edit-active" />
+          <label for="edit-active" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">Active (shown to players)</label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('edit-overlay')">Cancel</button>
+      <button class="btn-primary" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ NEW CHAIN SET MODAL ═══ -->
+<div class="overlay" id="chain-modal">
+  <div class="modal">
+    <h2>Create New Chain Set</h2>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Set Name / Family ID</label>
+      <input id="chain-family-id" type="text" placeholder="e.g. space-exploration-001" />
+      <p class="hint-text">This ID links all riddles in this chain together. Use a descriptive slug.</p>
+    </div>
+    <div class="form-group" style="margin-bottom:12px">
+      <label>Difficulty for all riddles in this set</label>
+      <select id="chain-diff">
+        <option value="Easy">Easy</option>
+        <option value="Medium">Medium</option>
+        <option value="Hard">Hard</option>
+      </select>
+    </div>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:12px">Add 5 riddles below. All will be tagged as <strong>chain</strong> mode and grouped under this family ID.</p>
+    <div id="chain-riddle-inputs"></div>
+    <button class="btn-ghost btn-sm" onclick="addChainRiddleInput()" style="margin-bottom:12px">+ Add Another Riddle</button>
+    <div id="chain-modal-result"></div>
+    <div class="modal-actions">
+      <button class="btn-ghost" onclick="closeModal('chain-modal')">Cancel</button>
+      <button class="btn-primary" onclick="submitChainSet()">Save Chain Set</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ─── State ──────────────────────────────────────────────────────────────
+  let API = 'http://localhost:3000';
+  let ADMIN_KEY = '';
+  let managePage = 1;
+  let manageTotal = 0;
+  const LIMIT = 20;
+  let currentMaintenance = false;
+
+  // ─── Login ──────────────────────────────────────────────────────────────
+  async function doLogin() {
+    const url = document.getElementById('server-url').value.trim().replace(/\/$/, '');
+    const key = document.getElementById('admin-key').value.trim();
+    const errEl = document.getElementById('login-error');
+    errEl.textContent = 'Connecting…';
+    try {
+      const res = await fetch(`${url}/admin/stats`, { headers: { 'x-admin-secret': key } });
+      const data = await res.json();
+      if (!data.success) { errEl.textContent = 'Wrong admin key.'; return; }
+      API = url;
+      ADMIN_KEY = key;
+      localStorage.setItem('crackl_admin_key', key);
+      localStorage.setItem('crackl_admin_url', url);
+      errEl.textContent = '';
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').classList.add('visible');
+      applyStats(data);
+      loadStats();
+    } catch (e) {
+      errEl.textContent = 'Cannot reach backend. Is the server running?';
+    }
+  }
+
+  function doLogout() {
+    localStorage.removeItem('crackl_admin_key');
+    ADMIN_KEY = '';
+    document.getElementById('app').classList.remove('visible');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('admin-key').value = '';
+  }
+
+  // Auto-login from saved key
+  window.addEventListener('load', () => {
+    const saved = localStorage.getItem('crackl_admin_key');
+    const savedUrl = localStorage.getItem('crackl_admin_url');
+    if (savedUrl) document.getElementById('server-url').value = savedUrl;
+    if (saved) {
+      document.getElementById('admin-key').value = saved;
+      doLogin();
+    }
+    document.getElementById('admin-key').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
+
+  // ─── Tabs ───────────────────────────────────────────────────────────────
+  function switchTab(i) {
+    document.querySelectorAll('.tab').forEach((t, j) => t.classList.toggle('active', i === j));
+    document.querySelectorAll('.tab-content').forEach((c, j) => c.classList.toggle('active', i === j));
+    if (i === 2) loadManage(1);
+    if (i === 3) loadPool();
+    if (i === 4) loadChainSets();
+  }
+
+  // ─── Helpers ────────────────────────────────────────────────────────────
+  function adminHeaders(json = false) {
+    const h = { 'x-admin-secret': ADMIN_KEY };
+    if (json) h['Content-Type'] = 'application/json';
+    return h;
+  }
+
+  function diffBadge(d) {
+    const cls = d === 'Easy' ? 'badge-easy' : d === 'Medium' ? 'badge-medium' : 'badge-hard';
+    return `<span class="badge ${cls}">${d}</span>`;
+  }
+
+  function modeBadge(m) {
+    const labels = { arena: 'Arena', daily: 'Daily', gauntlet: 'Gauntlet', chain: 'Chain', wager: 'Wager', bounty: 'Bounty' };
+    return `<span class="badge badge-mode">${labels[m] || m}</span>`;
+  }
+
+  function timeSince(ts) {
+    if (!ts) return '—';
+    const s = Math.floor((Date.now() - new Date(ts)) / 1000);
+    if (s < 60) return `${s}s ago`;
+    if (s < 3600) return `${Math.floor(s/60)}m ago`;
+    if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+    return `${Math.floor(s/86400)}d ago`;
+  }
+
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // ─── Stats ──────────────────────────────────────────────────────────────
+  async function loadStats() {
+    try {
+      const res = await fetch(`${API}/admin/stats`, { headers: adminHeaders() });
+      const data = await res.json();
+      if (data.success) applyStats(data);
+    } catch {}
+  }
+
+  function applyStats(data) {
+    document.getElementById('s-total').textContent = data.totalRiddles ?? '—';
+    document.getElementById('s-served').textContent = data.servedToday ?? '—';
+    document.getElementById('s-users').textContent = data.activeUsers24h ?? '—';
+    document.getElementById('s-arena').textContent = data.byMode?.arena ?? '—';
+    document.getElementById('s-daily').textContent = data.byMode?.daily ?? '—';
+    document.getElementById('s-gauntlet').textContent = data.byMode?.gauntlet ?? '—';
+    document.getElementById('s-chain').textContent = data.byMode?.chain ?? '—';
+    document.getElementById('s-wager').textContent = data.byMode?.wager ?? '—';
+    document.getElementById('s-bounty').textContent = data.byMode?.bounty ?? '—';
+    document.getElementById('s-easy').textContent = data.byDifficulty?.Easy ?? '—';
+    document.getElementById('s-medium').textContent = data.byDifficulty?.Medium ?? '—';
+    document.getElementById('s-hard').textContent = data.byDifficulty?.Hard ?? '—';
+
+    currentMaintenance = !!data.maintenanceMode;
+    updateMaintUI(currentMaintenance);
+
+    const alerts = data.lowStockAlerts || [];
+    const sec = document.getElementById('alerts-section');
+    const list = document.getElementById('alerts-list');
+    if (alerts.length > 0) {
+      sec.style.display = '';
+      list.innerHTML = alerts.map(a =>
+        `<span class="alert-chip" onclick="switchTab(3)">${a.mode} / ${a.difficulty}: ${a.count} left</span>`
+      ).join('');
+    } else {
+      sec.style.display = 'none';
+    }
+    document.getElementById('last-refresh').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  }
+
+  function updateMaintUI(on) {
+    const badge = document.getElementById('maint-badge');
+    const btn = document.getElementById('maint-toggle-btn');
+    badge.textContent = on ? 'MAINTENANCE' : 'LIVE';
+    badge.className = 'maint-badge ' + (on ? 'maint-on' : 'maint-off');
+    btn.textContent = on ? 'Turn OFF Maintenance' : 'Turn ON Maintenance';
+    btn.className = 'maint-btn ' + (on ? 'on' : 'off');
+  }
+
+  async function toggleMaintenance() {
+    const next = !currentMaintenance;
+    const msg = next
+      ? 'Players will see a "Vault Updating" screen and cannot log in. Continue?'
+      : 'The app will go live again for all players. Continue?';
+    if (!confirm(msg)) return;
+    const msgVal = document.getElementById('maint-msg-input').value.trim();
+    try {
+      await fetch(`${API}/admin/maintenance`, {
+        method: 'POST',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ on: next, message: msgVal || undefined })
+      });
+      currentMaintenance = next;
+      updateMaintUI(next);
+    } catch { alert('Error toggling maintenance mode.'); }
+  }
+
+  async function saveMaintMsg() {
+    const msg = document.getElementById('maint-msg-input').value.trim();
+    if (!msg) return;
+    await fetch(`${API}/admin/maintenance`, {
+      method: 'POST',
+      headers: adminHeaders(true),
+      body: JSON.stringify({ on: currentMaintenance, message: msg })
+    });
+    alert('Message saved.');
+  }
+
+  // ─── Add Single ─────────────────────────────────────────────────────────
+  function clearForm() {
+    ['f-question','f-answer','f-options','f-hint','f-category','f-funfact','f-explanation','f-family','f-timer'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
+    });
+    document.getElementById('f-mode').value = '';
+    document.getElementById('f-diff').value = '';
+    document.getElementById('f-onboard').checked = false;
+    document.getElementById('single-result').textContent = '';
+  }
+
+  async function submitSingle() {
+    const q = document.getElementById('f-question').value.trim();
+    const a = document.getElementById('f-answer').value.trim();
+    const m = document.getElementById('f-mode').value;
+    const d = document.getElementById('f-diff').value;
+    const el = document.getElementById('single-result');
+    if (!q || !a || !m || !d) { el.innerHTML = '<span style="color:var(--red)">Fill in question, answer, mode, and difficulty.</span>'; return; }
+    el.innerHTML = '<span class="spinner"></span>';
+
+    const optRaw = document.getElementById('f-options').value.trim();
+    const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+    const timer = parseInt(document.getElementById('f-timer').value) || null;
+
+    const payload = {
+      riddles: [{
+        question: q, answer: a, game_mode: m, difficulty: d,
+        options: opts,
+        hint: document.getElementById('f-hint').value.trim() || null,
+        category: document.getElementById('f-category').value.trim() || null,
+        fun_fact: document.getElementById('f-funfact').value.trim() || null,
+        explanation: document.getElementById('f-explanation').value.trim() || null,
+        family_id: document.getElementById('f-family').value.trim() || null,
+        panic_time: timer,
+        is_onboarding: document.getElementById('f-onboard').checked
+      }]
+    };
+
+    try {
+      const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.success && data.added > 0) {
+        el.innerHTML = '<span style="color:var(--green)">✓ Riddle added!</span>';
+        clearForm();
+        loadStats();
+      } else {
+        const err = data.results?.[0]?.error || data.error || 'Unknown error';
+        el.innerHTML = `<span style="color:var(--red)">Error: ${err}</span>`;
+      }
+    } catch (e) { el.innerHTML = `<span style="color:var(--red)">Network error</span>`; }
+  }
+
+  // ─── Bulk Upload ─────────────────────────────────────────────────────────
+  async function submitBulk() {
+    const raw = document.getElementById('bulk-json').value.trim();
+    const el = document.getElementById('bulk-result');
+    if (!raw) { el.innerHTML = '<div class="result-banner error">Paste a JSON array first.</div>'; return; }
+
+    let parsed;
+    try { parsed = JSON.parse(raw); } catch { el.innerHTML = '<div class="result-banner error">Invalid JSON. Check your formatting.</div>'; return; }
+    if (!Array.isArray(parsed)) { el.innerHTML = '<div class="result-banner error">Must be a JSON array: [...]</div>'; return; }
+
+    el.innerHTML = `<div class="result-banner info"><span class="spinner"></span> Uploading ${parsed.length} riddles…</div>`;
+
+    try {
+      const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify({ riddles: parsed }) });
+      const data = await res.json();
+      if (!data.success && !data.added) { el.innerHTML = `<div class="result-banner error">Error: ${data.error}</div>`; return; }
+
+      const rows = (data.results || []).map(r =>
+        `<tr>
+          <td style="color:var(--text3);font-size:11px">#${r.index + 1}</td>
+          <td>${r.success ? '<span style="color:var(--green)">✓ Added</span>' : '<span style="color:var(--red)">✗ Failed</span>'}</td>
+          <td style="color:var(--text2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.question || r.error || ''}</td>
+        </tr>`
+      ).join('');
+
+      el.innerHTML = `
+        <div class="result-banner ${data.failed === 0 ? 'success' : 'info'}">
+          ${data.added} added, ${data.failed} failed out of ${parsed.length} riddles.
+        </div>
+        ${rows ? `<div class="table-wrap"><table><thead><tr><th>#</th><th>Status</th><th>Info</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}
+      `;
+      if (data.added > 0) { loadStats(); document.getElementById('bulk-json').value = ''; }
+    } catch (e) { el.innerHTML = '<div class="result-banner error">Network error. Is the server running?</div>'; }
+  }
+
+  // ─── Manage ──────────────────────────────────────────────────────────────
+  async function loadManage(page = 1) {
+    managePage = page;
+    const mode = document.getElementById('mg-mode').value;
+    const diff = document.getElementById('mg-diff').value;
+    const active = document.getElementById('mg-active').value;
+    const search = document.getElementById('mg-search').value.trim();
+
+    const params = new URLSearchParams({ page, limit: LIMIT });
+    if (mode) params.set('mode', mode);
+    if (diff) params.set('difficulty', diff);
+    if (active !== '') params.set('is_active', active);
+
+    const tbody = document.getElementById('manage-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr>';
+
+    try {
+      const res = await fetch(`${API}/admin/riddles?${params}`, { headers: adminHeaders() });
+      const data = await res.json();
+      let riddles = data.riddles || [];
+      manageTotal = data.total || 0;
+
+      // Client-side search filter (backend doesn't support text search)
+      if (search) {
+        const s = search.toLowerCase();
+        riddles = riddles.filter(r => r.question?.toLowerCase().includes(s) || r.answer?.toLowerCase().includes(s));
+      }
+
+      if (riddles.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No riddles found.</td></tr>';
+      } else {
+        tbody.innerHTML = riddles.map(r => `
+          <tr>
+            <td><span class="q-text" title="${(r.question||'').replace(/"/g,'&quot;')}">${r.question || '—'}</span></td>
+            <td>${modeBadge(r.game_mode)}</td>
+            <td>${diffBadge(r.difficulty)}</td>
+            <td style="color:var(--text3)">${r.times_served || 0}</td>
+            <td>
+              ${r.is_active ? '<span class="badge badge-easy">Active</span>' : '<span class="badge badge-inactive">Off</span>'}
+              ${r.is_onboarding ? '<span class="badge badge-onboard" style="margin-left:4px">New</span>' : ''}
+            </td>
+            <td>
+              <div class="actions">
+                <button class="btn-ghost btn-sm" onclick="openEdit(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
+                <button class="btn-danger btn-sm" onclick="deleteRiddle('${r.id}', this)">Del</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+
+      renderPagination(manageTotal, page);
+    } catch {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Error loading riddles.</td></tr>';
+    }
+  }
+
+  function renderPagination(total, current) {
+    const pages = Math.ceil(total / LIMIT);
+    const el = document.getElementById('manage-pagination');
+    if (pages <= 1) { el.innerHTML = `<span style="color:var(--text3)">${total} riddles</span>`; return; }
+    let html = `<span>${total} riddles</span>`;
+    if (current > 1) html += `<button class="btn-ghost btn-sm" onclick="loadManage(${current - 1})">← Prev</button>`;
+    html += `<span>Page ${current} / ${pages}</span>`;
+    if (current < pages) html += `<button class="btn-ghost btn-sm" onclick="loadManage(${current + 1})">Next →</button>`;
+    el.innerHTML = html;
+  }
+
+  async function deleteRiddle(id, btn) {
+    if (!confirm('Delete this riddle? This cannot be undone.')) return;
+    btn.disabled = true; btn.textContent = '…';
+    try {
+      const res = await fetch(`${API}/admin/riddle/${id}`, { method: 'DELETE', headers: adminHeaders() });
+      const data = await res.json();
+      if (data.success) { loadManage(managePage); loadStats(); }
+      else { alert('Delete failed: ' + (data.error || 'Unknown error')); btn.disabled = false; btn.textContent = 'Del'; }
+    } catch { alert('Network error'); btn.disabled = false; btn.textContent = 'Del'; }
+  }
+
+  function openEdit(r) {
+    if (typeof r === 'string') r = JSON.parse(r);
+    document.getElementById('edit-id').value = r.id;
+    document.getElementById('edit-question').value = r.question || '';
+    document.getElementById('edit-answer').value = r.answer || '';
+    document.getElementById('edit-mode').value = r.game_mode || 'arena';
+    document.getElementById('edit-diff').value = r.difficulty || 'Easy';
+    document.getElementById('edit-options').value = Array.isArray(r.options) ? r.options.join(', ') : (r.options || '');
+    document.getElementById('edit-hint').value = r.hint || '';
+    document.getElementById('edit-category').value = r.category || '';
+    document.getElementById('edit-funfact').value = r.fun_fact || '';
+    document.getElementById('edit-explanation').value = r.explanation || '';
+    document.getElementById('edit-family').value = r.family_id || '';
+    document.getElementById('edit-timer').value = r.panic_time || '';
+    document.getElementById('edit-onboard').checked = !!r.is_onboarding;
+    document.getElementById('edit-active').checked = r.is_active !== false;
+    document.getElementById('edit-overlay').classList.add('open');
+  }
+
+  async function saveEdit() {
+    const id = document.getElementById('edit-id').value;
+    const optRaw = document.getElementById('edit-options').value.trim();
+    const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+    const timer = parseInt(document.getElementById('edit-timer').value) || null;
+    const payload = {
+      question: document.getElementById('edit-question').value.trim(),
+      answer: document.getElementById('edit-answer').value.trim(),
+      game_mode: document.getElementById('edit-mode').value,
+      difficulty: document.getElementById('edit-diff').value,
+      options: opts,
+      hint: document.getElementById('edit-hint').value.trim() || null,
+      category: document.getElementById('edit-category').value.trim() || null,
+      fun_fact: document.getElementById('edit-funfact').value.trim() || null,
+      explanation: document.getElementById('edit-explanation').value.trim() || null,
+      family_id: document.getElementById('edit-family').value.trim() || null,
+      panic_time: timer,
+      is_onboarding: document.getElementById('edit-onboard').checked,
+      is_active: document.getElementById('edit-active').checked,
+    };
+    try {
+      const res = await fetch(`${API}/admin/riddle/${id}`, { method: 'PUT', headers: adminHeaders(true), body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.success) { closeModal('edit-overlay'); loadManage(managePage); }
+      else { alert('Save failed: ' + (data.error || 'Unknown')); }
+    } catch { alert('Network error'); }
+  }
+
+  // ─── Pool Health ─────────────────────────────────────────────────────────
+  async function loadPool() {
+    const el = document.getElementById('pool-grid');
+    el.innerHTML = '<div class="empty" style="grid-column:1/-1"><span class="spinner"></span></div>';
+    try {
+      const res = await fetch(`${API}/admin/pool-health`, { headers: adminHeaders() });
+      const data = await res.json();
+      if (!data.success) { el.innerHTML = '<div class="empty">Error loading pool health.</div>'; return; }
+      const modes = ['arena', 'daily', 'gauntlet', 'chain', 'wager', 'bounty'];
+      const modeLabels = { arena: 'Arena', daily: 'Daily Drop', gauntlet: 'Gauntlet', chain: 'Chain', wager: 'Blind Wager', bounty: 'Bounty' };
+      const diffs = ['Easy', 'Medium', 'Hard'];
+      let html = `
+        <div class="pool-cell header"></div>
+        <div class="pool-cell header">Easy</div>
+        <div class="pool-cell header">Medium</div>
+        <div class="pool-cell header">Hard</div>
+      `;
+      modes.forEach(m => {
+        html += `<div class="pool-cell mode-label">${modeLabels[m]}</div>`;
+        diffs.forEach(d => {
+          const cell = data.grid?.[m]?.[d] || { total: 0, servedToday: 0, remaining: 0 };
+          const cls = cell.status === 'LOW' ? 'low' : cell.status === 'WARNING' ? 'warn' : 'ok';
+          const addBtn = cell.status !== 'OK' ? `<div style="margin-top:4px"><button class="btn-ghost btn-sm" style="font-size:10px;padding:2px 6px" onclick="prefillAdd('${m}','${d}')">+ Add</button></div>` : '';
+          html += `
+            <div class="pool-cell ${cls}">
+              <div class="num">${cell.remaining}</div>
+              <div class="sub">${cell.total} total · ${cell.servedToday} served</div>
+              ${cell.onboardingCount ? `<div class="sub">${cell.onboardingCount} onboarding</div>` : ''}
+              ${addBtn}
+            </div>
+          `;
+        });
+      });
+      el.innerHTML = html;
+    } catch { el.innerHTML = '<div class="empty">Error loading pool health.</div>'; }
+  }
+
+  function prefillAdd(mode, diff) {
+    switchTab(1);
+    document.getElementById('f-mode').value = mode;
+    document.getElementById('f-diff').value = diff;
+    document.getElementById('f-question').focus();
+  }
+
+  // ─── Chain Sets ──────────────────────────────────────────────────────────
+  async function loadChainSets() {
+    const el = document.getElementById('chain-content');
+    el.innerHTML = '<div class="empty"><span class="spinner"></span></div>';
+    try {
+      const res = await fetch(`${API}/admin/riddles?mode=chain&limit=200`, { headers: adminHeaders() });
+      const data = await res.json();
+      const riddles = data.riddles || [];
+
+      if (riddles.length === 0) {
+        el.innerHTML = `<div class="empty">No chain riddles yet. Use "Add Riddles" tab to add riddles with game mode = Chain.</div>`;
+        return;
+      }
+
+      // Group by family_id
+      const groups = {};
+      riddles.forEach(r => {
+        const key = r.family_id || '__ungrouped__';
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(r);
+      });
+
+      let html = '';
+      const sortedKeys = Object.keys(groups).sort(a => a === '__ungrouped__' ? 1 : -1);
+      sortedKeys.forEach(key => {
+        const set = groups[key];
+        const isUngrouped = key === '__ungrouped__';
+        const label = isUngrouped ? '(No Family ID — Ungrouped)' : key;
+        const setHtml = set.map((r, i) => `
+          <div class="chain-riddle">
+            <div class="chain-num">${i + 1}</div>
+            <div class="chain-q" title="${(r.question||'').replace(/"/g,'&quot;')}">${r.question || '—'}</div>
+            <div class="chain-ans">${r.answer || ''}</div>
+            <div class="chain-diff">${diffBadge(r.difficulty)}</div>
+            <button class="btn-ghost btn-sm" onclick="openEdit(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
+          </div>
+        `).join('');
+        html += `
+          <div class="chain-set">
+            <div class="chain-set-header">
+              <h3>${label}</h3>
+              <span class="meta">${set.length} riddle${set.length !== 1 ? 's' : ''} · ${set.filter(r => r.is_active).length} active</span>
+            </div>
+            <div class="chain-set-body">${setHtml}</div>
+          </div>
+        `;
+      });
+      el.innerHTML = html;
+    } catch { el.innerHTML = '<div class="empty">Error loading chain sets.</div>'; }
+  }
+
+  let chainInputCount = 0;
+  function addChainRiddleInput() {
+    chainInputCount++;
+    const container = document.getElementById('chain-riddle-inputs');
+    const div = document.createElement('div');
+    div.style.cssText = 'background:#0c0c18;border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:10px';
+    div.innerHTML = `
+      <div style="font-size:11px;font-weight:800;color:var(--text3);margin-bottom:8px;letter-spacing:1px">RIDDLE ${chainInputCount}</div>
+      <div class="form-grid">
+        <div class="form-group full"><label>Question</label><textarea class="chain-q-input" rows="2" placeholder="Riddle question…"></textarea></div>
+        <div class="form-group full"><label>Answer</label><input class="chain-a-input" type="text" placeholder="Answer" /></div>
+        <div class="form-group"><label>Hint</label><input class="chain-h-input" type="text" placeholder="Optional hint" /></div>
+        <div class="form-group"><label>Options (MCQ)</label><input class="chain-o-input" type="text" placeholder="A, B, C, D" /></div>
+      </div>
+    `;
+    container.appendChild(div);
+  }
+
+  function openNewChainModal() {
+    document.getElementById('chain-family-id').value = 'chain-' + Date.now();
+    document.getElementById('chain-diff').value = 'Medium';
+    document.getElementById('chain-riddle-inputs').innerHTML = '';
+    chainInputCount = 0;
+    document.getElementById('chain-modal-result').innerHTML = '';
+    for (let i = 0; i < 5; i++) addChainRiddleInput();
+    document.getElementById('chain-modal').classList.add('open');
+  }
+
+  async function submitChainSet() {
+    const familyId = document.getElementById('chain-family-id').value.trim();
+    const diff = document.getElementById('chain-diff').value;
+    const el = document.getElementById('chain-modal-result');
+    if (!familyId) { el.innerHTML = '<div class="result-banner error">Enter a Family ID for this chain set.</div>'; return; }
+
+    const qInputs = document.querySelectorAll('#chain-riddle-inputs .chain-q-input');
+    const aInputs = document.querySelectorAll('#chain-riddle-inputs .chain-a-input');
+    const hInputs = document.querySelectorAll('#chain-riddle-inputs .chain-h-input');
+    const oInputs = document.querySelectorAll('#chain-riddle-inputs .chain-o-input');
+
+    const riddles = [];
+    for (let i = 0; i < qInputs.length; i++) {
+      const q = qInputs[i].value.trim();
+      const a = aInputs[i].value.trim();
+      if (!q || !a) continue;
+      const optRaw = oInputs[i].value.trim();
+      const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
+      riddles.push({ question: q, answer: a, hint: hInputs[i].value.trim() || null, options: opts, game_mode: 'chain', difficulty: diff, family_id: familyId, is_onboarding: false });
+    }
+
+    if (riddles.length === 0) { el.innerHTML = '<div class="result-banner error">Add at least one riddle.</div>'; return; }
+
+    el.innerHTML = `<div class="result-banner info"><span class="spinner"></span> Saving ${riddles.length} riddles…</div>`;
+    try {
+      const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify({ riddles }) });
+      const data = await res.json();
+      if (data.added > 0) {
+        el.innerHTML = `<div class="result-banner success">✓ ${data.added} riddles saved to chain set "${familyId}".</div>`;
+        setTimeout(() => { closeModal('chain-modal'); loadChainSets(); loadStats(); }, 1200);
+      } else {
+        el.innerHTML = `<div class="result-banner error">Failed: ${data.error || 'Unknown error'}</div>`;
+      }
+    } catch { el.innerHTML = '<div class="result-banner error">Network error.</div>'; }
+  }
+
+  // Close overlay on background click
+  document.querySelectorAll('.overlay').forEach(o => {
+    o.addEventListener('click', e => { if (e.target === o) o.classList.remove('open'); });
+  });
+
+  // Enter key on bulk JSON textarea — don't accidentally submit
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.querySelectorAll('.overlay.open').forEach(o => o.classList.remove('open'));
+  });
+</script>
+</body>
+</html>

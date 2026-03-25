@@ -26,7 +26,7 @@ export default function HomeShell({ user, active, go, update, play, multi, panic
   const navItems = [
     { id: 'home',    icon: Icons.HomeIcon,  label: 'Dashboard',     color: Colors.purple },
     { id: 'board',   icon: Icons.TargetIcon, label: 'Leaderboards',  color: Colors.gold },
-    { id: 'cash',    icon: Icons.CoinIcon,   label: 'Wallet & Cash', color: Colors.emerald },
+    { id: 'cash',    icon: Icons.IntelIcon,   label: 'Wallet & Cash', color: Colors.emerald },
     { id: 'blackmarket', icon: Icons.EyeOffIcon, label: 'Black Market', color: Colors.rose },
     { id: 'profile', icon: Icons.UsersIcon,  label: 'My Profile',    color: Colors.cyan },
   ];
@@ -83,7 +83,7 @@ export default function HomeShell({ user, active, go, update, play, multi, panic
             flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.8)',
             borderRadius: 8, borderWidth: 1, borderColor: panicMode ? 'rgba(255,0,0,0.2)' : 'rgba(255,255,255,0.08)', overflow: 'hidden'}}>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10, borderRightWidth: 1, borderColor: panicMode ? 'rgba(255,0,0,0.15)' : 'rgba(255,255,255,0.08)', flexDirection: 'row', gap: 6, alignItems: 'center' }}>
-              <Icons.CoinIcon size={14} color={Colors.gold} />
+              <Icons.IntelIcon size={14} color={Colors.gold} />
               <Text style={{ color: Colors.gold, fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 13 }}>{(user?.coins ?? 0).toLocaleString()}</Text>
             </View>
             <View style={{ paddingHorizontal: 16, paddingVertical: 10, backgroundColor: Colors.emerald + '12' }}>
@@ -159,7 +159,32 @@ export default function HomeShell({ user, active, go, update, play, multi, panic
 
           <View style={{ flex: 1 }} />
 
-          {/* User Profile / Logout */}
+          {/* Settings */}
+          <TouchableOpacity
+            style={{
+              flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14,
+              borderRadius: 8, marginBottom: 6 }}
+            onPress={() => go('settings')}
+          >
+            <Icons.SettingsIcon size={18} color={Colors.textMuted} />
+            <Text style={{ color: Colors.textMuted, fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: 14, fontWeight: '500', marginLeft: 14, letterSpacing: 0.5 }}>Settings</Text>
+          </TouchableOpacity>
+
+          {/* Admin link — only for admin users */}
+          {user?.is_admin && (
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 14,
+                borderRadius: 8, marginBottom: 10,
+                backgroundColor: 'rgba(124,58,237,0.08)', borderWidth: 1, borderColor: 'rgba(124,58,237,0.25)' }}
+              onPress={() => go('admin')}
+            >
+              <Icons.TerminalIcon size={18} color='#7C3AED' />
+              <Text style={{ color: '#a78bfa', fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: 14, fontWeight: '700', marginLeft: 14, letterSpacing: 0.5 }}>Admin Panel</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Sign Out */}
           <TouchableOpacity
             style={{
               flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 14,

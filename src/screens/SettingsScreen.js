@@ -4,7 +4,7 @@ import Colors from '../theme/colors';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icons from '../components/Icons';
 
-export default function SettingsScreen({ go, update }) {
+export default function SettingsScreen({ user, go, update }) {
   const [toggles, setToggles] = useState({
     panic: false,
     auto: true,
@@ -92,6 +92,7 @@ export default function SettingsScreen({ go, update }) {
         <LinkRow icon={Icons.CopyIcon} label="Edit Alias" />
         <LinkRow icon={Icons.GlobeIcon} label="Edit Sector Logs" />
         <LinkRow icon={Icons.LinkIcon} label="Change Payout Node" />
+        {user?.is_admin && <LinkRow icon={Icons.TerminalIcon} label="God Mode (Admin)" dest={() => go('admin')} />}
       </View>
 
       <SectionTitle title="UI THEME" />

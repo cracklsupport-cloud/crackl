@@ -49,7 +49,7 @@ export default function ChainScreen({ user, go, update }) {
         <Text style={{ color:Colors.emerald, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:13, letterSpacing:1 }}>THE CHAIN {phase==='playing'?`${step+1}/5`:''}</Text>
       </View>
       <View style={{ flexDirection:'row', alignItems:'center', gap:6, paddingHorizontal:12, paddingVertical:8, borderRadius:8, backgroundColor:Colors.gold+'10', borderWidth:1, borderColor:Colors.gold+'30' }}>
-        <Icons.CoinIcon size={14} color={Colors.gold} />
+        <Icons.IntelIcon size={14} color={Colors.gold} />
         <Text style={{ color:Colors.gold, fontFamily:'Share Tech Mono', fontWeight:'800', fontSize:14 }}>{totalCoins}</Text>
       </View>
     </View>
@@ -85,7 +85,7 @@ export default function ChainScreen({ user, go, update }) {
         <Text style={{ color:Colors.gold, fontFamily:'Chakra Petch', fontSize:42, fontWeight:'900', marginTop:24, letterSpacing:2 }}>CHAIN SECURED</Text>
         <Text style={{ color:Colors.textSecondary, fontFamily:'Share Tech Mono', marginTop:16, fontSize:16, letterSpacing:1 }}>ALL 5 NODES DECRYPTED SUCCESSFULLY.</Text>
         <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginTop:32, backgroundColor:Colors.gold+'15', paddingHorizontal:32, paddingVertical:16, borderRadius:12, borderWidth:1, borderColor:Colors.gold+'40' }}>
-          <Icons.CoinIcon size={24} color={Colors.gold} />
+          <Icons.IntelIcon size={24} color={Colors.gold} />
           <Text style={{ color:Colors.gold, fontFamily:'Share Tech Mono', fontSize:36, fontWeight:'900' }}>+{totalCoins}</Text>
         </View>
         <TouchableOpacity style={{ backgroundColor:'rgba(15,15,26,0.6)', paddingVertical:18, paddingHorizontal:48, borderRadius:10, borderWidth:1, borderColor:Colors.borderDefault, marginTop:48}} onPress={() => go('home')}>

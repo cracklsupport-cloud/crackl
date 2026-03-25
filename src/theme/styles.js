@@ -32,7 +32,6 @@ const SharedStyles = StyleSheet.create({
     borderColor: Colors.glassBorder,
     borderRadius: 24,
     padding: 18,
-    ,
     ...Colors.glow.purple,
     shadowOpacity: 0.08,
   },

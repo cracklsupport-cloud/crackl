@@ -72,7 +72,7 @@ export default function BountyBoardScreen({ user, go, update }) {
         <Text style={{ color:Colors.textSecondary, fontFamily:'Cormorant Garamond', marginTop:16, textAlign:'center', lineHeight:24, fontSize:18, fontStyle:'italic' }}>{result.message}</Text>
         
         <View style={{ flexDirection:'row', alignItems:'center', gap:12, marginTop:32, backgroundColor:Colors.gold+'15', paddingHorizontal:32, paddingVertical:16, borderRadius:12, borderWidth:1, borderColor:Colors.gold+'40' }}>
-          <Icons.CoinIcon size={24} color={Colors.gold} />
+          <Icons.IntelIcon size={24} color={Colors.gold} />
           <Text style={{ color:Colors.gold, fontFamily:'Share Tech Mono', fontSize:36, fontWeight:'900' }}>+{(bounty.prize_coins||0).toLocaleString()}</Text>
         </View>
 

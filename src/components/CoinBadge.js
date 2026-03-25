@@ -34,7 +34,7 @@ export default function CoinBadge({ amount, size = 'md', style }) {
       elevation: 4,
       transform: [{ scale: pulse }],
     }, style]}>
-      <Text style={{ fontSize: fontSize + 2, marginRight: 4 }}>🪙</Text>
+      <Text style={{ fontSize: fontSize + 2, marginRight: 4 }}>💾</Text>
       <Text style={{
         color: Colors.gold,
         fontWeight: '900',
