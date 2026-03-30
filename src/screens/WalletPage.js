@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, ScrollView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, ScrollView, useWindowDimensions } from 'react-native';
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
@@ -9,6 +9,8 @@ export default function WalletPage({ user, update }) {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const tiers = [{ c:500,r:40 },{ c:1500,r:160 },{ c:5000,r:800 },{ c:15000,r:2800 }];
+  const { width: winW } = useWindowDimensions();
+  const stackLayout = winW < 900;
 
   async function redeem(t) {
     if (!upi.trim()) { setMsg('Enter your UPI ID first!'); return; }
@@ -28,7 +30,7 @@ export default function WalletPage({ user, update }) {
         <Text style={{ color: Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 24, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>WALLET & FIAT EXCH.</Text>
       </View>
       
-      <View style={{ flexDirection: 'row', gap: 28, alignItems: 'flex-start' }}>
+      <View style={{ flexDirection: stackLayout ? 'column' : 'row', gap: 28, alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
           {/* Balance Card */}
           <View style={{ 
@@ -64,7 +66,7 @@ export default function WalletPage({ user, update }) {
           <Text style={{ color: Colors.textMuted, fontFamily: 'Cormorant Garamond', fontSize: 14, marginTop: 8, fontStyle: 'italic' }}>Transfers are executed within 7 orbital cycles (working days).</Text>
         </View>
         
-        <View style={{ width: 310 }}>
+        <View style={{ width: stackLayout ? '100%' : 310 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <View style={{ width: 3, height: 16, backgroundColor: Colors.gold, borderRadius: 2 }} />
             <Text style={{ color: Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 16, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>Exchange Rates</Text>

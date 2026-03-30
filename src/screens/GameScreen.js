@@ -8,6 +8,19 @@ import { FilmGrainOverlay } from '../components/AtmosphericEffects';
 const { width: W, height: H } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
 
+/* ── Corner Brackets (Arena-style) ── */
+function CornerBrackets() {
+  const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 20 };
+  return (
+    <>
+      <View style={{ ...s, top: 8, left: 8, borderTopWidth: 2, borderLeftWidth: 2 }} />
+      <View style={{ ...s, top: 8, right: 8, borderTopWidth: 2, borderRightWidth: 2 }} />
+      <View style={{ ...s, bottom: 8, left: 8, borderBottomWidth: 2, borderLeftWidth: 2 }} />
+      <View style={{ ...s, bottom: 8, right: 8, borderBottomWidth: 2, borderRightWidth: 2 }} />
+    </>
+  );
+}
+
 /* ── Smoke Wisp for Panic Mode ── */
 function SmokeWisp({ delay, startX }) {
   const ty = useRef(new Animated.Value(0)).current;
@@ -326,6 +339,21 @@ export default function GameScreen({ user, go, update, mode, panicMode }) {
     <View style={{ flex: 1, backgroundColor: bgColor }}>
       {panicMode && <FilmGrainOverlay opacity={0.15} />}
 
+      {/* Cinematic noise overlay — matching Arena.tsx */}
+      {isWeb && (
+        <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 50, opacity: 0.15, mixBlendMode: 'overlay', backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }} />
+      )}
+
+      {/* Crosshair grid lines — matching Arena.tsx */}
+      {isWeb && (
+        <View style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0, alignItems: 'center', justifyContent: 'center' }}>
+          <View style={{ position: 'absolute', width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.05)', top: '33%' }} />
+          <View style={{ position: 'absolute', width: '100%', height: 1, backgroundColor: 'rgba(255,255,255,0.05)', bottom: '33%' }} />
+          <View style={{ position: 'absolute', height: '100%', width: 1, backgroundColor: 'rgba(255,255,255,0.05)', left: '33%' }} />
+          <View style={{ position: 'absolute', height: '100%', width: 1, backgroundColor: 'rgba(255,255,255,0.05)', right: '33%' }} />
+        </View>
+      )}
+
       {/* Web ambient glow */}
       {!panicMode && isWeb && (
         <View style={{ position: 'absolute', top: '5%', right: '3%', width: 500, height: 500, borderRadius: 250, backgroundColor: mCol, opacity: 0.04, pointerEvents: 'none' }} />
@@ -392,14 +420,16 @@ export default function GameScreen({ user, go, update, mode, panicMode }) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* ── Timer Row ── */}
+          {/* ── Timer Row (Arena-style gradient glow) ── */}
           {!result && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 22 }}>
-              <TimerBar tPct={tPct} tCol={tCol} />
-              <Animated.Text style={{
-                color: tCol, fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 22,
-                minWidth: 72, textAlign: 'right', transform: [{ scale: timerPulse }]
-              }}>
+              <View style={{ flex: 1, height: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' }}>
+                <Animated.View style={[{ height: '100%', borderRadius: 4 }, isWeb ? { width: `${tPct * 100}%`, backgroundImage: frozen ? 'linear-gradient(to right, #0891b2, #22d3ee)' : tPct > 0.5 ? 'linear-gradient(to right, #064e3b, #00ffd0)' : tPct > 0.25 ? 'linear-gradient(to right, #78350f, #fbbf24)' : 'linear-gradient(to right, #880000, #ff2a2a)', boxShadow: `0 0 20px ${tCol}80`, transition: 'width 1s linear, box-shadow 0.5s ease' } : { width: `${tPct * 100}%`, backgroundColor: tCol }]} />
+              </View>
+              <Animated.Text style={[
+                { color: tCol, fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 22, minWidth: 72, textAlign: 'right', transform: [{ scale: timerPulse }] },
+                isWeb && timeLeft <= 5 ? { textShadow: '0 0 12px rgba(255,42,42,0.8)', animation: 'pulse 0.5s infinite' } : {}
+              ]}>
                 {frozen ? '❄️ HELD' : `${timeLeft}s`}
               </Animated.Text>
             </View>
@@ -463,11 +493,23 @@ export default function GameScreen({ user, go, update, mode, panicMode }) {
             {riddle?.difficulty ? <DiffChip level={riddle.difficulty} /> : null}
           </View>
 
-          {/* ── Question Card ── */}
-          <View style={{
-            backgroundColor: cardBg, borderRadius: 16, padding: 28,
-            borderWidth: 1, borderColor: cardBorder, marginBottom: 20
-          }}>
+          {/* ── Question Card (Arena-style with security tags) ── */}
+          <View style={[{
+            backgroundColor: cardBg, borderRadius: 24, padding: 28,
+            borderWidth: 1, borderColor: cardBorder, marginBottom: 20,
+            position: 'relative', overflow: 'hidden'
+          }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
+            <CornerBrackets />
+            
+            {/* Security Tags — matching Arena.tsx */}
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Icons.LockIcon size={12} color={panicMode ? Colors.rose : '#00ffd0'} />
+                <Text style={{ fontFamily: 'Share Tech Mono', fontSize: 10, color: panicMode ? Colors.rose : '#00ffd0', letterSpacing: 2, textTransform: 'uppercase' }}>Secure Channel // Encrypted</Text>
+              </View>
+              <Text style={{ fontFamily: 'Share Tech Mono', fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2 }}>ID: RDL_{String(riddle?.id || '???').slice(-3).padStart(3, '0')}</Text>
+            </View>
+            
             <Text style={{ color: Colors.textPrimary, fontFamily: 'Cormorant Garamond', fontSize: 24, fontWeight: '700', lineHeight: 36 }}>
               {riddle?.question}
             </Text>
@@ -537,38 +579,40 @@ export default function GameScreen({ user, go, update, mode, panicMode }) {
                   <Text style={{ color: Colors.gold, fontFamily: 'Share Tech Mono', fontSize: 11, letterSpacing: 0.5 }}>No choices available — type your answer</Text>
                 </View>
               )}
-              <TextInput
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)',
-                  borderRadius: 12, padding: 20, color: Colors.textPrimary, fontFamily: 'Share Tech Mono', fontSize: 16,
-                  minHeight: 100, textAlignVertical: 'top'
-                }}
-                placeholder="Type your answer here..."
-                placeholderTextColor={Colors.textMuted}
-                value={typed}
-                onChangeText={setTyped}
-                editable={!submitting}
-                multiline
-              />
-              <TouchableOpacity
-                style={{
-                  backgroundColor: submitting ? Colors.purple + '60' : Colors.purple,
-                  paddingVertical: 16, borderRadius: 10,
-                  flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10,
-                  borderWidth: 1, borderColor: Colors.purpleLight + '40',
-                  opacity: (!typed.trim() || submitting) ? 0.45 : 1
-                }}
-                onPress={() => typed.trim() && !submitting && submit(typed.trim())}
-                disabled={!typed.trim() || submitting}
-              >
-                {submitting
-                  ? <ActivityIndicator color="#fff" size="small" />
-                  : <>
-                      <Icons.TerminalIcon size={15} color={'#fff'} />
-                      <Text style={{ color: '#fff', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 13, letterSpacing: 1.5 }}>TRANSMIT RESPONSE</Text>
-                    </>
-                }
-              </TouchableOpacity>
+              {/* Arena-style terminal input with >_ prefix */}
+              <View style={[{ position: 'relative' }, isWeb ? { boxShadow: typed ? '0 0 30px rgba(0,255,208,0.08)' : 'none', transition: 'box-shadow 0.3s ease' } : {}]}>
+                <Text style={{ position: 'absolute', left: 20, top: 22, zIndex: 10, fontFamily: 'Share Tech Mono', fontSize: 22, fontWeight: '900', color: panicMode ? Colors.rose : '#00ffd0' }}>{'>_'}</Text>
+                <TextInput
+                  style={[{
+                    backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? (panicMode ? Colors.rose + '60' : '#00ffd060') : 'rgba(255,255,255,0.08)',
+                    borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
+                    color: Colors.textPrimary, fontFamily: 'Share Tech Mono', fontSize: 18, fontWeight: '900',
+                    letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+                  }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? `0 0 15px ${panicMode ? 'rgba(255,42,42,0.15)' : 'rgba(0,255,208,0.15)'}` : 'none' } : {}]}
+                  placeholder="ENTER DECRYPTION KEY..."
+                  placeholderTextColor={Colors.textMuted}
+                  value={typed}
+                  onChangeText={setTyped}
+                  editable={!submitting}
+                />
+                {/* White EXECUTE button — Arena-style */}
+                <TouchableOpacity
+                  style={[{
+                    position: 'absolute', right: 8, top: 8, bottom: 8,
+                    backgroundColor: submitting ? '#666' : '#fff',
+                    paddingHorizontal: 24, borderRadius: 12,
+                    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+                    opacity: (!typed.trim() || submitting) ? 0.5 : 1
+                  }, isWeb ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}]}
+                  onPress={() => typed.trim() && !submitting && submit(typed.trim())}
+                  disabled={!typed.trim() || submitting}
+                >
+                  {submitting
+                    ? <ActivityIndicator color="#000" size="small" />
+                    : <Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Execute</Text>
+                  }
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 

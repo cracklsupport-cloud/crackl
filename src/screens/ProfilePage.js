@@ -1,9 +1,11 @@
 import React from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import Colors from '../theme/colors';
 import Icons from '../components/Icons';
 
 export default function ProfilePage({ user, go }) {
+  const { width: winW } = useWindowDimensions();
+  const stackLayout = winW < 900;
   const xpMap = { Novice:100, Thinker:300, Riddler:600, Mastermind:1000, Genius:2000, Legend:9999 };
   const nextXp = xpMap[user?.level] || 100;
   const xpPct = Math.min(1, (user?.xp??0) / nextXp);
@@ -26,10 +28,10 @@ export default function ProfilePage({ user, go }) {
         <Icons.UserIcon size={22} color={Colors.textPrimary} />
         <Text style={{ color:Colors.textPrimary, fontFamily:'Chakra Petch', fontSize:22, fontWeight:'900', letterSpacing:1, textTransform:'uppercase' }}>Operative Profile</Text>
       </View>
-      <View style={{ flexDirection:'row', gap:28, alignItems:'flex-start', flexWrap:'wrap' }}>
+      <View style={{ flexDirection: stackLayout ? 'column' : 'row', gap:28, alignItems:'flex-start' }}>
         {/* Left — Profile Card */}
-        <View style={{ width:280, minWidth:260 }}>
-          <View style={{ backgroundColor:'rgba(15,15,26,0.6)', borderRadius:16, alignItems:'center', padding:32, borderWidth:1, borderColor:Colors.borderDefault, overflow:'hidden', position:'relative'}}>
+        <View style={{ width: stackLayout ? '100%' : 280 }}>
+          <View style={{ backgroundColor:'rgba(255,255,255,0.02)', borderRadius:16, alignItems:'center', padding:32, borderWidth:1, borderColor:Colors.borderDefault, overflow:'hidden', position:'relative'}}>
             <View style={{ position:'absolute', top:'-20%', left:'-20%', width:200, height:200, borderRadius:100, backgroundColor:Colors.purple, opacity:0.06}} />
             <View style={{ width:80, height:80, borderRadius:20, backgroundColor:Colors.bgBase, borderWidth:2, borderColor:Colors.purple+'40', alignItems:'center', justifyContent:'center' }}>
               <Icons.UserIcon size={44} color={Colors.purple} />
@@ -53,7 +55,7 @@ export default function ProfilePage({ user, go }) {
           {/* Stats Row */}
           <View style={{ flexDirection:'row', gap:8, marginTop:12 }}>
             {[[Icons.IntelIcon,user?.coins??0,'Credits',Colors.gold],[Icons.ZapIcon,user?.streak??0,'Streak',Colors.orange],[Icons.TerminalIcon,user?.xp??0,'Crack Score',Colors.purpleLight]].map(([IconComp,v,lbl,col]) => (
-              <View key={lbl} style={{ flex:1, alignItems:'center', padding:16, backgroundColor:'rgba(15,15,26,0.6)', borderRadius:12, borderWidth:1, borderColor:Colors.borderDefault}}>
+              <View key={lbl} style={{ flex:1, alignItems:'center', padding:16, backgroundColor:'rgba(255,255,255,0.02)', borderRadius:12, borderWidth:1, borderColor:Colors.borderDefault}}>
                 <View style={{ flexDirection:'row', alignItems:'center', gap:6 }}>
                   <IconComp size={14} color={col} />
                   <Text style={{ color:col, fontFamily:'Share Tech Mono', fontSize:16, fontWeight:'900' }}>{v}</Text>
@@ -77,7 +79,7 @@ export default function ProfilePage({ user, go }) {
               return (
                 <View key={i} style={{
                   width:140, padding:24, borderRadius:14,
-                  backgroundColor:'rgba(15,15,26,0.6)', borderWidth:1,
+                  backgroundColor:'rgba(255,255,255,0.02)', borderWidth:1,
                   borderColor:b.earned?b.color+'45':Colors.borderDefault,
                   opacity:b.earned?1:0.3, alignItems:'center'}}>
                   <BadgeIcon size={32} color={b.earned ? b.color : Colors.textMuted} />
@@ -93,7 +95,7 @@ export default function ProfilePage({ user, go }) {
 
       {/* Weekly Brain Profile Link */}
       <TouchableOpacity 
-        style={{ marginTop:32, backgroundColor:'rgba(15,15,26,0.6)', borderRadius:20, padding:24, borderWidth:1, borderColor:Colors.indigo+'40', borderLeftWidth:4, borderLeftColor:Colors.indigo, flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}
+        style={{ marginTop:32, backgroundColor:'rgba(255,255,255,0.02)', borderRadius:20, padding:24, borderWidth:1, borderColor:Colors.indigo+'40', borderLeftWidth:4, borderLeftColor:Colors.indigo, flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}
         onPress={() => go('brainprofile')}
       >
         <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>
@@ -105,7 +107,7 @@ export default function ProfilePage({ user, go }) {
 
       {/* Settings Link */}
       <TouchableOpacity 
-        style={{ marginTop:16, backgroundColor:'rgba(15,15,26,0.6)', borderRadius:20, padding:24, borderWidth:1, borderColor:Colors.borderDefault, flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}
+        style={{ marginTop:16, backgroundColor:'rgba(255,255,255,0.02)', borderRadius:20, padding:24, borderWidth:1, borderColor:Colors.borderDefault, flexDirection:'row', justifyContent:'space-between', alignItems:'center'}}
         onPress={() => go('settings')}
       >
         <View style={{ flexDirection:'row', alignItems:'center', gap:10 }}>

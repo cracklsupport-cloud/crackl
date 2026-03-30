@@ -1,37 +1,54 @@
 import React, { useState } from 'react';
-import { Text, View, TextInput } from 'react-native';
-import { Platform } from 'react-native';
+import { Text, View, TextInput, Platform } from 'react-native';
 
 export const isWeb = Platform.OS === 'web';
 export const BrainImage = require('../../../assets/brain_logo.png');
 
 export const GlassLabel = ({ children }) => (
-  <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#6b7280', fontSize: 10, fontWeight: 'bold', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8, marginTop: 16 }}>{children}</Text>
+  <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 10, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8, marginTop: 16, marginLeft: 4 }}>{children}</Text>
 );
 
-export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, style, onSubmitEditing, icon }) => {
+export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, style, onSubmitEditing, icon, focusColor = '#a855f7' }) => {
   const [isFocused, setIsFocused] = useState(false);
+  
+  // Helper to convert hex to rgba for backgrounds/shadows
+  const hexToRgba = (hex, alpha) => {
+    let r = 0, g = 0, b = 0;
+    if (hex.startsWith('#')) {
+      if (hex.length === 4) { r = parseInt(hex[1]+hex[1],16); g = parseInt(hex[2]+hex[2],16); b = parseInt(hex[3]+hex[3],16); }
+      else if (hex.length === 7) { r = parseInt(hex.substring(1,3),16); g = parseInt(hex.substring(3,5),16); b = parseInt(hex.substring(5,7),16); }
+    }
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+
+  const focusBg = hexToRgba(focusColor, 0.05);
+  const glowShadow = hexToRgba(focusColor, 0.15);
+
   return (
     <View style={[{ position: 'relative', justifyContent: 'center' }, style]}>
       {icon && (
         <View style={{ position: 'absolute', left: 16, zIndex: 10, height: '100%', justifyContent: 'center' }}>
-          {icon}
+          {isFocused && React.isValidElement(icon) 
+            ? React.cloneElement(icon, { style: { ...icon.props.style, color: focusColor } })
+            : icon}
         </View>
       )}
       <TextInput
         style={[{
-          backgroundColor: isFocused ? 'rgba(139, 92, 246, 0.05)' : 'rgba(255, 255, 255, 0.02)',
-          borderWidth: 1,
-          borderColor: isFocused ? '#8b5cf6' : 'rgba(255, 255, 255, 0.08)',
-          borderRadius: 4,
+          backgroundColor: isFocused ? focusBg : '#050505',
+          borderWidth: 2,
+          borderColor: isFocused ? focusColor : 'rgba(255, 255, 255, 0.1)',
+          borderRadius: 12,
           paddingVertical: 16,
           paddingLeft: icon ? 48 : 16,
           paddingRight: 16,
           color: '#ffffff',
           fontSize: 14,
           fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
+          letterSpacing: 1,
           outlineStyle: 'none',
-        }, isFocused && isWeb ? { boxShadow: '0 0 15px rgba(139, 92, 246, 0.2)' } : {}]}
+          transition: 'all 0.3s ease',
+        }, isFocused && isWeb ? { boxShadow: `0 0 15px ${glowShadow}` } : {}]}
         placeholder={placeholder}
         placeholderTextColor="#4b5563"
         value={value}

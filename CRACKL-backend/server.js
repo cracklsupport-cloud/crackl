@@ -2,7 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
-const { checkTypedAnswer } = require('./gemini');
+const { checkTypedAnswer, model: geminiModel } = require('./gemini');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -27,6 +27,22 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
       pass: process.env.EMAIL_PASS
     }
   });
+}
+
+// Safe answer comparison — avoids false positives from overly loose substring matching
+function isAnswerCorrect(userAnswer, correctAnswer) {
+  const u = (userAnswer || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  const c = (correctAnswer || '').toLowerCase().trim().replace(/\s+/g, ' ');
+  if (!u || u === '__timeout__') return false;
+  if (u === c) return true;
+  // Strip punctuation and compare again
+  const uClean = u.replace(/[^a-z0-9 ]/g, '');
+  const cClean = c.replace(/[^a-z0-9 ]/g, '');
+  if (uClean === cClean) return true;
+  // Allow user answer to be a meaningful substring of correct answer (e.g. "einstein" ⊂ "albert einstein")
+  // Require at least 3 chars to avoid single-letter false positives
+  if (u.length >= 3 && cClean.includes(uClean)) return true;
+  return false;
 }
 
 function calculateLevel(xp) {
@@ -573,9 +589,7 @@ app.post('/answer', async (req, res) => {
     if (mode === 'type') {
       isCorrect = await checkTypedAnswer(userAnswer, riddle.answer, riddle.question || '');
     } else {
-      const u = (userAnswer || '').toLowerCase().trim();
-      const c = (riddle.answer || '').toLowerCase().trim();
-      isCorrect = u === c || u.includes(c) || c.includes(u);
+      isCorrect = isAnswerCorrect(userAnswer, riddle.answer);
     }
     console.log(`${isCorrect ? '✅ CORRECT' : '❌ WRONG'} | User: "${userAnswer}" | Correct: "${riddle.answer}"`);
 
@@ -751,6 +765,7 @@ app.post('/auth/login', async (req, res) => {
 
     delete user.password_hash;
     delete user.reset_token;
+    delete user.verification_token;
 
     res.json({ success: true, user, token });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -790,6 +805,7 @@ app.post('/auth/oauth', async (req, res) => {
     const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
     delete user.password_hash;
     delete user.reset_token;
+    delete user.verification_token;
 
     res.json({ success: true, user, token });
   } catch (error) {
@@ -859,7 +875,7 @@ app.post('/user/create', async (req, res) => {
   try {
     const { id, username, city, area } = req.body;
     const { data, error } = await supabase.from('users')
-      .upsert({ id, username, city, area, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0, is_admin: false }, { onConflict: 'id' })
+      .upsert({ id, username, city, area, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0 }, { onConflict: 'id', ignoreDuplicates: true })
       .select().single();
     if (error) throw error;
     res.json({ success: true, user: data });
@@ -949,9 +965,7 @@ app.post('/room/answer', async (req, res) => {
     const { roomId, userId, userAnswer, timeTaken } = req.body;
     const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
     const { data: riddle } = await supabase.from('riddles').select('id, answer, difficulty, question').eq('id', room.current_riddle_id).single();
-    const u = (userAnswer || '').toLowerCase().trim();
-    const c = (riddle.answer || '').toLowerCase().trim();
-    const isCorrect = u === c || u.includes(c) || c.includes(u);
+    const isCorrect = isAnswerCorrect(userAnswer, riddle.answer);
     const coinsEarned = isCorrect ? (riddle.difficulty === 'Easy' ? 10 : riddle.difficulty === 'Medium' ? 25 : 50) : 0;
     await supabase.from('room_players').update({ answered: true, answer: userAnswer, is_correct: isCorrect, coins_earned: coinsEarned }).eq('room_id', roomId).eq('user_id', userId);
     if (isCorrect) {
@@ -1005,7 +1019,8 @@ app.post('/cashback', async (req, res) => {
     const tier = tiers.find(t => t.coins === coinsToRedeem);
     if (!tier) return res.json({ success: false, error: 'Invalid tier' });
     const { data: user } = await supabase.from('users').select('coins').eq('id', userId).single();
-    if (!user || (user.coins || 0) < coinsToRedeem) return res.json({ success: false, error: 'Not enough coins' });
+    const coinsNum = parseInt(coinsToRedeem) || 0;
+    if (!user || (user.coins || 0) < coinsNum) return res.json({ success: false, error: 'Not enough coins' });
     
     // Concurrent optimistic lock
     const { data: updated, error: updateErr } = await supabase.from('users')
@@ -1095,7 +1110,6 @@ app.post('/chain/start', checkMaintenance, async (req, res) => {
       totalSteps: 5,
       currentStep: 0,
       riddle: { id: riddles[0].id, question: riddles[0].question, options: riddles[0].options, category: riddles[0].category, difficulty: riddles[0].difficulty, hint: riddles[0].hint },
-      chainAnswers: riddles.map(r => r.answer),
       chainRiddleIds: riddles.map(r => r.id)
     });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
@@ -1105,9 +1119,7 @@ app.post('/chain/answer', async (req, res) => {
   try {
     const { userId, chainId, step, riddleId, userAnswer } = req.body;
     const { data: riddle } = await supabase.from('riddles').select('answer, difficulty').eq('id', riddleId).single();
-    const u = (userAnswer || '').toLowerCase().trim();
-    const c = (riddle.answer || '').toLowerCase().trim();
-    const isCorrect = u === c || u.includes(c) || c.includes(u);
+    const isCorrect = isAnswerCorrect(userAnswer, riddle.answer);
 
     if (!isCorrect) return res.json({ success: true, isCorrect: false, correctAnswer: riddle.answer, message: 'Chain broken! Try again.' });
 
@@ -1133,10 +1145,14 @@ app.post('/wager/settle', checkMaintenance, async (req, res) => {
     const { userId, wageredCoins, isCorrect } = req.body;
     if (!userId || wageredCoins == null) return res.status(400).json({ success: false, error: 'Missing fields' });
 
+    const wager = Math.abs(parseInt(wageredCoins) || 0);
+    if (wager <= 0) return res.status(400).json({ success: false, error: 'Invalid wager amount' });
+
     const { data: user } = await supabase.from('users').select('coins').eq('id', userId).single();
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+    if (!isCorrect && (user.coins || 0) < wager) return res.json({ success: false, error: 'Not enough coins to cover the wager' });
 
-    const delta = isCorrect ? Math.abs(wageredCoins) : -Math.abs(wageredCoins);
+    const delta = isCorrect ? wager : -wager;
     const newCoins = Math.max(0, (user.coins || 0) + delta);
     await supabase.from('users').update({ coins: newCoins }).eq('id', userId);
 
@@ -1166,9 +1182,6 @@ app.post('/lifeline/oracle', async (req, res) => {
       
     if (updateErr || !updated) return res.json({ success: false, error: 'Transaction overlap. Please try again.' });
 
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     const prompt = `You are The Oracle — a mysterious AI entity in a riddle game.
 Riddle: "${riddleQuestion}"
 The correct answer is: "${riddle.answer}"
@@ -1176,7 +1189,7 @@ The correct answer is: "${riddle.answer}"
 Generate ONE cryptic, poetic, mysterious hint. DO NOT reveal the answer directly.
 Be like a prophecy — metaphorical, mystical. Max 2 sentences. Make it feel powerful and rare.`;
 
-    const result = await model.generateContent(prompt);
+    const result = await geminiModel.generateContent(prompt);
     const oracleHint = result.response.text().trim();
 
     console.log(`🔮 Oracle | ${userId} | ${riddleId}`);
@@ -1235,9 +1248,7 @@ app.post('/bounty/attempt', async (req, res) => {
     const { data: bounty } = await supabase.from('bounty_board').select('*').eq('id', bountyId).single();
     if (!bounty || bounty.solved_by) return res.json({ success: false, error: bounty?.solved_by ? `Already solved by ${bounty.solved_by}!` : 'Bounty not found' });
 
-    const u = (userAnswer || '').toLowerCase().trim();
-    const c = (bounty.answer || '').toLowerCase().trim();
-    const isCorrect = u === c || u.includes(c) || c.includes(u);
+    const isCorrect = isAnswerCorrect(userAnswer, bounty.answer);
 
     if (!isCorrect) return res.json({ success: true, isCorrect: false, message: 'Incorrect! Keep trying...' });
 
@@ -1273,16 +1284,13 @@ app.get('/profile/brain-report/:userId', async (req, res) => {
     const correct = solved?.filter(s => s.was_correct).length || 0;
     const accuracy = total > 0 ? Math.round((correct / total) * 100) : 0;
 
-    const { GoogleGenerativeAI } = require('@google/generative-ai');
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
     const prompt = `You are a world-class cognitive analyst for CRACKL riddle arena.
 Player: ${user?.username || 'Unknown'} | Level: ${user?.level} | XP: ${user?.xp} | Streak: ${user?.streak} days
 This week: ${total} riddles attempted, ${correct} correct (${accuracy}% accuracy)
 
 Write a personalized 3-sentence cognitive "Brain Report Card". Be like a genius mentor — insightful, motivating, specific.
 Tell them their cognitive strengths, one weakness to work on, and a bold prediction for their future. NO markdown.`;
-    const result = await model.generateContent(prompt);
+    const result = await geminiModel.generateContent(prompt);
     const narrative = result.response.text().trim();
 
     res.json({ success: true, report: { total, correct, accuracy, narrative, weekStreak: user?.streak || 0, level: user?.level } });

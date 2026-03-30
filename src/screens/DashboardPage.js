@@ -1,479 +1,328 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Animated, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Animated, Platform, useWindowDimensions, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import Colors from '../theme/colors';
 import Icons from '../components/Icons';
-import { FilmGrainOverlay } from '../components/AtmosphericEffects';
-import { runPanicActivationSequence, runPanicDeactivation } from '../components/PanicModeOrchestrator';
 
 const isWeb = Platform.OS === 'web';
+const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
+const grotesk = isWeb ? '"Space Grotesk", sans-serif' : undefined;
+const BrainImage = require('../../assets/brain_logo.png');
 
-function ArenaCard({ icon: IconComp, iconBg, iconGlow, title, desc, cta, ctaColor, onPress, panicMode }) {
+/* ── Corner Brackets ── */
+function CornerBrackets() {
+  const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 10 };
   return (
-    <TouchableOpacity
-      {...(isWeb && { dataSet: { card: '' } })}
-      style={{
-        backgroundColor: isWeb ? 'rgba(15,15,26,0.85)' : Colors.cardSurface,
-        borderRadius: 12,
-        padding: 20,
-        borderWidth: 1,
-        borderColor: panicMode ? 'rgba(255,0,0,0.25)' : 'rgba(255,255,255,0.08)',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-      }}
-      onPress={onPress}
-      activeOpacity={0.75}
-    >
-      <View style={{
-        width: 52,
-        height: 52,
-        borderRadius: 10,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: iconBg,
-        borderWidth: 1,
-        borderColor: (iconGlow || ctaColor) + '30',
-      }}>
-        <IconComp size={24} color={ctaColor || Colors.textPrimary} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={{
-          color: Colors.textPrimary,
-          fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-          fontSize: 16,
-          fontWeight: '700',
-          marginBottom: 6,
-          letterSpacing: 0.5,
-        }}>{title}</Text>
-        <Text style={{
-          color: Colors.textSecondary,
-          fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-          fontSize: 13,
-          lineHeight: 18,
-          flexShrink: 1,
-        }}>{desc}</Text>
-      </View>
-      <Text style={{
-        color: panicMode ? Colors.rose : ctaColor,
-        fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-        fontWeight: '800',
-        fontSize: 12,
-        letterSpacing: 1,
-        paddingLeft: 8,
-        textTransform: 'uppercase',
-      }}>{cta} ›</Text>
-    </TouchableOpacity>
+    <>
+      <View style={{ ...s, top: 8, left: 8, borderTopWidth: 2, borderLeftWidth: 2 }} />
+      <View style={{ ...s, top: 8, right: 8, borderTopWidth: 2, borderRightWidth: 2 }} />
+      <View style={{ ...s, bottom: 8, left: 8, borderBottomWidth: 2, borderLeftWidth: 2 }} />
+      <View style={{ ...s, bottom: 8, right: 8, borderBottomWidth: 2, borderRightWidth: 2 }} />
+    </>
   );
 }
 
-function QuickCard({ icon: IconComp, label, sub, accent, onPress, panicMode }) {
+/* ── Arena Card (Row-style, matching ArenaGrid.tsx) ── */
+function ArenaCard({ icon: IconComp, iconColor, title, subtitle, action, onPress, panicMode }) {
+  const [hovered, setHovered] = useState(false);
+  const accent = panicMode ? '#ff2a2a' : iconColor;
+  const hoverBg = panicMode ? 'rgba(255,42,42,0.08)' : 'rgba(99,102,241,0.08)';
   return (
     <TouchableOpacity
-      {...(isWeb && { dataSet: { card: '' } })}
-      style={{
-        width: '47%',
-        backgroundColor: isWeb ? 'rgba(15,15,26,0.85)' : Colors.cardSurface,
-        borderRadius: 12,
-        padding: 18,
-        borderWidth: 1,
-        borderColor: panicMode ? 'rgba(255,0,0,0.2)' : (accent ? Colors.purple + '40' : 'rgba(255,255,255,0.08)'),
-        ...(accent && !panicMode ? { backgroundColor: Colors.purple + '08' } : {}),
-      }}
       onPress={onPress}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       activeOpacity={0.7}
+      style={[{
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+        padding: 20, borderRadius: 12,
+        backgroundColor: hovered ? hoverBg : 'rgba(10,10,12,0.4)',
+        borderWidth: 1, borderColor: panicMode ? 'rgba(255,42,42,0.2)' : 'rgba(255,255,255,0.08)',
+        overflow: 'hidden', position: 'relative',
+      }, isWeb ? { backdropFilter: 'blur(12px)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}
     >
-      <IconComp size={20} color={accent ? Colors.purpleLight : Colors.textPrimary} />
-      <Text style={{
-        color: accent ? Colors.purpleLight : Colors.textPrimary,
-        fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-        fontWeight: '700',
-        fontSize: 14,
-        marginTop: 12,
-        letterSpacing: 0.5,
-      }}>{label}</Text>
-      <Text style={{
-        color: Colors.textMuted,
-        fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-        fontSize: 11,
-        marginTop: 4,
-      }}>{sub}</Text>
+      {/* Background glow on hover */}
+      {isWeb && <View style={{ position: 'absolute', inset: 0, backgroundColor: hovered ? (panicMode ? 'rgba(255,42,42,0.05)' : 'rgba(99,102,241,0.05)') : 'transparent', transition: 'background-color 0.3s ease' }} />}
+      
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, zIndex: 10 }}>
+        <View style={[{
+          width: 48, height: 48, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1,
+          borderColor: panicMode ? 'rgba(255,42,42,0.2)' : 'rgba(255,255,255,0.08)',
+        }, isWeb ? { boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.3)' } : {}]}>
+          <IconComp size={24} color={panicMode ? '#ff4444' : iconColor} />
+        </View>
+        <View>
+          <Text style={{ fontFamily: grotesk, fontSize: 14, fontWeight: '900', color: panicMode ? '#fecaca' : '#e2e8f0', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>{title}</Text>
+          <Text style={{ fontFamily: mono, fontSize: 11, color: '#64748b', letterSpacing: 0.5 }}>{subtitle}</Text>
+        </View>
+      </View>
+
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, zIndex: 10 }}>
+        <Text style={[{ fontFamily: mono, fontSize: 11, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', color: panicMode ? '#dc2626' : '#6366f1' }, isWeb && hovered ? { color: panicMode ? '#ff4444' : '#818cf8' } : {}]}>{action}</Text>
+        <Text style={[{ fontFamily: mono, fontSize: 14, color: panicMode ? '#dc2626' : '#6366f1', opacity: hovered ? 1 : 0 }, isWeb ? { transform: hovered ? 'translateX(0px)' : 'translateX(-10px)', transition: 'all 0.3s ease' } : {}]}>→</Text>
+      </View>
     </TouchableOpacity>
   );
 }
 
+/* ═══ MAIN DASHBOARD ═══ */
 export default function DashboardPage({ user, play, multi, go, panicMode, setPanicMode }) {
-  const [isActivating, setIsActivating] = useState(false);
-  const featPulse = useRef(new Animated.Value(0.06)).current;
+  const { width: winW } = useWindowDimensions();
+  const isMobile = winW < 800;
+  const themeAccent = panicMode ? '#ff2a2a' : '#00ffd0';
+
+  const [heroHover, setHeroHover] = useState(false);
+  const tickerAnim = useRef(new Animated.Value(0)).current;
+  const spinAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(featPulse, { toValue: 0.12, duration: 2500, useNativeDriver: true }),
-        Animated.timing(featPulse, { toValue: 0.06, duration: 2500, useNativeDriver: true }),
-      ])
-    ).start();
+    Animated.loop(Animated.timing(tickerAnim, { toValue: -1000, duration: 20000, useNativeDriver: true })).start();
+    Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 4000, useNativeDriver: true })).start();
   }, []);
 
-  const handlePanicToggle = () => {
-    if (isActivating) return;
-    if (!panicMode) {
-      setIsActivating(true);
-      runPanicActivationSequence(() => {
-        setPanicMode(true);
-        setIsActivating(false);
-      });
-    } else {
-      runPanicDeactivation();
-      setPanicMode(false);
-    }
-  };
+  const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
-  const cardBg = panicMode ? 'rgba(20,0,0,0.9)' : 'rgba(15,15,26,0.85)';
-  const cardBorder = panicMode ? 'rgba(255,0,0,0.35)' : 'rgba(255,255,255,0.08)';
+  /* ── Real user data ── */
+  const lvl = Math.floor((user?.xp ?? 0) / 50) + 1;
+  const winRate = user?.gamesPlayed > 0 ? ((user?.gamesWon || 0) / user.gamesPlayed * 100).toFixed(1) + '%' : '--';
+  const bestStreak = user?.streak ?? 0;
+  const totalPlayed = user?.gamesPlayed ?? 0;
+
+  /* ── All 8 game modes ── */
+  const gameArenas = [
+    { icon: Icons.ActivityIcon, iconColor: '#22d3ee', title: 'Standard Queue', subtitle: 'Classic unranked matchmaking', action: 'Play Now', onPress: () => play('mcq') },
+    { icon: Icons.ZapIcon, iconColor: '#fbbf24', title: 'Brain Blast', subtitle: 'Speed-focused cognitive trials', action: 'Play For', onPress: () => play('type') },
+    { icon: Icons.CrosshairIcon, iconColor: '#818cf8', title: 'Ranked 1v1', subtitle: 'Compete for global ELO', action: 'Find Match', onPress: () => multi() },
+    { icon: Icons.ClockIcon, iconColor: '#34d399', title: 'Daily Drop', subtitle: 'New challenge every 24h', action: 'Play', onPress: () => go('daily') },
+  ];
+
+  const specialArenas = [
+    { icon: Icons.ShieldIcon, iconColor: '#f97316', title: 'Gauntlet', subtitle: 'Survive as long as possible', action: 'Enter', onPress: () => go('gauntlet') },
+    { icon: Icons.LinkIcon, iconColor: '#ec4899', title: 'The Chain', subtitle: 'Connected nodes & lore', action: 'Unlock', onPress: () => go('chain') },
+    { icon: Icons.EyeOffIcon, iconColor: '#ef4444', title: 'Blind Wager', subtitle: 'Risk coins on unknown puzzles', action: 'Wager', onPress: () => go('wager') },
+    { icon: Icons.FlameIcon, iconColor: '#eab308', title: 'Bounty Board', subtitle: 'Crowdfund high-reward cases', action: 'Hunt', onPress: () => go('bounty') },
+  ];
+
+  /* ── Background stripes ── */
+  const stripeStyle = isWeb ? {
+    backgroundImage: panicMode
+      ? 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,0,0,0.05) 10px, rgba(255,0,0,0.05) 20px)'
+      : 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(255,255,255,0.02) 10px, rgba(255,255,255,0.02) 20px)'
+  } : {};
 
   return (
-    <ScrollView
-      contentContainerStyle={{ padding: 28, paddingBottom: 60, backgroundColor: 'transparent' }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={{ flexDirection: 'row', gap: 20, alignItems: 'flex-start' }}>
-        {/* ═══ MAIN COLUMN ═══ */}
-        <View style={{ flex: 1, minWidth: 0 }}>
-          {/* Featured Event Card */}
-          <View
-            {...(isWeb && { dataSet: { card: '' } })}
-            style={{
-              borderRadius: 14,
-              padding: 32,
-              overflow: 'hidden',
-              borderWidth: 1.5,
-              borderColor: panicMode ? 'rgba(255,0,0,0.4)' : 'rgba(168,85,247,0.25)',
-              backgroundColor: cardBg,
-              position: 'relative',
-            }}
-          >
-            <FilmGrainOverlay opacity={0.05} />
-            <Animated.View
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundColor: panicMode ? '#8B0000' : Colors.purple,
-                opacity: featPulse,
-              }}
-            />
-            <View
-              style={{
-                position: 'absolute',
-                top: '-30%',
-                right: '-15%',
-                width: 300,
-                height: 300,
-                borderRadius: 150,
-                backgroundColor: panicMode ? 'rgba(255,0,0,0.15)' : Colors.purple,
-                opacity: 0.12,
-              }}
-            />
+    <ScrollView contentContainerStyle={{ paddingHorizontal: isMobile ? 12 : 0, paddingBottom: 100 }} showsVerticalScrollIndicator={false}>
+      <View style={{ flexDirection: isMobile ? 'column' : 'row', gap: 24 }}>
 
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12, zIndex: 1 }}>
-              <View style={{
-                backgroundColor: panicMode ? 'rgba(255,0,0,0.2)' : Colors.purple + '20',
-                borderWidth: 1,
-                borderColor: panicMode ? 'rgba(255,80,80,0.5)' : Colors.purple + '45',
-                paddingHorizontal: 14,
-                paddingVertical: 6,
-                borderRadius: 6,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-              }}>
-                <Icons.ZapIcon size={12} color={panicMode ? Colors.rose : Colors.purpleLight} />
-                <Text style={{
-                  color: panicMode ? Colors.rose : Colors.purpleLight,
-                  fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-                  fontWeight: '900',
-                  fontSize: 10,
-                  letterSpacing: 2,
-                }}>MAJOR EVENT</Text>
+        {/* ══════════ LEFT SIDEBAR ══════════ */}
+        <View style={{ width: isMobile ? '100%' : 288, gap: 24 }}>
+          
+          {/* Profile Card */}
+          <View style={[{
+            borderRadius: 24, padding: 4,
+            backgroundColor: 'rgba(10,10,12,0.6)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden'
+          }, isWeb ? { backdropFilter: 'blur(20px)' } : {}]}>
+            <View style={[{
+              borderRadius: 22, backgroundColor: '#050505', padding: 24, height: isMobile ? undefined : 400,
+              flexDirection: 'column', position: 'relative', overflow: 'hidden'
+            }, stripeStyle]}>
+              
+              <Text style={{ position: 'absolute', top: 16, right: 16, fontFamily: mono, fontSize: 8, color: 'rgba(255,255,255,0.3)', letterSpacing: 2 }}>USR_ID_{user?.id || '0911'}</Text>
+              
+              <View style={{ position: 'absolute', bottom: 16, left: 16, flexDirection: 'row', gap: 4 }}>
+                {[1,2,3,4].map(i => (
+                  <View key={i} style={{ width: 4, height: 12, backgroundColor: i === 4 ? 'rgba(255,255,255,0.1)' : themeAccent, opacity: 0.8 }} />
+                ))}
               </View>
-              <View style={{
-                backgroundColor: 'rgba(0,0,0,0.5)',
-                paddingHorizontal: 12,
-                paddingVertical: 6,
-                borderRadius: 6,
-                borderWidth: 1,
-                borderColor: cardBorder,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-              }}>
-                <Icons.TimerIcon size={12} color={Colors.textMuted} />
-                <Text style={{
-                  color: Colors.textMuted,
-                  fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-                  fontSize: 10,
-                  fontWeight: '800',
-                  letterSpacing: 1,
-                }}>ENDS IN 2H 45M</Text>
-              </View>
-            </View>
 
-            <Text style={{
-              color: Colors.textPrimary,
-              fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-              fontSize: 34,
-              fontWeight: '900',
-              lineHeight: 42,
-              marginBottom: 14,
-              marginTop: 16,
-              letterSpacing: -0.5,
-              zIndex: 1,
-              textTransform: 'uppercase',
-            }}>
-              Weekend Clash{'\n'}
-              <Text style={{ color: panicMode ? Colors.rose : Colors.cyan }}>Arena</Text>
-            </Text>
-            <Text style={{
-              color: Colors.textSecondary,
-              fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-              fontSize: 15,
-              lineHeight: 22,
-              maxWidth: 420,
-              fontWeight: '500',
-              zIndex: 1,
-            }}>
-              Compete against the top 100 players globally.{'\n'}Prize Pool: ₹50,000.
-            </Text>
-
-            <TouchableOpacity
-              style={{
-                backgroundColor: panicMode ? Colors.rose : Colors.textPrimary,
-                paddingHorizontal: 24,
-                paddingVertical: 14,
-                borderRadius: 8,
-                marginTop: 24,
-                alignSelf: 'flex-start',
-                zIndex: 1,
-              }}
-              onPress={() => play('mcq')}
-            >
-              <Text style={{
-                color: panicMode ? '#fff' : Colors.bgBase,
-                fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-                fontWeight: '900',
-                fontSize: 13,
-                letterSpacing: 1,
-              }}>ENTER FOR 100 Intel →</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Game Arenas */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 32, marginBottom: 16 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <View style={{ width: 3, height: 16, backgroundColor: panicMode ? Colors.rose : Colors.purple, borderRadius: 2 }} />
-              <Text style={{
-                color: Colors.textPrimary,
-                fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-                fontSize: 18,
-                fontWeight: '900',
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-              }}>Game Arenas</Text>
-            </View>
-            <TouchableOpacity onPress={multi} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={{ color: panicMode ? Colors.rose : Colors.purple, fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontWeight: '800', fontSize: 12, letterSpacing: 1 }}>BROWSE LOBBIES ›</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={{ gap: 10 }}>
-            <ArenaCard icon={Icons.TerminalIcon} iconBg={Colors.cyan + '15'} title="Standard Queue" desc="Solve riddles solo. Farm Coins at your pace." cta="PLAY NOW" ctaColor={Colors.cyan} onPress={() => play('mcq')} panicMode={panicMode} />
-            <ArenaCard icon={Icons.DatabaseIcon} iconBg={Colors.purple + '15'} title="Brain Blast" desc="Type answers. AI validates. Earn 1.5× coins." cta="PLAY NOW" ctaColor={Colors.purple} onPress={() => play('type')} panicMode={panicMode} />
-            <ArenaCard icon={Icons.SwordsIcon} iconBg={Colors.gold + '15'} title="Ranked 1v1" desc="Competitive matchmaking. Wager real cash." cta="FIND MATCH" ctaColor={Colors.gold} onPress={multi} panicMode={panicMode} />
-          </View>
-
-          {/* Special Arenas */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 32, marginBottom: 16 }}>
-            <View style={{ width: 3, height: 16, backgroundColor: Colors.rose, borderRadius: 2 }} />
-            <Text style={{
-              color: Colors.textPrimary,
-              fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-              fontSize: 18,
-              fontWeight: '900',
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-            }}>Special Arenas</Text>
-          </View>
-
-          <View style={{ gap: 10 }}>
-            <ArenaCard icon={Icons.SunIcon} iconBg={Colors.gold + '15'} title="Daily Drop" desc="One legendary riddle per day. Keep your streak alive." cta="PLAY" ctaColor={Colors.gold} onPress={() => go('daily')} panicMode={panicMode} />
-            <ArenaCard icon={Icons.BombIcon} iconBg={Colors.rose + '15'} title="Gauntlet — Rapid Fire" desc="10 riddles back to back. No breaks. No mercy." cta="ENTER" ctaColor={Colors.rose} onPress={() => go('gauntlet')} panicMode={panicMode} />
-            <ArenaCard icon={Icons.LinkIcon} iconBg={Colors.emerald + '15'} title="The Chain" desc="5 linked riddles — each answer is the next clue." cta="UNLOCK" ctaColor={Colors.emerald} onPress={() => go('chain')} panicMode={panicMode} />
-            <ArenaCard icon={Icons.DiceIcon} iconBg={Colors.fuchsia + '15'} title="Blind Wager" desc="Bet before you see the riddle. High risk, high reward." cta="WAGER" ctaColor={Colors.fuchsia} onPress={() => go('wager')} panicMode={panicMode} />
-            <ArenaCard icon={Icons.TrophyIcon} iconBg={Colors.gold + '20'} title="The Bounty Board" desc="Weekly riddle. First solver wins the 5,000 coin prize." cta="HUNT" ctaColor={Colors.gold} onPress={() => go('bounty')} panicMode={panicMode} />
-          </View>
-
-          {/* Panic Mode Toggle — Cinematic mechanical switch */}
-          <View
-            {...(isWeb && { dataSet: { card: '' } })}
-            style={{
-              marginTop: 24,
-              padding: 20,
-              borderRadius: 12,
-              backgroundColor: panicMode ? 'rgba(26,0,0,0.95)' : cardBg,
-              borderWidth: 1.5,
-              borderColor: panicMode ? 'rgba(255,0,0,0.5)' : cardBorder,
-              flexDirection: 'row',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}
-          >
-            <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-              <Icons.AlertTriangleIcon size={28} color={panicMode ? Colors.rose : Colors.textMuted} animated={panicMode} />
-              <View>
-                <Text style={{
-                  color: panicMode ? Colors.rose : Colors.textPrimary,
-                  fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-                  fontWeight: '900',
-                  fontSize: 18,
-                  letterSpacing: 1,
-                }}>PANIC MODE</Text>
-                <Text style={{
-                  color: Colors.textSecondary,
-                  fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-                  fontSize: 11,
-                  marginTop: 4,
-                }}>2× faster timer · 1.5× coins · Veterans only</Text>
-              </View>
-            </View>
-            <TouchableOpacity
-              style={{
-                width: 56,
-                height: 30,
-                borderRadius: 6,
-                backgroundColor: panicMode ? Colors.rose : 'rgba(50,50,60,0.8)',
-                borderWidth: 1.5,
-                borderColor: panicMode ? 'rgba(255,100,100,0.6)' : 'rgba(255,255,255,0.08)',
-                justifyContent: 'center',
-                paddingHorizontal: 4,
-                opacity: isActivating ? 0.6 : 1,
-              }}
-              onPress={handlePanicToggle}
-              disabled={isActivating}
-            >
-              <View
-                style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 4,
-                  backgroundColor: '#fff',
-                  alignSelf: panicMode ? 'flex-end' : 'flex-start',
-                  shadowColor: panicMode ? Colors.rose : 'transparent',
-                  shadowRadius: 10,
-                  shadowOpacity: 0.8,
-                  elevation: 4,
-                }}
-              />
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ═══ SIDEBAR COLUMN (desktop) ═══ */}
-        <View style={{ width: 280, ...(isWeb ? { display: 'flex' } : { display: 'none' }) }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-            <View style={{ width: 3, height: 16, backgroundColor: panicMode ? Colors.rose : Colors.cyan, borderRadius: 2 }} />
-            <Text style={{
-              color: Colors.textPrimary,
-              fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-              fontSize: 16,
-              fontWeight: '900',
-              letterSpacing: 1,
-              textTransform: 'uppercase',
-            }}>Quick Actions</Text>
-          </View>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-            <QuickCard icon={Icons.TargetIcon} label="Missions" sub="Daily rewards" onPress={() => {}} panicMode={panicMode} />
-            <QuickCard icon={Icons.FlameIcon} label="Streaks" sub={`${user?.streak || 0} days hot`} onPress={() => {}} panicMode={panicMode} />
-          </View>
-
-          {/* Earn Cash */}
-          <View
-            {...(isWeb && { dataSet: { card: '' } })}
-            style={{
-              marginTop: 16,
-              padding: 20,
-              borderRadius: 12,
-              backgroundColor: cardBg,
-              borderWidth: 1,
-              borderColor: cardBorder,
-            }}
-          >
-            <Text style={{
-              color: Colors.gold,
-              fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined,
-              fontWeight: '900',
-              fontSize: 14,
-              marginBottom: 16,
-              letterSpacing: 1.5,
-            }}>EARN CASH</Text>
-            {[['500', '40'], ['1,500', '160'], ['5,000', '800'], ['15,000', '2,800']].map(([c, r]) => (
-              <View key={c} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderColor: cardBorder }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Icons.IntelIcon size={12} color={Colors.textSecondary} />
-                  <Text style={{ color: Colors.textSecondary, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 13 }}>{c}</Text>
+              <View style={{ alignItems: 'center', marginTop: 32, zIndex: 10 }}>
+                {/* Brain Logo as Avatar */}
+                <View style={[{ width: 112, height: 112, borderRadius: 56, borderWidth: 4, borderColor: '#050505', marginBottom: 16, overflow: 'hidden', backgroundColor: '#0a0a0c' }, panicMode && isWeb ? { boxShadow: '0 0 0 2px #ff2a2a' } : isWeb ? { boxShadow: '0 0 0 2px rgba(255,255,255,0.1)' } : {}]}>
+                  <Image source={BrainImage} style={{ width: '100%', height: '100%', resizeMode: 'cover', ...(isWeb ? { mixBlendMode: 'luminosity' } : {}) }} />
                 </View>
-                <Text style={{ color: Colors.emerald, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 13, fontWeight: '800' }}>₹{r}</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5 }}>{user?.username || 'Player'}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4, paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                  <Icons.ZapIcon size={10} color={themeAccent} />
+                  <Text style={{ fontFamily: mono, fontSize: 10, color: '#fff', fontWeight: '900', letterSpacing: 2 }}>LEVEL {lvl}</Text>
+                </View>
               </View>
-            ))}
-            <TouchableOpacity
-              style={{
-                backgroundColor: Colors.emerald + '15',
-                borderWidth: 1,
-                borderColor: Colors.emerald + '30',
-                paddingVertical: 14,
-                borderRadius: 8,
-                alignItems: 'center',
-                marginTop: 16,
-              }}
-              onPress={() => go('cash')}
-            >
-              <Text style={{ color: Colors.emerald, fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontWeight: '900', fontSize: 12, letterSpacing: 1.5 }}>WITHDRAW FUNDS</Text>
-            </TouchableOpacity>
+
+              <View style={{ flex: 1, justifyContent: 'flex-end', gap: 12, zIndex: 10 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                  <Text style={{ fontFamily: mono, fontSize: 10, color: '#64748b', letterSpacing: 2 }}>WIN RATE</Text>
+                  <Text style={{ fontFamily: grotesk, fontSize: 18, color: '#fff', fontWeight: '900' }}>{winRate}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                  <Text style={{ fontFamily: mono, fontSize: 10, color: '#64748b', letterSpacing: 2 }}>MATCHES</Text>
+                  <Text style={{ fontFamily: grotesk, fontSize: 18, color: '#fff', fontWeight: '900' }}>{totalPlayed}</Text>
+                </View>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)', paddingBottom: 4 }}>
+                  <Text style={{ fontFamily: mono, fontSize: 10, color: '#64748b', letterSpacing: 2 }}>BEST STREAK</Text>
+                  <Text style={{ fontFamily: grotesk, fontSize: 18, color: '#fff', fontWeight: '900' }}>{bestStreak}</Text>
+                </View>
+              </View>
+              
+            </View>
           </View>
 
-          {/* Live Stats */}
-          <View
-            {...(isWeb && { dataSet: { card: '' } })}
-            style={{
-              marginTop: 16,
-              padding: 20,
-              borderRadius: 12,
-              backgroundColor: cardBg,
-              borderWidth: 1,
-              borderColor: cardBorder,
-            }}
-          >
-            <Text style={{
-              color: Colors.textMuted,
-              fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
-              fontWeight: '800',
-              fontSize: 10,
-              letterSpacing: 2,
-              marginBottom: 16,
-            }}>LIVE STATS</Text>
-            {[
-              { label: 'Total Played', value: Math.floor((user?.xp ?? 0) / 10), color: Colors.textPrimary },
-              { label: 'Best Streak', value: user?.streak ?? 0, color: Colors.orange },
-              { label: 'Win Rate', value: '—', color: Colors.emerald },
-            ].map((s) => (
-              <View key={s.label} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 8 }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontSize: 13 }}>{s.label}</Text>
-                <Text style={{ color: s.color, fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, fontSize: 14, fontWeight: '800' }}>{s.value}</Text>
-              </View>
-            ))}
+          {/* Live Ops Panel */}
+          <View style={[{
+            borderRadius: 16, padding: 20, backgroundColor: 'rgba(10,10,12,0.8)',
+            borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', overflow: 'hidden'
+          }, isWeb ? { backdropFilter: 'blur(20px)' } : {}]}>
+            <CornerBrackets />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={{ fontFamily: mono, fontSize: 12, color: '#94a3b8', fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase' }}>Live Ops</Text>
+              <Animated.View style={{ transform: [{ rotate: spin }] }}>
+                <Icons.LifeBuoyIcon size={14} color={themeAccent} />
+              </Animated.View>
+            </View>
+
+            <View style={{ gap: 12 }}>
+              {[
+                { label: 'DAILY RIDDLES', prog: `${Math.min(100, Math.round((user?.xp || 0) % 100))}%` },
+                { label: 'XP PROGRESS', prog: `${Math.min(100, Math.round(((user?.xp || 0) % 50) / 50 * 100))}%` },
+              ].map((op, i) => (
+                <View key={i}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <Text style={{ fontFamily: mono, fontSize: 10, color: '#fff' }}>{op.label}</Text>
+                    <Text style={{ fontFamily: mono, fontSize: 10, color: themeAccent }}>{op.prog}</Text>
+                  </View>
+                  <View style={{ height: 4, backgroundColor: '#000', borderRadius: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                    <View style={[{ width: op.prog, height: '100%', backgroundColor: themeAccent, borderRadius: 2 }, isWeb ? { transition: 'width 1s ease' } : {}]} />
+                  </View>
+                </View>
+              ))}
+            </View>
           </View>
+
         </View>
+
+        {/* ══════════ RIGHT MAIN CONTENT ══════════ */}
+        <View style={{ flex: 1, gap: 24 }}>
+          
+          {/* ── HERO BANNER (Neon Wasteland / Featured Sector) ── */}
+          <TouchableOpacity 
+            style={[{
+              width: '100%', height: isMobile ? 320 : 360, borderRadius: 24,
+              backgroundColor: 'rgba(10,10,12,0.8)', borderWidth: 1, borderColor: panicMode ? 'rgba(255,42,42,0.3)' : 'rgba(255,255,255,0.1)',
+              overflow: 'hidden', position: 'relative'
+            }, isWeb ? { backdropFilter: 'blur(20px)' } : {}]}
+            onPress={() => go('gauntlet')}
+            onMouseEnter={() => setHeroHover(true)}
+            onMouseLeave={() => setHeroHover(false)}
+            activeOpacity={0.9}
+          >
+            <View style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1673380704968-1b47dd77c555?w=1080&q=80' }} style={{ width: '100%', height: '100%', resizeMode: 'cover', ...(isWeb ? { filter: heroHover ? 'grayscale(0%)' : 'grayscale(100%)', mixBlendMode: 'screen', opacity: 0.4, transform: heroHover ? 'scale(1.05)' : 'scale(1)', transition: 'all 1s ease' } : { opacity: 0.2 }) }} />
+              <LinearGradient colors={[panicMode ? 'rgba(26,0,0,1)' : 'rgba(5,5,5,1)', panicMode ? 'rgba(26,0,0,0.8)' : 'rgba(5,5,5,0.8)', 'transparent']} style={{ position: 'absolute', inset: 0 }} />
+            </View>
+            <CornerBrackets />
+            
+            {/* Scrolling Ticker */}
+            <View style={{ position: 'absolute', top: 24, left: 0, right: 0, zIndex: 10 }}>
+              <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.05)', backgroundColor: 'rgba(0,0,0,0.4)', paddingVertical: 4, overflow: 'hidden' }}>
+                <Animated.View style={{ transform: [{ translateX: tickerAnim }], flexDirection: 'row', width: 3000 }}>
+                  <Text style={{ fontFamily: mono, fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: 4 }}>
+                    {panicMode 
+                      ? '/// CRITICAL SYSTEM FAILURE IMMINENT /// EVACUATE OR ENGAGE /// '.repeat(10)
+                      : '/// GLOBAL TOURNAMENT QUALIFIERS NOW LIVE /// SECURE YOUR POSITION IN THE LADDER /// '.repeat(10)}
+                  </Text>
+                </Animated.View>
+              </View>
+            </View>
+
+            <View style={{ flex: 1, justifyContent: 'flex-end', padding: 32, zIndex: 10, pointerEvents: 'none' }}>
+              <View style={[{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', borderRadius: 8, alignSelf: 'flex-start', marginBottom: 12 }, isWeb ? { backdropFilter: 'blur(12px)' } : {}]}>
+                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: themeAccent }} />
+                <Text style={{ fontFamily: grotesk, fontSize: 10, color: '#fff', fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase' }}>Featured Sector</Text>
+              </View>
+
+              <Text style={{ fontFamily: grotesk, fontSize: isMobile ? 40 : 72, fontWeight: '900', color: '#fff', textTransform: 'uppercase', letterSpacing: -2, lineHeight: isMobile ? 40 : 64, marginBottom: 16 }}>
+                {panicMode ? 'CRITICAL\n' : 'NEON\n'}
+                <Text style={isWeb ? { WebkitTextStroke: '2px rgba(255,255,255,0.8)', WebkitTextFillColor: 'transparent' } : { color: 'rgba(255,255,255,0.4)' }}>
+                  {panicMode ? 'BREACH' : 'WASTELAND'}
+                </Text>
+              </Text>
+              
+              <Text style={{ fontFamily: mono, fontSize: 14, color: '#94a3b8', maxWidth: 400, borderLeftWidth: 2, borderColor: 'rgba(255,255,255,0.2)', paddingLeft: 16, marginBottom: 24 }}>
+                The grid is shifting. Risk your assets in the highest stakes arena currently online.
+              </Text>
+
+              <View style={[{ pointerEvents: 'auto', flexDirection: 'row', alignItems: 'center', gap: 16, backgroundColor: '#fff', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 12, alignSelf: 'flex-start' }, isWeb && heroHover ? { paddingRight: 24, transition: 'all 0.3s ease' } : { transition: 'all 0.3s ease' }]}>
+                <Text style={{ fontFamily: grotesk, fontSize: 12, fontWeight: '900', color: '#000', letterSpacing: 3, textTransform: 'uppercase' }}>DEPLOY NOW</Text>
+                <Icons.ChevronRightIcon size={16} color="#000" />
+              </View>
+            </View>
+          </TouchableOpacity>
+
+          {/* ── GAME ARENAS (4 standard modes) ── */}
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ width: 4, height: 24, borderRadius: 2, backgroundColor: panicMode ? '#ff2a2a' : '#6366f1' }} />
+                <Text style={{ fontFamily: grotesk, fontSize: 20, fontWeight: '900', color: '#e2e8f0', letterSpacing: 2, textTransform: 'uppercase' }}>Game Arenas</Text>
+              </View>
+            </View>
+            <View style={{ gap: 12 }}>
+              {gameArenas.map((arena, i) => (
+                <ArenaCard key={i} {...arena} panicMode={panicMode} />
+              ))}
+            </View>
+          </View>
+
+          {/* ── SPECIAL ARENAS (4 special modes) ── */}
+          <View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <View style={{ width: 4, height: 24, borderRadius: 2, backgroundColor: panicMode ? '#dc2626' : '#f59e0b' }} />
+                <Text style={{ fontFamily: grotesk, fontSize: 20, fontWeight: '900', color: '#e2e8f0', letterSpacing: 2, textTransform: 'uppercase' }}>Special Arenas</Text>
+              </View>
+            </View>
+            <View style={{ gap: 12 }}>
+              {specialArenas.map((arena, i) => (
+                <ArenaCard key={i} {...arena} panicMode={panicMode} />
+              ))}
+            </View>
+          </View>
+
+          {/* ── SYSTEM RES (Footer) ── */}
+          <View style={[{
+            width: '100%', borderRadius: 24, padding: 24,
+            backgroundColor: 'rgba(10,10,12,0.8)', borderWidth: 1, borderColor: panicMode ? 'rgba(255,42,42,0.4)' : 'rgba(255,255,255,0.1)',
+            flexDirection: 'column', position: 'relative', overflow: 'hidden'
+          }, isWeb ? { backdropFilter: 'blur(20px)' } : {}]}>
+            <View style={{ position: 'absolute', right: 0, top: 0, width: 128, height: 128, backgroundColor: 'rgba(255,255,255,0.05)', borderBottomLeftRadius: 100, zIndex: 0 }} />
+            
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 10 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Icons.CpuIcon size={14} color="rgba(255,255,255,0.4)" />
+                <Text style={{ fontFamily: mono, fontSize: 12, color: 'rgba(255,255,255,0.4)', letterSpacing: 2, textTransform: 'uppercase' }}>System Res</Text>
+              </View>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
+                <Text style={{ fontFamily: mono, fontSize: 9, color: '#fff' }}>NODE_ACTIVE</Text>
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 16, marginTop: 24, zIndex: 10 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: mono, fontSize: 10, color: '#64748b', marginBottom: 4 }}>PING</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: 24, fontWeight: '900', color: '#fff' }}>12<Text style={{ fontSize: 14, color: '#64748b', fontWeight: '500' }}>ms</Text></Text>
+              </View>
+              <View style={{ flex: 1, borderLeftWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingLeft: 16 }}>
+                <Text style={{ fontFamily: mono, fontSize: 10, color: '#64748b', marginBottom: 4 }}>LOSS</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: 24, fontWeight: '900', color: '#fff' }}>0.0<Text style={{ fontSize: 14, color: '#64748b', fontWeight: '500' }}>%</Text></Text>
+              </View>
+              <View style={{ flex: 1, borderLeftWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingLeft: 16 }}>
+                <Text style={{ fontFamily: mono, fontSize: 10, color: '#64748b', marginBottom: 4 }}>SERVER</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: 24, fontWeight: '900', color: '#fff' }}>EU_W<Text style={{ fontSize: 14, color: '#64748b', fontWeight: '500' }}>[04]</Text></Text>
+              </View>
+            </View>
+          </View>
+
+        </View>
+
       </View>
     </ScrollView>
   );

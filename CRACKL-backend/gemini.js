@@ -1,5 +1,6 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_KEY);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
@@ -33,4 +34,5 @@ Reply ONLY with JSON: {"correct": true} or {"correct": false}`;
   }
 }
 
-module.exports = { checkTypedAnswer };
+// Shared genAI instance for use in server.js (avoid re-instantiating per request)
+module.exports = { checkTypedAnswer, genAI, model };

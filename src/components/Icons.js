@@ -330,6 +330,45 @@ export const DiceIcon = (props) => (
   </IconBase>
 );
 
+export const CpuIcon = (props) => (
+  <IconBase {...props}>
+    <rect x="4" y="4" width="16" height="16" rx="2" ry="2" />
+    <rect x="9" y="9" width="6" height="6" />
+    <line x1="9" y1="1" x2="9" y2="4" />
+    <line x1="15" y1="1" x2="15" y2="4" />
+    <line x1="9" y1="20" x2="9" y2="23" />
+    <line x1="15" y1="20" x2="15" y2="23" />
+    <line x1="20" y1="9" x2="23" y2="9" />
+    <line x1="20" y1="14" x2="23" y2="14" />
+    <line x1="1" y1="9" x2="4" y2="9" />
+    <line x1="1" y1="14" x2="4" y2="14" />
+  </IconBase>
+);
+
+export const LifeBuoyIcon = (props) => (
+  <IconBase {...props}>
+    <circle cx="12" cy="12" r="10" />
+    <circle cx="12" cy="12" r="4" />
+    <line x1="4.93" y1="4.93" x2="9.17" y2="9.17" />
+    <line x1="14.83" y1="14.83" x2="19.07" y2="19.07" />
+    <line x1="14.83" y1="9.17" x2="19.07" y2="4.93" />
+    <line x1="14.83" y1="9.17" x2="18.36" y2="5.64" />
+    <line x1="4.93" y1="19.07" x2="9.17" y2="14.83" />
+  </IconBase>
+);
+
+export const CheckIcon = (props) => (
+  <IconBase {...props}>
+    <polyline points="20 6 9 17 4 12" />
+  </IconBase>
+);
+
+export const ActivityIcon = (props) => (
+  <IconBase {...props}>
+    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+  </IconBase>
+);
+
 export const GoogleIcon = ({ size = 24, style }) => (
   <svg width={size} height={size} viewBox="0 0 48 48" style={style}>
     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -345,5 +384,6 @@ export default {
   SettingsIcon, PlayIcon, ChevronRightIcon, ClockIcon, TargetIcon,
   ShieldIcon, IntelIcon, LockIcon, UnlockIcon, ArrowRightIcon, CrosshairIcon, LogOutIcon, BellIcon,
   TimerIcon, DatabaseIcon, UserIcon, ZapIcon, TrophyIcon, ChevronLeftIcon,
-  SwordsIcon, PlusIcon, XIcon, AlertTriangleIcon, TerminalIcon, SunIcon, BombIcon, DiceIcon, GoogleIcon
+  SwordsIcon, PlusIcon, XIcon, AlertTriangleIcon, TerminalIcon, SunIcon, BombIcon, DiceIcon, GoogleIcon,
+  CpuIcon, LifeBuoyIcon, CheckIcon, ActivityIcon
 };

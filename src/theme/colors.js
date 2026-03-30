@@ -1,51 +1,51 @@
 /**
  * CRACKL Design System — Color Palette
- * Philosophy: "Inside a secret intelligence agency at 2AM"
+ * Philosophy: "Competitive intelligence — sharp, dark, alive"
  */
 
 const Colors = {
   // ─── Backgrounds ───
-  bgBase:       '#07070F',
-  cardSurface:  '#0F0F1A',
-  cardSurface2: '#13131F',
-  borderDefault:'#1E1E35',
+  bgBase:       '#09090B',   // zinc-950 — near black, not pure black
+  cardSurface:  '#111115',   // just above base
+  cardSurface2: '#18181C',   // elevated surface
+  borderDefault:'rgba(255,255,255,0.07)',  // near-invisible — minimal dark
 
   // ─── Brand Accents ───
-  purple:       '#7C3AED',
-  purpleLight:  '#A78BFA',
-  purpleBg:     'rgba(124,58,237,0.15)',
+  purple:       '#8B5CF6',   // violet-500 — slightly brighter for minimal
+  purpleLight:  '#C4B5FD',   // violet-300
+  purpleBg:     'rgba(139,92,246,0.10)',
 
   // ─── Mode Accents ───
   cyan:         '#22D3EE',
   cyanLight:    '#67E8F9',
-  cyanBg:       'rgba(34,211,238,0.15)',
+  cyanBg:       'rgba(34,211,238,0.10)',
 
   gold:         '#F59E0B',
   goldLight:    '#FCD34D',
-  goldBg:       'rgba(245,158,11,0.15)',
+  goldBg:       'rgba(245,158,11,0.10)',
 
   emerald:      '#10B981',
-  emeraldBg:    'rgba(16,185,129,0.15)',
+  emeraldBg:    'rgba(16,185,129,0.10)',
 
-  rose:         '#EF4444',
-  roseBg:       'rgba(239,68,68,0.15)',
+  rose:         '#F43F5E',
+  roseBg:       'rgba(244,63,94,0.10)',
 
   fuchsia:      '#D946EF',
-  fuchsiaBg:    'rgba(217,70,239,0.15)',
+  fuchsiaBg:    'rgba(217,70,239,0.10)',
 
   orange:       '#F97316',
-  orangeBg:     'rgba(249,115,22,0.15)',
+  orangeBg:     'rgba(249,115,22,0.10)',
 
   indigo:       '#6366F1',
-  indigoBg:     'rgba(99,102,241,0.15)',
+  indigoBg:     'rgba(99,102,241,0.10)',
 
   amber:        '#F59E0B',
-  amberBg:      'rgba(245,158,11,0.15)',
+  amberBg:      'rgba(245,158,11,0.10)',
 
   // ─── Text ───
-  textPrimary:  '#F8FAFC',
-  textSecondary:'#94A3B8',
-  textMuted:    '#475569',
+  textPrimary:  '#FAFAFA',   // zinc-50
+  textSecondary:'#A1A1AA',   // zinc-400
+  textMuted:    '#52525B',   // zinc-600
 
   // ─── Panic Mode ───
   panicRed:     '#FF0000',
@@ -61,18 +61,18 @@ const Colors = {
 
   // ─── Glass ───
   glassBg:      'rgba(255,255,255,0.03)',
-  glassBorder:  'rgba(255,255,255,0.08)',
+  glassBorder:  'rgba(255,255,255,0.07)',
 };
 
-// Glow presets for shadowColor usage
+// Subtle glows — used sparingly, one per screen
 Colors.glow = {
-  purple: { shadowColor: '#7C3AED', shadowOffset:{width:0,height:0}, shadowOpacity:0.4, shadowRadius:30, elevation:8 },
-  cyan:   { shadowColor: '#22D3EE', shadowOffset:{width:0,height:0}, shadowOpacity:0.4, shadowRadius:30, elevation:8 },
-  gold:   { shadowColor: '#F59E0B', shadowOffset:{width:0,height:0}, shadowOpacity:0.3, shadowRadius:20, elevation:6 },
-  red:    { shadowColor: '#EF4444', shadowOffset:{width:0,height:0}, shadowOpacity:0.5, shadowRadius:40, elevation:10 },
-  indigo: { shadowColor: '#6366F1', shadowOffset:{width:0,height:0}, shadowOpacity:0.3, shadowRadius:20, elevation:6 },
-  fuchsia:{ shadowColor: '#D946EF', shadowOffset:{width:0,height:0}, shadowOpacity:0.3, shadowRadius:20, elevation:6 },
-  orange: { shadowColor: '#F97316', shadowOffset:{width:0,height:0}, shadowOpacity:0.3, shadowRadius:20, elevation:6 },
+  purple: { shadowColor: '#8B5CF6', shadowOffset:{width:0,height:0}, shadowOpacity:0.25, shadowRadius:24, elevation:6 },
+  cyan:   { shadowColor: '#22D3EE', shadowOffset:{width:0,height:0}, shadowOpacity:0.25, shadowRadius:24, elevation:6 },
+  gold:   { shadowColor: '#F59E0B', shadowOffset:{width:0,height:0}, shadowOpacity:0.20, shadowRadius:16, elevation:5 },
+  red:    { shadowColor: '#F43F5E', shadowOffset:{width:0,height:0}, shadowOpacity:0.35, shadowRadius:32, elevation:8 },
+  indigo: { shadowColor: '#6366F1', shadowOffset:{width:0,height:0}, shadowOpacity:0.20, shadowRadius:16, elevation:5 },
+  fuchsia:{ shadowColor: '#D946EF', shadowOffset:{width:0,height:0}, shadowOpacity:0.20, shadowRadius:16, elevation:5 },
+  orange: { shadowColor: '#F97316', shadowOffset:{width:0,height:0}, shadowOpacity:0.20, shadowRadius:16, elevation:5 },
 };
 
 export default Colors;
