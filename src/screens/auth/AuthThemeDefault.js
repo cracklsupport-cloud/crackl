@@ -17,123 +17,164 @@ function CrosshairIcon({ style }) {
   );
 }
 
-/* ── Dot-Mesh Particle Canvas (Antigravity-style) ── */
-function DotMeshCanvas() {
+/* ── Warp-Speed Liftoff Canvas (antigravity.google exact concept) ── */
+// Colors based on radial angle for the pure Google Antigravity mapped palette
+const WARP_COLORS_MAP = [
+  { r: 52, g: 168, b: 83 },   // 0 rad: Green (#34A853)
+  { r: 234, g: 67, b: 53 },   // pi/2: Red (#EA4335)
+  { r: 251, g: 188, b: 5 },   // pi: Yellow (#FBBC05)
+  { r: 66, g: 133, b: 244 },  // 3pi/2: Blue (#4285F4)
+  { r: 52, g: 168, b: 83 },   // 2pi: Green
+];
+
+function getColorForAngle(angle) {
+  let normalized = (angle % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2);
+  let segment = normalized / (Math.PI / 2);
+  let index = Math.floor(segment);
+  let t = segment - index;
+  let c1 = WARP_COLORS_MAP[index];
+  let c2 = WARP_COLORS_MAP[index + 1];
+  return {
+    r: Math.round(c1.r + (c2.r - c1.r) * t),
+    g: Math.round(c1.g + (c2.g - c1.g) * t),
+    b: Math.round(c1.b + (c2.b - c1.b) * t)
+  };
+}
+
+function createWarpParticle(maxDist, isStardust = false) {
+  const angle = Math.random() * Math.PI * 2;
+  const c = getColorForAngle(angle);
+
+  // Liftoff particles spawn near the center, stardust scatters everywhere
+  const startingDist = isStardust
+    ? Math.random() * maxDist
+    : Math.random() * (maxDist * 0.15);
+
+  return {
+    angle,
+    distance: startingDist,
+    // Base speed before multipliers
+    speed: isStardust ? (Math.random() * 0.15 + 0.05) : (Math.random() * 0.4 + 0.1),
+    // Fixed thickness for capsules and dots
+    thickness: isStardust ? (Math.random() * 1 + 0.5) : (Math.random() * 2 + 1.5),
+    r: c.r,
+    g: c.g,
+    b: c.b,
+    // High opacity so they pop visibly
+    alpha: isStardust ? (Math.random() * 0.3 + 0.1) : (Math.random() * 0.7 + 0.3),
+    isStardust
+  };
+}
+
+function WarpLiftoffCanvas() {
   const canvasRef = useRef(null);
-  const mouseRef = useRef({ x: -9999, y: -9999 });
 
   useEffect(() => {
     if (Platform.OS !== 'web' || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
+    let dpr = window.devicePixelRatio || 1;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    canvas.style.pointerEvents = 'none';
+    function resize() {
+      dpr = window.devicePixelRatio || 1;
+      canvas.width = window.innerWidth * dpr;
+      canvas.height = window.innerHeight * dpr;
+      canvas.style.width = window.innerWidth + 'px';
+      canvas.style.height = window.innerHeight + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+    resize();
+    window.addEventListener('resize', resize);
 
-    const onResize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
-    window.addEventListener('resize', onResize);
-
-    const onMouseMove = (e) => {
-      mouseRef.current = { x: e.clientX, y: e.clientY };
-    };
-    window.addEventListener('mousemove', onMouseMove);
-
-    const PARTICLE_COUNT = 120;
+    const PARTICLE_COUNT = 300; // Dense, highly visible liftoff burst
+    const STARDUST_COUNT = 200; // Slow background depth field
     const particles = [];
+    const w = () => window.innerWidth;
+    const h = () => window.innerHeight;
+    const maxDist = () => Math.sqrt(w() * w() + h() * h()) * 0.6;
+
+    const mdInit = maxDist();
     for (let i = 0; i < PARTICLE_COUNT; i++) {
-      const x = Math.random() * canvas.width;
-      const y = Math.random() * canvas.height;
-      particles.push({ x, y, originX: x, originY: y, vx: 0, vy: 0, radius: 2 });
+      let p = createWarpParticle(mdInit, false);
+      // Pre-scatter initial particles so they don't all burst out at exactly the same time initially
+      p.distance = Math.random() * mdInit;
+      particles.push(p);
+    }
+    for (let i = 0; i < STARDUST_COUNT; i++) {
+      particles.push(createWarpParticle(mdInit, true));
     }
 
     let animFrameId;
-    const INTERACTION_RADIUS = 150;
-    const LINE_DISTANCE = 90;
-    const SPRING = 0.05;
-    const FRICTION = 0.85;
 
     function animate() {
       animFrameId = requestAnimationFrame(animate);
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const cw = w();
+      const ch = h();
+      const cx = cw / 2;
+      const cy = ch / 2;
+      const md = maxDist();
 
-      const mx = mouseRef.current.x;
-      const my = mouseRef.current.y;
+      // Explicit clear instead of ghosting trails — to draw the exact discrete capsules
+      ctx.clearRect(0, 0, cw, ch);
 
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
-        const dxMouse = p.x - mx;
-        const dyMouse = p.y - my;
-        const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+        const distRatio = p.distance / md;
 
-        if (distMouse < INTERACTION_RADIUS && distMouse > 0) {
-          const force = (INTERACTION_RADIUS - distMouse) / INTERACTION_RADIUS;
-          const angle = Math.atan2(dyMouse, dxMouse);
-          p.vx += Math.cos(angle) * force * 2;
-          p.vy += Math.sin(angle) * force * 2;
+        let currentVelocity = p.speed;
+
+        if (p.isStardust) {
+          p.distance += p.speed;
+        } else {
+          // Epic exponential acceleration outwards
+          currentVelocity = p.speed * (1 + Math.pow(distRatio * 4, 3));
+          p.distance += currentVelocity;
         }
 
-        p.vx += (p.originX - p.x) * SPRING;
-        p.vy += (p.originY - p.y) * SPRING;
-        p.vx *= FRICTION;
-        p.vy *= FRICTION;
-        p.x += p.vx;
-        p.y += p.vy;
-      }
+        const x = cx + Math.cos(p.angle) * p.distance;
+        const y = cy + Math.sin(p.angle) * p.distance;
 
-      // Draw lines between nearby particles
-      for (let i = 0; i < particles.length; i++) {
-        for (let j = i + 1; j < particles.length; j++) {
-          const dx = particles[i].x - particles[j].x;
-          const dy = particles[i].y - particles[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < LINE_DISTANCE) {
-            const opacity = 1 - (dist / LINE_DISTANCE);
-            ctx.beginPath();
-            ctx.moveTo(particles[i].x, particles[i].y);
-            ctx.lineTo(particles[j].x, particles[j].y);
-            ctx.strokeStyle = `rgba(160, 100, 255, ${opacity * 0.3})`;
-            ctx.lineWidth = 0.5;
+        let alpha = p.alpha;
+        if (!p.isStardust) {
+          // Fade in gently from exactly at center so we don't get a huge blob hole
+          alpha *= Math.min(1, distRatio * 8);
+        }
+
+        if (alpha > 0.01) {
+          ctx.beginPath();
+          if (p.isStardust) {
+            // Draw slow moving background stardust as simple dots
+            ctx.arc(x, y, p.thickness, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+            ctx.fill();
+          } else {
+            // Draw liftoff particles as stretched capsules (lines with round caps)
+            const stretch = Math.max(p.thickness, currentVelocity * 1.5);
+            const tx = cx + Math.cos(p.angle) * Math.max(0, p.distance - stretch);
+            const ty = cy + Math.sin(p.angle) * Math.max(0, p.distance - stretch);
+
+            ctx.moveTo(tx, ty);
+            ctx.lineTo(x, y);
+            ctx.strokeStyle = `rgba(${p.r}, ${p.g}, ${p.b}, ${alpha})`;
+            ctx.lineWidth = p.thickness;
+            ctx.lineCap = 'round';
             ctx.stroke();
+
+            // Super bright core spot for larger fast particles
+            if (p.thickness >= 2.5 && distRatio > 0.1) {
+              ctx.beginPath();
+              ctx.arc(x, y, p.thickness * 0.4, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.95})`;
+              ctx.fill();
+            }
           }
         }
-      }
 
-      // Draw particles with distance-based glow
-      for (let i = 0; i < particles.length; i++) {
-        const p = particles[i];
-        const dxM = p.x - mx;
-        const dyM = p.y - my;
-        const distM = Math.sqrt(dxM * dxM + dyM * dyM);
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-
-        if (distM < 80) {
-          ctx.fillStyle = 'rgba(180, 100, 255, 0.95)';
-          ctx.shadowColor = '#a855f7';
-          ctx.shadowBlur = 12;
-        } else if (distM < 150) {
-          const t = (distM - 80) / 70;
-          const r = Math.round(180 - t * 40);
-          const g = Math.round(100 - t * 20);
-          const a = 0.95 - t * 0.35;
-          ctx.fillStyle = `rgba(${r}, ${g}, 255, ${a})`;
-          ctx.shadowColor = '#a855f7';
-          ctx.shadowBlur = 12 - t * 6;
-        } else {
-          ctx.fillStyle = 'rgba(100, 60, 200, 0.25)';
-          ctx.shadowColor = 'transparent';
-          ctx.shadowBlur = 0;
+        // Respawn conditions
+        if (p.distance > md * 1.2 || x < -100 || x > cw + 100 || y < -100 || y > ch + 100) {
+          particles[i] = createWarpParticle(md, p.isStardust);
         }
-
-        ctx.fill();
-        ctx.shadowColor = 'transparent';
-        ctx.shadowBlur = 0;
       }
     }
 
@@ -141,8 +182,7 @@ function DotMeshCanvas() {
 
     return () => {
       cancelAnimationFrame(animFrameId);
-      window.removeEventListener('resize', onResize);
-      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('resize', resize);
     };
   }, []);
 
@@ -232,8 +272,8 @@ export default function AuthThemeDefault(props) {
   return (
     <View style={{ width: isWeb ? '100vw' : '100%', height: isWeb ? '100vh' : '100%', flexDirection: isMobile ? 'column' : 'row', backgroundColor: '#050505', overflow: 'hidden' }}>
 
-      {/* ── Dot-Mesh Particle Background ── */}
-      <DotMeshCanvas />
+      {/* ── Warp-Speed Liftoff Background ── */}
+      <WarpLiftoffCanvas />
 
       {/* ── Film grain overlay ── */}
       {isWeb && (
