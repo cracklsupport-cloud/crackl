@@ -237,6 +237,109 @@ function StatBlock({ icon: IconComp, iconColor, label, value }) {
   );
 }
 
+function ParticleLiftoff() {
+  const canvasRef = useRef(null);
+  const particlesRef = useRef([]);
+  const animFrameRef = useRef(null);
+
+  useEffect(() => {
+    if (!isWeb) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Color palette — matches Crackl's existing purple/teal/white brand
+    const COLORS = ['#a855f7', '#00ffd0', '#c084fc', '#6b21a8', '#ffffff', '#38bdf8', '#e879f9'];
+
+    const spawnParticles = (x, y) => {
+      if (particlesRef.current.length > 280) return;
+      const count = Math.floor(Math.random() * 3) + 2; // 2–4 per move
+      for (let i = 0; i < count; i++) {
+        const life = 70 + Math.floor(Math.random() * 60);
+        const isRing = Math.random() > 0.5;
+        particlesRef.current.push({
+          x: x + (Math.random() - 0.5) * 16,
+          y: y + (Math.random() - 0.5) * 16,
+          size: Math.random() * 4 + 2,
+          speedY: -(Math.random() * 1.4 + 0.5),
+          speedX: (Math.random() - 0.5) * 0.6,
+          opacity: 0.7 + Math.random() * 0.3,
+          color: COLORS[Math.floor(Math.random() * COLORS.length)],
+          shape: isRing ? 'ring' : 'dot',
+          life,
+          maxLife: life,
+        });
+      }
+    };
+
+    window.addEventListener('mousemove', spawnParticles.bind(null));
+
+    // We need the actual handler ref to properly remove it
+    const handler = (e) => spawnParticles(e.clientX, e.clientY);
+    window.addEventListener('mousemove', handler);
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const ps = particlesRef.current;
+      for (let i = ps.length - 1; i >= 0; i--) {
+        const p = ps[i];
+        p.life--;
+        if (p.life <= 0) { ps.splice(i, 1); continue; }
+        const progress = p.life / p.maxLife; // 1 → 0
+        p.x += p.speedX;
+        p.y += p.speedY;
+        const alpha = progress * p.opacity;
+        const size = p.size * (1 + (1 - progress) * 0.25);
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.strokeStyle = p.color;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        if (p.shape === 'ring') {
+          ctx.lineWidth = 1.2;
+          ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
+          ctx.stroke();
+        } else {
+          ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handler);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
+
+  if (!isWeb) return null;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        pointerEvents: 'none',
+        zIndex: 5,        // above grid (0), below left pane (10), below right pane (30)
+      }}
+    />
+  );
+}
+
 /* ═══ MAIN COMPONENT ═══ */
 export default function AuthThemeDefault(props) {
   const {
@@ -271,6 +374,8 @@ export default function AuthThemeDefault(props) {
 
   return (
     <View style={{ width: isWeb ? '100vw' : '100%', height: isWeb ? '100vh' : '100%', flexDirection: isMobile ? 'column' : 'row', backgroundColor: '#050505', overflow: 'hidden' }}>
+
+      <ParticleLiftoff />
 
       {/* ── Warp-Speed Liftoff Background ── */}
       <WarpLiftoffCanvas />
