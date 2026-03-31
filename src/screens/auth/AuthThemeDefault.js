@@ -17,6 +17,153 @@ function CrosshairIcon({ style }) {
   );
 }
 
+/* ── Dot-Mesh Particle Canvas (Antigravity-style) ── */
+function DotMeshCanvas() {
+  const canvasRef = useRef(null);
+  const mouseRef = useRef({ x: -9999, y: -9999 });
+
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !canvasRef.current) return;
+
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    canvas.style.pointerEvents = 'none';
+
+    const onResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    window.addEventListener('resize', onResize);
+
+    const onMouseMove = (e) => {
+      mouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener('mousemove', onMouseMove);
+
+    const PARTICLE_COUNT = 120;
+    const particles = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
+      const x = Math.random() * canvas.width;
+      const y = Math.random() * canvas.height;
+      particles.push({ x, y, originX: x, originY: y, vx: 0, vy: 0, radius: 2 });
+    }
+
+    let animFrameId;
+    const INTERACTION_RADIUS = 150;
+    const LINE_DISTANCE = 90;
+    const SPRING = 0.05;
+    const FRICTION = 0.85;
+
+    function animate() {
+      animFrameId = requestAnimationFrame(animate);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const mx = mouseRef.current.x;
+      const my = mouseRef.current.y;
+
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const dxMouse = p.x - mx;
+        const dyMouse = p.y - my;
+        const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
+
+        if (distMouse < INTERACTION_RADIUS && distMouse > 0) {
+          const force = (INTERACTION_RADIUS - distMouse) / INTERACTION_RADIUS;
+          const angle = Math.atan2(dyMouse, dxMouse);
+          p.vx += Math.cos(angle) * force * 2;
+          p.vy += Math.sin(angle) * force * 2;
+        }
+
+        p.vx += (p.originX - p.x) * SPRING;
+        p.vy += (p.originY - p.y) * SPRING;
+        p.vx *= FRICTION;
+        p.vy *= FRICTION;
+        p.x += p.vx;
+        p.y += p.vy;
+      }
+
+      // Draw lines between nearby particles
+      for (let i = 0; i < particles.length; i++) {
+        for (let j = i + 1; j < particles.length; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < LINE_DISTANCE) {
+            const opacity = 1 - (dist / LINE_DISTANCE);
+            ctx.beginPath();
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.strokeStyle = `rgba(160, 100, 255, ${opacity * 0.3})`;
+            ctx.lineWidth = 0.5;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw particles with distance-based glow
+      for (let i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        const dxM = p.x - mx;
+        const dyM = p.y - my;
+        const distM = Math.sqrt(dxM * dxM + dyM * dyM);
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+
+        if (distM < 80) {
+          ctx.fillStyle = 'rgba(180, 100, 255, 0.95)';
+          ctx.shadowColor = '#a855f7';
+          ctx.shadowBlur = 12;
+        } else if (distM < 150) {
+          const t = (distM - 80) / 70;
+          const r = Math.round(180 - t * 40);
+          const g = Math.round(100 - t * 20);
+          const a = 0.95 - t * 0.35;
+          ctx.fillStyle = `rgba(${r}, ${g}, 255, ${a})`;
+          ctx.shadowColor = '#a855f7';
+          ctx.shadowBlur = 12 - t * 6;
+        } else {
+          ctx.fillStyle = 'rgba(100, 60, 200, 0.25)';
+          ctx.shadowColor = 'transparent';
+          ctx.shadowBlur = 0;
+        }
+
+        ctx.fill();
+        ctx.shadowColor = 'transparent';
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    animate();
+
+    return () => {
+      cancelAnimationFrame(animFrameId);
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('mousemove', onMouseMove);
+    };
+  }, []);
+
+  if (Platform.OS !== 'web') return null;
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 0,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+}
+
 /* ── Corner brackets (Bento Style) ── */
 export function CornerBrackets() {
   const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 10 };
@@ -84,6 +231,9 @@ export default function AuthThemeDefault(props) {
 
   return (
     <View style={{ width: isWeb ? '100vw' : '100%', height: isWeb ? '100vh' : '100%', flexDirection: isMobile ? 'column' : 'row', backgroundColor: '#050505', overflow: 'hidden' }}>
+
+      {/* ── Dot-Mesh Particle Background ── */}
+      <DotMeshCanvas />
 
       {/* ── Film grain overlay ── */}
       {isWeb && (
