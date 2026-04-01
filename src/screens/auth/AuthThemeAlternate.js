@@ -43,7 +43,7 @@ function ThreeBackground() {
       new THREE.Color('#a855f7'), // Crackl Purple
     ];
 
-    const particleCount = 2000;
+    const particleCount = 0; // Removed background static dots requested by user
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -171,8 +171,11 @@ function ThreeBackground() {
 
 function ParticleLiftoff() {
   const canvasRef = useRef(null);
-  const particlesRef = useRef([]);
   const animFrameRef = useRef(null);
+  const stateRef = useRef({ 
+    x: -9999, y: -9999, 
+    targetX: -9999, targetY: -9999
+  });
 
   useEffect(() => {
     if (!isWeb) return;
@@ -183,67 +186,117 @@ function ParticleLiftoff() {
     const resize = () => {
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
+      if (stateRef.current.targetX === -9999) {
+        stateRef.current.x = window.innerWidth / 2;
+        stateRef.current.y = window.innerHeight / 2;
+        stateRef.current.targetX = window.innerWidth / 2;
+        stateRef.current.targetY = window.innerHeight / 2;
+      }
     };
     resize();
     window.addEventListener('resize', resize);
 
-    // Color palette — matches Crackl's existing purple/teal/white brand
-    const COLORS = ['#a855f7', '#00ffd0', '#c084fc', '#6b21a8', '#ffffff', '#38bdf8', '#e879f9'];
+    // Brand hues: Shades of Blue
+    const baseHues = [230, 210, 190]; 
 
-    const spawnParticles = (x, y) => {
-      if (particlesRef.current.length > 280) return;
-      const count = Math.floor(Math.random() * 3) + 2; // 2–4 per move
-      for (let i = 0; i < count; i++) {
-        const life = 70 + Math.floor(Math.random() * 60);
-        const isRing = Math.random() > 0.5;
-        particlesRef.current.push({
-          x: x + (Math.random() - 0.5) * 16,
-          y: y + (Math.random() - 0.5) * 16,
-          size: Math.random() * 4 + 2,
-          speedY: -(Math.random() * 1.4 + 0.5),
-          speedX: (Math.random() - 0.5) * 0.6,
-          opacity: 0.7 + Math.random() * 0.3,
-          color: COLORS[Math.floor(Math.random() * COLORS.length)],
-          shape: isRing ? 'ring' : 'dot',
-          life,
-          maxLife: life,
+    // Pre-calculate highly randomized field
+    const rings = [];
+    const numRings = 11;
+    const ringSpacing = 28; // Max radius roughly 310px
+    const dotSpacing = 32;  // Balanced spacing without overcrowding
+
+    for (let r = 1; r <= numRings; r++) {
+      const baseRadius = r * ringSpacing;
+      const numDots = Math.max(1, Math.floor((2 * Math.PI * baseRadius) / dotSpacing));
+      const dots = [];
+      for (let i = 0; i < numDots; i++) {
+        dots.push({
+          angle: (i / numDots) * Math.PI * 2,
+          angleOffset: (Math.random() - 0.5) * 0.45, // Break concentric rigidity
+          radiusOffset: (Math.random() - 0.5) * ringSpacing * 0.45, // Organic stagger
+          baseHue: baseHues[Math.floor(Math.random() * baseHues.length)],
+          baseSize: Math.random() * 0.8 + 1.2, // Tiny base dots
         });
       }
+      rings.push({ r_index: r, baseRadius, dots });
+    }
+
+    const handler = (e) => {
+      stateRef.current.targetX = e.clientX;
+      stateRef.current.targetY = e.clientY;
     };
-
-    window.addEventListener('mousemove', spawnParticles.bind(null));
-
-    // We need the actual handler ref to properly remove it
-    const handler = (e) => spawnParticles(e.clientX, e.clientY);
     window.addEventListener('mousemove', handler);
+
+    let time = 0;
 
     const animate = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      const ps = particlesRef.current;
-      for (let i = ps.length - 1; i >= 0; i--) {
-        const p = ps[i];
-        p.life--;
-        if (p.life <= 0) { ps.splice(i, 1); continue; }
-        const progress = p.life / p.maxLife; // 1 → 0
-        p.x += p.speedX;
-        p.y += p.speedY;
-        const alpha = progress * p.opacity;
-        const size = p.size * (1 + (1 - progress) * 0.25);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.strokeStyle = p.color;
-        ctx.fillStyle = p.color;
-        ctx.beginPath();
-        if (p.shape === 'ring') {
-          ctx.lineWidth = 1.2;
-          ctx.arc(p.x, p.y, size, 0, Math.PI * 2);
-          ctx.stroke();
-        } else {
-          ctx.arc(p.x, p.y, size / 2, 0, Math.PI * 2);
+      
+      const st = stateRef.current;
+      
+      // Heavy delay (friction) so the particle mass trails majestically behind the cursor
+      st.x += (st.targetX - st.x) * 0.012;
+      st.y += (st.targetY - st.y) * 0.012;
+      
+      time += 0.02; // Slightly faster majestic progression
+      
+      for (let r = 0; r < rings.length; r++) {
+        const ring = rings[r];
+        const depthRatio = ring.r_index / numRings; 
+        
+        // Beautiful 3D wave moving back and forth (heartbeat)
+        const wavePhase = time * 1.5 - ring.r_index * 0.6;
+        const waveFactor = Math.sin(wavePhase); // -1 (inward) to 1 (outward)
+        const waveOffset = waveFactor * (5 + 35 * Math.pow(depthRatio, 1.5)); // Inner layers barely move
+        
+        // Inner layers retain EXACTLY 100% opacity, only outer layers ever fade to 0
+        const opacityDropPhase = Math.max(0, waveFactor); 
+        const fadeMultiplier = Math.max(0, (depthRatio - 0.4) / 0.6); // 0 until 40% out, then ramps to 1
+        const baseOpacity = 1.0 - (opacityDropPhase * fadeMultiplier); 
+        
+        for (let i = 0; i < ring.dots.length; i++) {
+          const dot = ring.dots[i];
+          
+          const rotSpeed = 0.03 / ring.r_index;
+          const currentAngle = dot.angle + dot.angleOffset + time * rotSpeed * (ring.r_index % 2 === 0 ? 1 : -1);
+          
+          // Gentle organic sweep so it doesn't look purely mathematical
+          const amoebaDeform = (Math.sin(currentAngle * 2 + time) + Math.cos(currentAngle * 4 - time * 0.8)) * 12 * depthRatio;
+          
+          let actualRadius = ring.baseRadius + dot.radiusOffset + waveOffset + amoebaDeform;
+          actualRadius = Math.max(12, actualRadius); // CRITICAL: Stop dots from converging into the dead center and disappearing
+          
+          const px = st.x + Math.cos(currentAngle) * actualRadius;
+          const py = st.y + Math.sin(currentAngle) * actualRadius;
+          
+          // Size scales up from core to outer edge
+          const dotSize = Math.max(0.1, dot.baseSize) * (0.5 + 0.9 * depthRatio);
+
+          // More circular shape (less elongated pill)
+          const radiusX = dotSize * 1.25; 
+          const radiusY = dotSize * 1.0; 
+          const rotation = currentAngle; // Radially facing outwards
+
+          // Dynamic colors bounding around the base brand hue based on time and angle
+          const currentHue = dot.baseHue + Math.sin(time + currentAngle) * 20;
+          
+          // Edge rings fade slightly more to build the sphere edge falloff
+          const depthOpacity = 1 - (depthRatio * 0.4);
+          const finalOpacity = baseOpacity * depthOpacity;
+
+          ctx.beginPath();
+          if (ctx.ellipse) {
+             ctx.ellipse(px, py, radiusX, radiusY, rotation, 0, Math.PI * 2);
+          } else {
+             ctx.arc(px, py, dotSize, 0, Math.PI * 2);
+          }
+          ctx.globalAlpha = Math.max(0, finalOpacity);
+          ctx.fillStyle = `hsl(${currentHue}, 80%, 65%)`; // Vivid, saturated glows
           ctx.fill();
+          ctx.globalAlpha = 1.0; // Reset for next iteration
         }
-        ctx.restore();
       }
+      
       animFrameRef.current = requestAnimationFrame(animate);
     };
     animate();
