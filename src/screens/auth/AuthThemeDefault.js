@@ -242,7 +242,10 @@ function ParticleLiftoff() {
   const animFrameRef = useRef(null);
   const stateRef = useRef({ 
     x: -9999, y: -9999, 
-    targetX: -9999, targetY: -9999
+    targetX: -9999, targetY: -9999,
+    lastTargetX: -9999, lastTargetY: -9999,
+    idleTime: 0,
+    collapseProgress: 0,
   });
 
   useEffect(() => {
@@ -264,8 +267,8 @@ function ParticleLiftoff() {
     resize();
     window.addEventListener('resize', resize);
 
-    // Brand hues: Shades of Blue
-    const baseHues = [230, 210, 190]; 
+    // Brand hues: Brightest Shades of Purple/Magenta
+    const baseHues = [270, 285, 300]; 
 
     // Pre-calculate highly randomized field
     const rings = [];
@@ -283,7 +286,7 @@ function ParticleLiftoff() {
           angleOffset: (Math.random() - 0.5) * 0.45, // Break concentric rigidity
           radiusOffset: (Math.random() - 0.5) * ringSpacing * 0.45, // Organic stagger
           baseHue: baseHues[Math.floor(Math.random() * baseHues.length)],
-          baseSize: Math.random() * 0.8 + 1.2, // Tiny base dots
+          baseSize: Math.random() * 1.2 + 1.8, // Slightly larger base dots
         });
       }
       rings.push({ r_index: r, baseRadius, dots });
@@ -302,9 +305,35 @@ function ParticleLiftoff() {
       
       const st = stateRef.current;
       
-      // Heavy delay (friction) so the particle mass trails majestically behind the cursor
-      st.x += (st.targetX - st.x) * 0.012;
-      st.y += (st.targetY - st.y) * 0.012;
+      // Moderate delay (friction) so the particle mass trails slightly behind the cursor
+      st.x += (st.targetX - st.x) * 0.04;
+      st.y += (st.targetY - st.y) * 0.04;
+
+      // Track cursor idle state
+      if (st.lastTargetX !== -9999) {
+        const dx = st.targetX - st.lastTargetX;
+        const dy = st.targetY - st.lastTargetY;
+        const distMove = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distMove > 0.5) {
+          st.idleTime = 0;
+        } else {
+          st.idleTime += 0.02;
+        }
+      }
+      st.lastTargetX = st.targetX;
+      st.lastTargetY = st.targetY;
+      
+      const distToMass = Math.sqrt(Math.pow(st.targetX - st.x, 2) + Math.pow(st.targetY - st.y, 2));
+
+      // ONLY begin gathering when cursor is perfectly still AND the mass has practically reached it
+      if (st.idleTime > 0.1 && distToMass < 12.0) {
+        // Organic swarm accumulation (super slow, 8.3s total, heavily overlapping dots)
+        st.collapseProgress = Math.min(1.0, st.collapseProgress + 0.002);
+      } else {
+        // Swarm bursting outwards randomly and naturally
+        st.collapseProgress = Math.max(0.0, st.collapseProgress - 0.008); 
+      }
       
       time += 0.02; // Slightly faster majestic progression
       
@@ -325,14 +354,43 @@ function ParticleLiftoff() {
         for (let i = 0; i < ring.dots.length; i++) {
           const dot = ring.dots[i];
           
+          // Individual dot organic tracking (shatters system layer appearance)
+          const stableRandom = Math.abs(Math.sin(ring.r_index * 12.34 + i * 56.78));
+          const distanceWeight = (ring.r_index - 1) / (numRings - 1); 
+          
+          // Dots start tracking inwards nearest first, but highly randomized heavily overlapping windows
+          const dotCollapseStart = distanceWeight * 0.35 + stableRandom * 0.15; // 0.0 to 0.5 start times
+          
+          // Each dot takes an enormously slow 50% of the global animation (roughly ~4.1 seconds) to majestically glide in
+          const dotDriftProgress = Math.max(0, Math.min(1, (st.collapseProgress - dotCollapseStart) / 0.5));
+          
+          // Physics glide for an intensely realistic individual drift
+          const easeDrift = dotDriftProgress * dotDriftProgress * (3 - 2 * dotDriftProgress);
+          
           const rotSpeed = 0.03 / ring.r_index;
+          // Maintain normal slow rotation; drop straight to center without tornado spin
           const currentAngle = dot.angle + dot.angleOffset + time * rotSpeed * (ring.r_index % 2 === 0 ? 1 : -1);
           
           // Gentle organic sweep so it doesn't look purely mathematical
           const amoebaDeform = (Math.sin(currentAngle * 2 + time) + Math.cos(currentAngle * 4 - time * 0.8)) * 12 * depthRatio;
           
-          let actualRadius = ring.baseRadius + dot.radiusOffset + waveOffset + amoebaDeform;
-          actualRadius = Math.max(12, actualRadius); // CRITICAL: Stop dots from converging into the dead center and disappearing
+          let baseActualRadius = ring.baseRadius + dot.radiusOffset + waveOffset + amoebaDeform;
+          baseActualRadius = Math.max(12, baseActualRadius); 
+          
+          // Pulse effect tightly restrained to when fully accumulated at the core
+          const isFullyCollapsed = easeDrift === 1.0;
+          // We can base intensity on how "compressed" the whole overall system is
+          const trembleIntensity = Math.min(1.0, Math.pow(st.collapseProgress, 4));
+          const tremblePulse = isFullyCollapsed ? Math.sin(time * 60 + dot.angleOffset * 15) * 1.5 * trembleIntensity : 0;
+          
+          // Tiny core dot formatting (5-8px wide diameter maximum)
+          const targetCollapsedRadius = (ring.r_index * 0.4) + tremblePulse;
+          
+          // Lerp directly from its normal organic structural drift down to the tight core
+          let actualRadius = baseActualRadius * (1 - easeDrift) + targetCollapsedRadius * easeDrift;
+
+          // Prevent negative radius crashes
+          actualRadius = Math.max(0.1, actualRadius);
           
           const px = st.x + Math.cos(currentAngle) * actualRadius;
           const py = st.y + Math.sin(currentAngle) * actualRadius;
@@ -359,7 +417,7 @@ function ParticleLiftoff() {
              ctx.arc(px, py, dotSize, 0, Math.PI * 2);
           }
           ctx.globalAlpha = Math.max(0, finalOpacity);
-          ctx.fillStyle = `hsl(${currentHue}, 80%, 65%)`; // Vivid, saturated glows
+          ctx.fillStyle = `hsl(${currentHue}, 95%, 65%)`; // Vivid bright neon purple glows
           ctx.fill();
           ctx.globalAlpha = 1.0; // Reset for next iteration
         }
