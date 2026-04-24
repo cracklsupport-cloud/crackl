@@ -8,8 +8,9 @@ export const GlassLabel = ({ children }) => (
   <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 10, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8, marginTop: 16, marginLeft: 4 }}>{children}</Text>
 );
 
-export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, style, onSubmitEditing, icon, focusColor = '#a855f7' }) => {
+export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, style, onSubmitEditing, icon, focusColor = '#a855f7', rightElement }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   
   // Helper to convert hex to rgba for backgrounds/shadows
   const hexToRgba = (hex, alpha) => {
@@ -35,13 +36,13 @@ export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardT
       )}
       <TextInput
         style={[{
-          backgroundColor: isFocused ? focusBg : '#050505',
+          backgroundColor: isFocused ? focusBg : (isHovered ? 'rgba(255,255,255,0.03)' : '#050505'),
           borderWidth: 2,
-          borderColor: isFocused ? focusColor : 'rgba(255, 255, 255, 0.1)',
+          borderColor: isFocused ? focusColor : (isHovered ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.1)'),
           borderRadius: 12,
           paddingVertical: 16,
           paddingLeft: icon ? 48 : 16,
-          paddingRight: 16,
+          paddingRight: rightElement ? 48 : 16,
           color: '#ffffff',
           fontSize: 14,
           fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
@@ -60,7 +61,14 @@ export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardT
         onSubmitEditing={onSubmitEditing}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
+        onMouseEnter={() => isWeb && setIsHovered(true)}
+        onMouseLeave={() => isWeb && setIsHovered(false)}
       />
+      {rightElement && (
+        <View style={{ position: 'absolute', right: 16, zIndex: 10, height: '100%', justifyContent: 'center' }}>
+          {rightElement}
+        </View>
+      )}
     </View>
   );
 };

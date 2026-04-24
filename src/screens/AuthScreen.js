@@ -54,8 +54,14 @@ export default function AuthScreen({ onLogin, onSignup }) {
     iosClientId: 'YOUR_IOS_CLIENT_ID.apps.googleusercontent.com',
     androidClientId: 'YOUR_ANDROID_CLIENT_ID.apps.googleusercontent.com'
   });
-
-  useEffect(() => { if (response?.type === 'success') handleOAuthBackendSync('google', response.authentication.idToken || response.authentication.accessToken); }, [response]);
+  
+  useEffect(() => { 
+    if (response?.type === 'success') {
+      handleOAuthBackendSync('google', response.authentication.idToken || response.authentication.accessToken); 
+    } else if (response?.type === 'error' || response?.type === 'dismiss') {
+      setErr(response.error?.message || 'Google Auth cancelled');
+    }
+  }, [response]);
 
   async function handleOAuthBackendSync(provider, token) {
     if (!token) return; setLoading(true); setErr('');
