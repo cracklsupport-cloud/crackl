@@ -8,7 +8,28 @@ export const GlassLabel = ({ children }) => (
   <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 10, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8, marginTop: 16, marginLeft: 4 }}>{children}</Text>
 );
 
-export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, style, onSubmitEditing, icon, focusColor = '#a855f7', rightElement }) => {
+export const GlassField = ({
+  value,
+  onChangeText,
+  placeholder,
+  secure,
+  keyboardType,
+  autoCapitalize,
+  autoComplete,
+  autoCorrect = false,
+  enterKeyHint,
+  inputMode,
+  maxLength,
+  onBlur,
+  onFocus,
+  onSubmitEditing,
+  returnKeyType,
+  style,
+  textContentType,
+  icon,
+  focusColor = '#a855f7',
+  rightElement
+}) => {
   const [isFocused, setIsFocused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   
@@ -47,9 +68,10 @@ export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardT
           fontSize: 14,
           fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
           letterSpacing: 1,
+        }, isWeb ? {
           outlineStyle: 'none',
           transition: 'all 0.3s ease',
-        }, isFocused && isWeb ? { boxShadow: `0 0 15px ${glowShadow}` } : {}]}
+        } : {}, isFocused && isWeb ? { boxShadow: `0 0 15px ${glowShadow}` } : {}]}
         placeholder={placeholder}
         placeholderTextColor="#4b5563"
         value={value}
@@ -57,12 +79,26 @@ export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardT
         secureTextEntry={secure}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize || 'none'}
+        autoComplete={autoComplete}
+        autoCorrect={autoCorrect}
+        enterKeyHint={enterKeyHint}
+        inputMode={inputMode}
         maxLength={maxLength}
         onSubmitEditing={onSubmitEditing}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
-        onMouseEnter={() => isWeb && setIsHovered(true)}
-        onMouseLeave={() => isWeb && setIsHovered(false)}
+        returnKeyType={returnKeyType}
+        textContentType={textContentType}
+        onFocus={(event) => {
+          setIsFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setIsFocused(false);
+          onBlur?.(event);
+        }}
+        {...(isWeb ? {
+          onMouseEnter: () => setIsHovered(true),
+          onMouseLeave: () => setIsHovered(false),
+        } : {})}
       />
       {rightElement && (
         <View style={{ position: 'absolute', right: 16, zIndex: 10, height: '100%', justifyContent: 'center' }}>
