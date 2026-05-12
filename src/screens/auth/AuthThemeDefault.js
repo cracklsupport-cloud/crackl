@@ -38,8 +38,7 @@ function useResponsiveDimensions() {
 
 // ─── Breakpoint helpers ───
 const BP_COMPACT = 768;   // phones & small tablets
-const BP_TABLET = 1024;   // tablets & narrow laptops
-// > 1024 = desktop
+const BP_TWO_COL = 1180;  // wide enough for hero, brain, and login pane
 
 function HexRevealParallax() {
   const canvasRef = useRef(null);
@@ -526,23 +525,33 @@ export default function AuthThemeDefault(props) {
 
   // ─── Responsive breakpoints ───
   const isCompact = vw < BP_COMPACT;      // phones – single column, form only
-  const isTablet  = vw >= BP_COMPACT && vw < BP_TABLET; // tablet – stacked but hero visible
-  const isDesktop = vw >= BP_TABLET;       // desktop – side-by-side
-  const isTwoCol  = isDesktop;             // only desktop gets 2-column layout
+  const isTablet  = vw >= BP_COMPACT && vw < BP_TWO_COL; // tablet/narrow laptop - stacked but hero visible
+  const isDesktop = vw >= BP_TWO_COL;      // wide desktop - side-by-side
+  const isTwoCol  = isDesktop;
 
   // ─── Responsive values ───
   const heroFontSize    = isCompact ? 28 : isTablet ? 38 : 56;
   const heroLineHeight  = isCompact ? 34 : isTablet ? 46 : 66;
   const sidePadding     = isCompact ? 20 : isTablet ? 32 : 48;
-  const formPadH        = isCompact ? 24 : isTablet ? 40 : 56;
+  const formPadH        = isCompact ? 24 : isTablet ? 40 : 40;
   const formPadV        = isCompact ? 24 : isTablet ? 36 : 48;
-  const rightPaneWidth  = isTwoCol ? Math.min(520, Math.max(420, vw * 0.38)) : '100%';
-  const leftPaneWidth   = isTwoCol ? `${100 - (typeof rightPaneWidth === 'number' ? (rightPaneWidth / vw * 100) : 35)}%` : '100%';
+  const rightPaneWidth  = isTwoCol ? Math.min(430, Math.max(380, vw * 0.32)) : '100%';
+  const rightPaneWidthPx = typeof rightPaneWidth === 'number' ? rightPaneWidth : 0;
+  const leftPanePixels  = isTwoCol ? vw - rightPaneWidthPx : vw;
+  const leftPaneWidth   = isTwoCol ? `${100 - (rightPaneWidthPx / vw * 100)}%` : '100%';
+  const heroCopyMaxWidth = isCompact ? '100%' : isTwoCol ? Math.min(520, leftPanePixels * 0.56) : 576;
+  const heroCopyWidthPx = typeof heroCopyMaxWidth === 'number' ? heroCopyMaxWidth : 0;
 
-  // Brain image offset scales with viewport so it never overflows
-  const brainOffset     = isCompact ? 0 : isTablet ? 40 : Math.min(200, vw * 0.1);
+  // Center the brain in the open lane between the hero copy and the login pane.
+  const brainLaneGap    = 32;
+  const brainLaneLeft   = heroCopyWidthPx + brainLaneGap;
+  const brainLaneRight  = leftPanePixels - brainLaneGap;
+  const brainLaneWidth  = isTwoCol ? Math.max(260, brainLaneRight - brainLaneLeft) : 0;
+  const brainPanelClearance = isTwoCol ? Math.min(80, leftPanePixels * 0.08) : 0;
+  const brainRightNudge = isTwoCol ? 16 : 0;
+  const brainOffset     = isCompact ? 0 : isTablet ? 40 : (brainLaneLeft + brainLaneWidth / 2) - (leftPanePixels / 2) - brainPanelClearance + brainRightNudge;
   const brainScale      = isCompact ? 0.6 : isTablet ? 0.8 : 1.06;
-  const brainMaxWidth   = isCompact ? '200px' : isTablet ? '500px' : '900px';
+  const brainMaxWidth   = isCompact ? 200 : isTablet ? 500 : 900;
   const canShowAppleSignIn = Platform.OS === 'ios';
   const tagFeedback = {
     idle: '',
@@ -708,13 +717,13 @@ export default function AuthThemeDefault(props) {
           <View style={{
             position: 'relative',
             zIndex: 20,
-            maxWidth: isCompact ? '100%' : 576,
+            maxWidth: heroCopyMaxWidth,
             paddingLeft: isCompact ? 16 : sidePadding,
             paddingRight: isCompact ? 16 : sidePadding,
             marginTop: isCompact ? 16 : (isTwoCol ? 0 : 32),
             marginBottom: isCompact ? 8 : 0,
           }}>
-            <View style={{ marginBottom: isCompact ? 8 : 24, maxWidth: isWeb && !isCompact ? 680 : undefined }}>
+            <View style={{ marginBottom: isCompact ? 8 : 24, maxWidth: !isCompact ? heroCopyMaxWidth : undefined }}>
               {isCompact ? (
                 /* On phones: single-line compact tagline */
                 <Text
@@ -787,7 +796,7 @@ export default function AuthThemeDefault(props) {
             showsVerticalScrollIndicator={false}
           >
           <Animated.View style={{ opacity: fadeAnim, flex: 1, justifyContent: 'center' }}>
-            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0} style={{ width: '100%', maxWidth: 460, alignSelf: 'center' }}>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 12 : 0} style={{ width: '100%', maxWidth: isTwoCol ? 360 : 460, alignSelf: 'center' }}>
               <View style={[{ width: '100%', backgroundColor: 'transparent' }]}>
 
                 <View style={{ marginBottom: isCompact ? 24 : 48 }}>
