@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, ScrollView, Animated, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, Animated, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../theme/colors';
 import Icons from '../components/Icons';
+import { BACKEND } from '../utils/api';
 
-export default function BrainProfileScreen({ go }) {
+export default function BrainProfileScreen({ user, go }) {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [fillAnims] = useState([
     new Animated.Value(0),
     new Animated.Value(0),
@@ -11,14 +17,34 @@ export default function BrainProfileScreen({ go }) {
   ]);
 
   useEffect(() => {
-    Animated.stagger(200, fillAnims.map((anim, i) =>
-      Animated.timing(anim, {
-        toValue: [82, 71, 54][i],
-        duration: 1200,
-        useNativeDriver: false
-      })
-    )).start();
-  }, []);
+    (async () => {
+      if (!user?.id) { setLoading(false); setError('No user data'); return; }
+      try {
+        const token = await AsyncStorage.getItem('crackl_token');
+        const res = await fetch(`${BACKEND}/profile/brain-report/${user.id}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {}
+        });
+        const data = await res.json();
+        if (data.success && data.report) {
+          setReport(data.report);
+          const acc = data.report.accuracy || 0;
+          // Use an asymptotic learning curve for percentiles
+          const streakPct = Math.min(100, Math.round(100 * (1 - Math.exp(-(data.report.weekStreak || 0) / 7)))); 
+          const totalPct = Math.min(100, Math.round(100 * (1 - Math.exp(-(data.report.total || 0) / 30))));
+          Animated.stagger(200, fillAnims.map((anim, i) =>
+            Animated.timing(anim, {
+              toValue: [acc, streakPct, totalPct][i],
+              duration: 1200,
+              useNativeDriver: false
+            })
+          )).start();
+        } else {
+          setError(data.error || 'Could not load report');
+        }
+      } catch { setError('Network error — could not reach server'); }
+      setLoading(false);
+    })();
+  }, [user?.id]);
 
   const StrengthBar = ({ label, pct, desc, anim, index }) => {
     const barCol = index === 0 ? Colors.purple : index === 1 ? Colors.cyan : Colors.emerald;
@@ -39,6 +65,12 @@ export default function BrainProfileScreen({ go }) {
     );
   };
 
+  const acc = report?.accuracy ?? 0;
+  // Use asymptotic learning curve (e.g. 7 day streak = ~63%, 14 day = ~86%)
+  const streakPct = Math.min(100, Math.round(100 * (1 - Math.exp(-(report?.weekStreak || 0) / 7))));
+  // Activity volume curve (e.g. 30 riddles = ~63%, 60 = ~86%)
+  const totalPct = Math.min(100, Math.round(100 * (1 - Math.exp(-(report?.total || 0) / 30))));
+
   return (
     <ScrollView style={{ flex: 1, backgroundColor: Colors.bgBase }} contentContainerStyle={{ padding: 24, paddingBottom: 60, alignItems: 'center' }} showsVerticalScrollIndicator={false}>
       <View style={{ flex: 1, width: '100%', maxWidth: 428 }}>
@@ -51,52 +83,53 @@ export default function BrainProfileScreen({ go }) {
 
       <View style={{ alignItems: 'center', marginBottom: 40 }}>
         <Text style={{ color: Colors.textMuted, fontFamily: 'Share Tech Mono', fontSize: 10, fontWeight: '900', letterSpacing: 3 }}>WEEKLY INTELLIGENCE REPORT</Text>
-        <Text style={{ color: Colors.textPrimary, fontFamily: 'Cormorant Garamond', fontSize: 15, marginTop: 6, fontStyle: 'italic' }}>Cycle 99.4</Text>
+        <Text style={{ color: Colors.textPrimary, fontFamily: 'Cormorant Garamond', fontSize: 15, marginTop: 6, fontStyle: 'italic' }}>{report?.level || user?.level || 'Novice'}</Text>
         <Text style={{ color: Colors.purpleLight, fontFamily: 'Chakra Petch', fontSize: 24, fontWeight: '900', marginTop: 16, letterSpacing: 1, textTransform: 'uppercase' }}>OPERATIVE PROFILE</Text>
       </View>
 
-      {/* Archetype Card */}
+      {/* Loading / Error states */}
+      {loading && (
+        <View style={{ alignItems: 'center', padding: 40 }}>
+          <ActivityIndicator color={Colors.purple} size="large" />
+          <Text style={{ color: Colors.textMuted, fontFamily: 'Share Tech Mono', fontSize: 11, marginTop: 12 }}>DECRYPTING BRAIN DATA...</Text>
+        </View>
+      )}
+      {error && !loading && (
+        <View style={{ alignItems: 'center', padding: 40 }}>
+          <Icons.AlertTriangleIcon size={32} color={Colors.rose} />
+          <Text style={{ color: Colors.rose, fontFamily: 'Share Tech Mono', fontSize: 12, marginTop: 12, textAlign: 'center' }}>{error}</Text>
+        </View>
+      )}
+
+      {!loading && !error && report && (<>
+      {/* AI Narrative Card */}
       <View style={{ backgroundColor: 'rgba(15,15,26,0.6)', borderRadius: 20, padding: 32, marginBottom: 24, overflow: 'hidden', borderWidth: 1, borderColor: Colors.purple+'50'}}>
         <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: Colors.purple, opacity: 0.05 }} />
         <View style={{ position: 'absolute', top: '-20%', right: '-20%', width: 150, height: 150, borderRadius: 75, backgroundColor: Colors.purple, opacity: 0.1}} />
-        
+
         <View style={{ alignItems: 'center' }}>
           <Icons.TargetIcon size={48} color={Colors.purpleLight} />
-          <Text style={{ color: Colors.textSecondary, fontFamily: 'Share Tech Mono', fontSize: 10, fontWeight: '900', letterSpacing: 3, marginTop: 24 }}>INTELLIGENCE ARCHETYPE</Text>
-          <Text style={{ color: '#fff', fontFamily: 'Chakra Petch', fontSize: 28, fontWeight: '900', textAlign: 'center', marginTop: 8, letterSpacing: 1, textTransform: 'uppercase' }}>THE PATTERN DETECTIVE</Text>
+          <Text style={{ color: Colors.textSecondary, fontFamily: 'Share Tech Mono', fontSize: 10, fontWeight: '900', letterSpacing: 3, marginTop: 24 }}>INTELLIGENCE ANALYSIS</Text>
           <Text style={{ color: Colors.textSecondary, fontFamily: 'Cormorant Garamond', fontSize: 15, textAlign: 'center', marginTop: 14, lineHeight: 22 }}>
-            You excel at seeing the invisible threads connecting seemingly unrelated data points in the grid.
+            {report.narrative || 'No analysis available yet. Play more riddles to generate your brain report.'}
           </Text>
         </View>
       </View>
 
-      {/* Strength Bars */}
+      {/* Strength Bars — driven by real data */}
       <View style={{ backgroundColor: 'rgba(15,15,26,0.6)', borderRadius: 20, padding: 28, marginBottom: 24, borderWidth: 1, borderColor: Colors.borderDefault}}>
-        <StrengthBar index={0} anim={fillAnims[0]} pct={82} label="Lateral Thinking" desc="Top 12% of operatives in Sector BLR" />
-        <StrengthBar index={1} anim={fillAnims[1]} pct={71} label="Pattern Recognition" desc="Top 23% of operatives globally" />
-        <StrengthBar index={2} anim={fillAnims[2]} pct={54} label="Historical Decryption" desc="Top 41% of operatives globally" />
+        <StrengthBar index={0} anim={fillAnims[0]} pct={acc} label="Accuracy Rating" desc={`${report.correct || 0} correct out of ${report.total || 0} this week`} />
+        <StrengthBar index={1} anim={fillAnims[1]} pct={streakPct} label="Streak Power" desc={`Current streak: ${report.weekStreak || 0} days`} />
+        <StrengthBar index={2} anim={fillAnims[2]} pct={totalPct} label="Weekly Volume" desc={`${report.total || 0} riddles attempted this week`} />
       </View>
 
-      {/* Weakness Card */}
-      <View style={{ backgroundColor: 'rgba(15,15,26,0.4)', borderRadius: 20, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: Colors.rose+'40', borderLeftWidth: 4, borderLeftColor: Colors.rose}}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <Icons.AlertTriangleIcon size={16} color={Colors.rose} />
-          <Text style={{ color: Colors.rose, fontFamily: 'Chakra Petch', fontSize: 14, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>Identified Vulnerability</Text>
-        </View>
-        <Text style={{ color: Colors.textSecondary, fontFamily: 'Cormorant Garamond', fontSize: 15, lineHeight: 22 }}>Logic Sequences. System flags a struggle when decrypting step-by-step logic chains over intuitive leaps.</Text>
-        <View style={{ marginTop: 16, backgroundColor: Colors.rose+'10', padding: 12, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: Colors.rose+'25' }}>
-          <Icons.TerminalIcon size={12} color={Colors.rose} />
-          <Text style={{ color: Colors.rose, fontFamily: 'Share Tech Mono', fontSize: 11, fontWeight: '700' }}>SYS REQ: Run 3 Logic Sequences daily.</Text>
-        </View>
-      </View>
-
-      {/* Weekly Stats Grid */}
+      {/* Weekly Stats Grid — real data */}
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 24 }}>
         {[
-          { label: 'Puzzles Decrypted', val: '47' },
-          { label: 'Accuracy Rating', val: '72%' },
-          { label: 'Peak Cycle', val: 'Wednesday' },
-          { label: 'Longest Combo', val: '8 streak' }
+          { label: 'Puzzles Decrypted', val: String(report.total || 0) },
+          { label: 'Accuracy Rating', val: `${acc}%` },
+          { label: 'Correct Answers', val: String(report.correct || 0) },
+          { label: 'Current Streak', val: `${report.weekStreak || 0} days` }
         ].map(s => (
           <View key={s.label} style={{ width: '48%', backgroundColor: 'rgba(15,15,26,0.6)', padding: 20, borderRadius: 16, borderWidth: 1, borderColor: Colors.borderDefault}}>
             <Text style={{ color: Colors.textPrimary, fontFamily: 'Share Tech Mono', fontSize: 22, fontWeight: '900' }}>{s.val}</Text>
@@ -105,26 +138,7 @@ export default function BrainProfileScreen({ go }) {
         ))}
       </View>
 
-      {/* Challenge Card */}
-      <View style={{ backgroundColor: 'rgba(15,15,26,0.4)', borderRadius: 20, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: Colors.gold+'40', borderLeftWidth: 4, borderLeftColor: Colors.gold}}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <Icons.TrophyIcon size={16} color={Colors.gold} />
-          <Text style={{ color: Colors.gold, fontFamily: 'Chakra Petch', fontSize: 14, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>Next Cycle Objective</Text>
-        </View>
-        <Text style={{ color: Colors.textPrimary, fontFamily: 'Cormorant Garamond', fontSize: 16, fontWeight: '600' }}>Crack 10 Cipher Sequences.</Text>
-        <Text style={{ color: Colors.textSecondary, fontFamily: 'Cormorant Garamond', fontSize: 15, marginTop: 4 }}>Your code-breaking skill needs unlocking.</Text>
-      </View>
-
-      {/* AI Insight */}
-      <View style={{ backgroundColor: 'rgba(15,15,26,0.4)', borderRadius: 20, padding: 24, borderWidth: 1, borderColor: Colors.indigo+'40', borderLeftWidth: 4, borderLeftColor: Colors.indigo}}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-          <Icons.DatabaseIcon size={16} color={Colors.indigo} />
-          <Text style={{ color: Colors.indigo, fontFamily: 'Chakra Petch', fontSize: 14, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>System Insight</Text>
-        </View>
-        <Text style={{ color: Colors.textSecondary, fontFamily: 'Cormorant Garamond', fontSize: 16, lineHeight: 24, fontStyle: 'italic' }}>
-          "Subject relies heavily on speed and intuition natively. While this yields results in Quick Crack protocol, crucial details are lost in complex cipher texts. Slow computation by 3s could yield a 15% system accuracy increase."
-        </Text>
-      </View>
+      </>)}
       </View>
     </ScrollView>
   );

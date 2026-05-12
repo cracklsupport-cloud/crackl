@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, TextInput } from 'react-native';
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import RiddleContent from '../components/RiddleContent';
 
 const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
-const grotesk = isWeb ? '"Space Grotesk", sans-serif' : undefined;
+const grotesk = isWeb ? '"Black Ops One", sans-serif' : undefined;
 
 function CornerBrackets() {
   const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 20 };
@@ -31,39 +33,131 @@ function ArenaOverlay() {
   </>);
 }
 
-export default function ChainScreen({ user, go, update }) {
+export default function ChainScreen({ user, go, exitToHome, update, panicMode }) {
   const [phase, setPhase] = useState('intro');
   const [chainData, setChainData] = useState(null);
+  const [chainToken, setChainToken] = useState(null);
   const [currentRiddle, setCurrentRiddle] = useState(null);
   const [step, setStep] = useState(0);
   const [selected, setSelected] = useState(null);
+  const [typed, setTyped] = useState('');
   const [result, setResult] = useState(null);
   const [totalCoins, setTotalCoins] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [nextLoading, setNextLoading] = useState(false);
+  const [answering, setAnswering] = useState(false);
   const [err, setErr] = useState('');
+  const [timeLeft, setTimeLeft] = useState(0);
+  const [showAbortConfirm, setShowAbortConfirm] = useState(false);
+  const answerLockRef = useRef(false);
+  const currentRiddleRef = useRef(null);
+  const typedRef = useRef('');
+  const timerRef = useRef(null);
+  const timeLeftRef = useRef(0);
   const accent = Colors.emerald;
 
+  useEffect(() => () => clearInterval(timerRef.current), []);
+
+  function armTimer(nextRiddle) {
+    clearInterval(timerRef.current);
+    const limit = nextRiddle?.timeLimit || 0;
+    const armed = panicMode ? limit : 0;
+    setTimeLeft(armed);
+    timeLeftRef.current = armed;
+    // Timer ONLY activates in Panic Mode
+    if (!panicMode || !limit) return;
+    let t = limit;
+    timerRef.current = setInterval(() => {
+      t--;
+      setTimeLeft(t);
+      timeLeftRef.current = t;
+      if (t <= 0) {
+        clearInterval(timerRef.current);
+        submitAnswer('__timeout__');
+      }
+    }, 1000);
+  }
+
   async function startChain() {
-    setLoading(true); setErr('');
+    setLoading(true); setErr(''); setStep(0); setTotalCoins(0); setSelected(null); setTyped(''); setResult(null); setCurrentRiddle(null);
+    setChainToken(null);
+    answerLockRef.current = false;
+    typedRef.current = '';
+    currentRiddleRef.current = null;
+    clearInterval(timerRef.current);
     try {
-      const res = await fetch(`${BACKEND}/chain/start`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0 }) });
+      const token = await AsyncStorage.getItem('crackl_token');
+      const res = await fetch(`${BACKEND}/chain/start`, { method:'POST', headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0, panicMode: !!panicMode }) });
       const data = await res.json();
-      if (data.success) { setChainData(data); setCurrentRiddle(data.riddle); setPhase('playing'); }
+      if (data.success) {
+        setChainData(data);
+        setChainToken(data.chainToken || null);
+        setCurrentRiddle(data.riddle);
+        currentRiddleRef.current = data.riddle;
+        armTimer(data.riddle);
+        setPhase('playing');
+      }
+      else setErr(data.error || 'Could not initialize chain.');
     } catch { setErr('Connection error'); }
     setLoading(false);
   }
 
-  async function submitAnswer(ans) {
-    if (result) return; setSelected(ans);
+  async function loadNextLink(nextStep, nextRiddle, nextToken) {
+    setNextLoading(true);
     try {
-      const res = await fetch(`${BACKEND}/chain/answer`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ userId:user.id, chainId:chainData.chainId, step, riddleId:currentRiddle.id, userAnswer:ans }) });
+      if (nextRiddle) {
+        setStep(nextStep);
+        setCurrentRiddle(nextRiddle);
+        currentRiddleRef.current = nextRiddle;
+        setChainToken(nextToken || null);
+        setSelected(null);
+        setTyped('');
+        typedRef.current = '';
+        setResult(null);
+        setErr('');
+        armTimer(nextRiddle);
+        answerLockRef.current = false;
+      } else {
+        answerLockRef.current = false;
+        setErr('Next chain link could not be established.');
+      }
+    } catch {
+      answerLockRef.current = false;
+      setErr('Connection dropped while establishing the next link.');
+    }
+    setNextLoading(false);
+  }
+
+  async function submitAnswer(ans) {
+    const activeRiddle = currentRiddleRef.current || currentRiddle;
+    if (answerLockRef.current || !activeRiddle) return; answerLockRef.current = true; setAnswering(true); setErr(''); clearInterval(timerRef.current);
+    const final = ans === '__timeout__' ? (typedRef.current.trim() || '__timeout__') : ans;
+    setSelected(final);
+    try {
+      const limit = activeRiddle?.timeLimit || 0;
+      const timeTaken = panicMode ? Math.max(0, limit - timeLeftRef.current) : 0;
+      const token = await AsyncStorage.getItem('crackl_token');
+      const res = await fetch(`${BACKEND}/chain/answer`, { method:'POST', headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})}, body:JSON.stringify({ userId:user.id, chainId:chainData.chainId, step, riddleId:activeRiddle.id, userAnswer:final, panicMode: !!panicMode, chainToken, timeTaken }) });
       const data = await res.json(); setResult(data);
       if (data.isCorrect) {
-        setTotalCoins(c => c + data.coinsEarned); update({...user, coins:(user.coins||0)+data.coinsEarned});
+        setTotalCoins(c => c + data.coinsEarned);
+        update({
+          ...user,
+          coins: data.newTotal ?? ((user.coins || 0) + data.coinsEarned),
+          xp: data.newXp ?? user.xp,
+          level: data.newLevel ?? user.level,
+          streak: data.streakCount ?? user.streak
+        });
         if (data.completed) setTimeout(() => setPhase('done'), 1200);
-        else setTimeout(() => { setStep(data.nextStep); setCurrentRiddle({...currentRiddle, question:'(Loading next link...)', options:[]}); setSelected(null); setResult(null); }, 1500);
+        else {
+          setTimeout(() => {
+            setCurrentRiddle({ ...activeRiddle, question:'Establishing next secure link...', options:[] });
+            loadNextLink(data.nextStep, data.nextRiddle, data.chainToken);
+          }, 900);
+        }
       }
-    } catch { setErr('Error submitting sequence'); }
+    } catch { answerLockRef.current = false; setErr('Error submitting sequence'); }
+    setAnswering(false);
   }
 
   const TopBar = () => (
@@ -72,9 +166,12 @@ export default function ChainScreen({ user, go, update }) {
       paddingHorizontal: 24, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.08)',
       zIndex: 10, backgroundColor: 'rgba(10,10,12,0.8)',
     }, isWeb ? { backdropFilter: 'blur(24px)' } : {}]}>
-      <TouchableOpacity style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }, isWeb ? { transition: 'all 0.2s ease' } : {}]} onPress={() => go('home')}>
-        <Icons.ChevronLeftIcon size={12} color="#00ffd0" />
-        <Text style={{ color: '#00ffd0', fontFamily: mono, fontWeight: '800', fontSize: 12, letterSpacing: 2 }}>ABORT</Text>
+      <TouchableOpacity
+        style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, backgroundColor: 'rgba(0,0,0,0.4)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }, isWeb ? { transition: 'all 0.2s ease' } : {}]}
+        onPress={() => panicMode ? setShowAbortConfirm(true) : (exitToHome ? exitToHome() : go('home'))}
+      >
+        <Icons.ChevronLeftIcon size={12} color={accent} />
+        <Text style={{ color: accent, fontFamily: mono, fontWeight: '800', fontSize: 12, letterSpacing: 2 }}>ABORT</Text>
       </TouchableOpacity>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: accent+'12', borderWidth: 1, borderColor: accent+'30' }}>
         <Icons.LinkIcon size={14} color={accent} />
@@ -94,7 +191,11 @@ export default function ChainScreen({ user, go, update }) {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40, maxWidth: 560, alignSelf: 'center' }}>
         <Icons.LinkIcon size={64} color={accent} />
         <Text style={{ color: Colors.textPrimary, fontFamily: grotesk, fontSize: 32, fontWeight: '900', marginTop: 24, textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase' }}>The Chain</Text>
-        <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 14, marginTop: 12, textAlign: 'center', lineHeight: 22 }}>5 decryption sequences linked together. Each correct node unlocks the next. Fall short, and the chain breaks. Secure all 5 nodes for a 250 credit yield.</Text>
+        <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 15, marginTop: 12, textAlign: 'center', lineHeight: 24 }}>
+          {panicMode
+            ? '5 linked decryption sequences. The next node only unlocks if you crack the current one before the breach timer expires.'
+            : '5 decryption sequences linked together. Each correct node unlocks the next. Fall short, and the chain breaks. Secure all 5 nodes for a 250 credit yield.'}
+        </Text>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 40 }}>
           {[1,2,3,4,5].map(i => (
             <View key={i} style={[{ width: 48, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.08)' }, isWeb ? { backgroundColor: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(8px)' } : { backgroundColor: 'rgba(255,255,255,0.02)' }]}>
@@ -122,7 +223,7 @@ export default function ChainScreen({ user, go, update }) {
           <Icons.IntelIcon size={24} color={Colors.gold} />
           <Text style={{ color: Colors.gold, fontFamily: mono, fontSize: 36, fontWeight: '900' }}>+{totalCoins}</Text>
         </View>
-        <TouchableOpacity style={[{ paddingVertical: 16, paddingHorizontal: 48, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.4)', marginTop: 48 }, isWeb ? { cursor: 'pointer' } : {}]} onPress={() => go('home')}>
+        <TouchableOpacity style={[{ paddingVertical: 16, paddingHorizontal: 48, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.4)', marginTop: 48 }, isWeb ? { cursor: 'pointer' } : {}]} onPress={() => (exitToHome ? exitToHome() : go('home'))}>
           <Text style={{ color: Colors.textPrimary, fontFamily: mono, fontWeight: '900', fontSize: 14, letterSpacing: 1.5 }}>RETURN TO HUB</Text>
         </TouchableOpacity>
       </View>
@@ -136,8 +237,17 @@ export default function ChainScreen({ user, go, update }) {
       <ScrollView contentContainerStyle={{ maxWidth: 740, alignSelf: 'center', width: '100%', paddingHorizontal: 24, paddingTop: 20, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
         {/* Chain progress */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
-          {[1,2,3,4,5].map(i => <View key={i} style={[{ flex: 1, height: 6, borderRadius: 3 }, isWeb ? { backgroundColor: i<=step ? accent : 'rgba(255,255,255,0.05)', transition: 'background-color 0.5s ease' } : { backgroundColor: i<=step ? accent : 'rgba(255,255,255,0.05)' }]} />)}
+          {[1,2,3,4,5].map(i => <View key={i} style={[{ flex: 1, height: 6, borderRadius: 3 }, isWeb ? { backgroundColor: i<=step+1 ? accent : 'rgba(255,255,255,0.05)', transition: 'background-color 0.5s ease' } : { backgroundColor: i<=step+1 ? accent : 'rgba(255,255,255,0.05)' }]} />)}
         </View>
+
+        {panicMode && timeLeft > 0 && !result ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+            <View style={{ flex: 1, height: 8, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' }}>
+              <View style={[{ height: '100%', borderRadius: 4 }, isWeb ? { width: `${(timeLeft / (currentRiddle?.timeLimit || timeLeft || 1)) * 100}%`, backgroundImage: `linear-gradient(to right, ${panicMode ? '#5f0000' : '#064e3b'}, ${accent})`, boxShadow: `0 0 20px ${accent}80`, transition: 'width 1s linear' } : { width: `${(timeLeft / (currentRiddle?.timeLimit || timeLeft || 1)) * 100}%`, backgroundColor: timeLeft <= 5 ? Colors.rose : accent }]} />
+            </View>
+            <Text style={[{ color: timeLeft <= 5 ? Colors.rose : accent, fontFamily: mono, fontWeight: '900', fontSize: 22, minWidth: 56, textAlign: 'right' }, isWeb && timeLeft <= 5 ? { textShadow: '0 0 12px rgba(255,42,42,0.8)' } : {}]}>{timeLeft}s</Text>
+          </View>
+        ) : null}
 
         {/* Question */}
         <View style={[{ backgroundColor: 'rgba(10,10,12,0.8)', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
@@ -145,15 +255,15 @@ export default function ChainScreen({ user, go, update }) {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Icons.LinkIcon size={12} color={accent} />
-              <Text style={{ fontFamily: mono, fontSize: 10, color: accent, letterSpacing: 2, textTransform: 'uppercase' }}>Chain Link // Node {step+1}</Text>
+              <Text style={{ fontFamily: mono, fontSize: 11, color: accent, letterSpacing: 1.8, textTransform: 'uppercase' }}>Chain Link // Node {step+1}</Text>
             </View>
-            <Text style={{ fontFamily: mono, fontSize: 10, color: 'rgba(255,255,255,0.3)', letterSpacing: 2 }}>LINK_{(step+1).toString().padStart(2,'0')}</Text>
+            <Text style={{ fontFamily: mono, fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1.8 }}>LINK_{(step+1).toString().padStart(2,'0')}</Text>
           </View>
-          <Text style={{ color: Colors.textPrimary, fontFamily: 'Cormorant Garamond', fontSize: 24, fontWeight: '700', lineHeight: 34 }}>{currentRiddle?.question}</Text>
+          <RiddleContent riddle={currentRiddle} accent={accent} />
         </View>
 
         {/* Options */}
-        {currentRiddle?.options?.map((opt, i) => {
+        {Array.isArray(currentRiddle?.options) && currentRiddle.options.length > 1 ? currentRiddle.options.map((opt, i) => {
           const right = result && opt === result.correctAnswer;
           const wrong = result && opt === selected && !result.isCorrect;
           return (
@@ -169,7 +279,44 @@ export default function ChainScreen({ user, go, update }) {
               <Text style={{ flex: 1, color: right?Colors.emerald:wrong?'#fca5a5':Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 }}>{opt}</Text>
             </TouchableOpacity>
           );
-        })}
+        }) : !result && (
+          <View style={{ position: 'relative', opacity: nextLoading ? 0.55 : 1 }}>
+            <Text style={{ position: 'absolute', left: 20, top: 22, zIndex: 10, fontFamily: mono, fontSize: 22, fontWeight: '900', color: accent }}>{'>_'}</Text>
+            <TextInput
+              style={[{
+                backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? accent+'60' : 'rgba(255,255,255,0.08)',
+                borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
+                color: Colors.textPrimary, fontFamily: mono, fontSize: 18, fontWeight: '900',
+                letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+              }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? `0 0 15px ${accent}20` : 'none' } : {}]}
+              placeholder={nextLoading ? 'ESTABLISHING NEXT LINK...' : 'ENTER DECRYPTION KEY...'}
+              placeholderTextColor={Colors.textMuted}
+              value={typed}
+              onChangeText={(value) => { setTyped(value); typedRef.current = value; }}
+              editable={!answering && !nextLoading && !(result && !result.isCorrect)}
+            />
+            <TouchableOpacity
+              style={[{
+                position: 'absolute', right: 8, top: 8, bottom: 8,
+                backgroundColor: answering || nextLoading ? '#666' : '#fff',
+                paddingHorizontal: 24, borderRadius: 12,
+                flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
+                opacity: (!typed.trim() || answering || nextLoading) ? 0.5 : 1
+              }, isWeb ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}]}
+              onPress={() => typed.trim() && !answering && !nextLoading && submitAnswer(typed.trim())}
+              disabled={!typed.trim() || answering || nextLoading}
+            >
+              {answering || nextLoading ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Execute</Text>}
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {err && phase === 'playing' ? (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 16, backgroundColor: Colors.rose+'15', padding: 12, borderRadius: 8 }}>
+            <Icons.AlertTriangleIcon size={14} color={Colors.rose} />
+            <Text style={{ color: Colors.rose, fontFamily: mono, fontWeight: '700', fontSize: 12, flex: 1 }}>{err}</Text>
+          </View>
+        ) : null}
 
         {/* Chain broken */}
         {result && !result.isCorrect && (
@@ -177,7 +324,17 @@ export default function ChainScreen({ user, go, update }) {
             <CornerBrackets />
             <Icons.XIcon size={48} color={Colors.rose} />
             <Text style={{ color: Colors.rose, fontFamily: grotesk, fontWeight: '900', fontSize: 28, textAlign: 'center', marginTop: 16, letterSpacing: 1 }}>CHAIN COMPROMISED!</Text>
-            <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 14, marginTop: 12 }}>CORRECT NODE SEQUENCE:</Text>
+            {step > 0 && (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 12 }}>
+                <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.emerald+'12', borderWidth: 1, borderColor: Colors.emerald+'35' }}>
+                  <Text style={{ color: Colors.emerald, fontFamily: mono, fontSize: 11, fontWeight: '900' }}>{step} NODE{step !== 1 ? 'S' : ''} SECURED</Text>
+                </View>
+                <View style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.rose+'12', borderWidth: 1, borderColor: Colors.rose+'35' }}>
+                  <Text style={{ color: Colors.rose, fontFamily: mono, fontSize: 11, fontWeight: '900' }}>FAILED AT NODE {step + 1}</Text>
+                </View>
+              </View>
+            )}
+            <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 14, marginTop: 16 }}>CORRECT NODE SEQUENCE:</Text>
             <Text style={{ color: Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 20, fontWeight: '900', marginTop: 6 }}>{result.correctAnswer}</Text>
             <TouchableOpacity style={[{ backgroundColor: '#fff', paddingVertical: 16, paddingHorizontal: 48, borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 32 }, isWeb ? { cursor: 'pointer' } : {}]} onPress={startChain}>
               <Icons.ZapIcon size={16} color="#000" />
@@ -195,6 +352,33 @@ export default function ChainScreen({ user, go, update }) {
           </View>
         )}
       </ScrollView>
+
+      {/* ── Panic Abort Confirmation ── */}
+      {showAbortConfirm && (
+        <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 200, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <View style={[{ maxWidth: 360, width: '100%', padding: 28, borderRadius: 16, backgroundColor: 'rgba(10,10,12,0.98)', borderWidth: 1, borderColor: '#ff2a2a40', alignItems: 'center' }, isWeb ? { boxShadow: '0 0 60px rgba(255,42,42,0.15)' } : {}]}>
+            <Icons.AlertTriangleIcon size={36} color="#ff2a2a" />
+            <Text style={{ color: '#ff2a2a', fontFamily: 'Chakra Petch', fontSize: 20, fontWeight: '900', letterSpacing: 2, marginTop: 16, textAlign: 'center' }}>ABORT CHAIN?</Text>
+            <Text style={{ color: Colors.textMuted, fontFamily: 'Share Tech Mono', fontSize: 12, marginTop: 12, textAlign: 'center', lineHeight: 18 }}>
+              {'You have secured '}{step}{' node'}{ step !== 1 ? 's' : ''}{' so far.\nAbandoning will break the chain.\n\nAre you sure?'}
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 24, width: '100%' }}>
+              <TouchableOpacity
+                style={[{ flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }, isWeb ? { cursor: 'pointer' } : {}]}
+                onPress={() => setShowAbortConfirm(false)}
+              >
+                <Text style={{ color: '#e2e8f0', fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 12, letterSpacing: 1.5 }}>HOLD THE LINE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[{ flex: 1, paddingVertical: 14, borderRadius: 10, alignItems: 'center', backgroundColor: 'rgba(255,42,42,0.12)', borderWidth: 1, borderColor: '#ff2a2a50' }, isWeb ? { cursor: 'pointer' } : {}]}
+                onPress={() => { setShowAbortConfirm(false); (exitToHome ? exitToHome() : go('home')); }}
+              >
+                <Text style={{ color: '#ff2a2a', fontFamily: 'Share Tech Mono', fontWeight: '900', fontSize: 12, letterSpacing: 1.5 }}>BREAK CHAIN</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }

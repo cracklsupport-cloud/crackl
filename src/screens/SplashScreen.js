@@ -168,7 +168,7 @@ export default function SplashScreen() {
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'baseline', marginTop: 24 }}>
-          <Text style={{ color: Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 48, fontWeight: '900', letterSpacing: 8 }}>CRACKL</Text>
+          <Text style={{ color: Colors.textPrimary, fontFamily: 'Black Ops One', fontSize: 48, fontWeight: '900', letterSpacing: 3 }}>CRACKL</Text>
         </View>
         <Animated.View style={{ opacity: subOp, alignItems: 'center' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 8 }}>

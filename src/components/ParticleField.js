@@ -48,9 +48,9 @@ export function ParticleField({ panicMode = false, particleCount = 150, opacity 
       particles.push({
         x: Math.random() * W,
         y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.3,
-        vy: (Math.random() - 0.5) * 0.3,
-        r: Math.random() * 1.5 + 0.5,
+        vx: (Math.random() - 0.5) * 0.4,
+        vy: (Math.random() - 0.5) * 0.4,
+        r: Math.random() * 4.0 + 3.0,
         a: Math.random() * 0.5 + 0.1,
       });
     }
@@ -112,8 +112,8 @@ export function ParticleField({ panicMode = false, particleCount = 150, opacity 
           const dx = particles[i].x - particles[j].x;
           const dy = particles[i].y - particles[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < (isPanic ? 160 : 120)) {
-            const alpha = (1 - dist / (isPanic ? 160 : 120)) * (isPanic ? 0.12 : 0.06);
+          if (dist < (isPanic ? 250 : 200)) {
+            const alpha = (1 - dist / (isPanic ? 250 : 200)) * (isPanic ? 0.12 : 0.06);
             ctx.beginPath();
             ctx.moveTo(particles[i].x, particles[i].y);
             ctx.lineTo(particles[j].x, particles[j].y);

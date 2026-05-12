@@ -195,6 +195,108 @@
     .toggle-switch input:checked + .toggle-slider::before { transform: translateX(14px); }
     .copy-btn { background: transparent; color: var(--text3); border: 1px solid var(--border); padding: 3px 8px; font-size: 11px; }
     .copy-btn:hover { color: var(--text2); }
+
+    /* ── Studio ── */
+    .studio-layout { display: flex; gap: 20px; align-items: flex-start; }
+    .studio-left { flex: 1; min-width: 0; }
+    .studio-right { flex-shrink: 0; }
+    .format-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; margin-bottom: 16px; }
+    .format-card { background: var(--card2); border: 1.5px solid var(--border); border-radius: 10px; padding: 16px 10px; text-align: center; cursor: pointer; transition: all .2s; min-height: 104px; }
+    .format-card:hover { border-color: rgba(124,58,237,.4); }
+    .format-card.active { border-color: var(--purple); background: rgba(124,58,237,.08); }
+    .format-card .fc-icon { font-size: 24px; margin-bottom: 6px; }
+    .format-card .fc-label { font-size: 11px; font-weight: 700; color: var(--text2); letter-spacing: .5px; }
+    .format-card.active .fc-label { color: var(--purple-light); }
+    .format-card .fc-desc { font-size: 9px; color: var(--text3); margin-top: 3px; }
+    .upload-zone { border: 2px dashed var(--border); border-radius: 10px; padding: 28px; text-align: center; cursor: pointer; transition: all .2s; background: rgba(12,12,24,.6); }
+    .upload-zone:hover { border-color: rgba(124,58,237,.4); background: rgba(124,58,237,.03); }
+    .upload-zone.has-media { border-color: rgba(0,201,122,.3); border-style: solid; }
+    .upload-zone .uz-icon { font-size: 28px; margin-bottom: 8px; }
+    .upload-zone .uz-text { font-size: 12px; color: var(--text2); }
+    .upload-zone .uz-hint { font-size: 10px; color: var(--text3); margin-top: 4px; }
+    .upload-preview { width: 100%; max-height: 180px; object-fit: contain; border-radius: 8px; margin-bottom: 10px; background: #050508; border: 1px solid var(--border); }
+    .upload-preview-frame { width: 100%; min-height: 84px; border-radius: 8px; margin-bottom: 10px; background: #050508; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--text2); }
+    .upload-actions { display: flex; gap: 8px; }
+    .upload-status { font-size: 11px; margin-top: 6px; font-weight: 600; }
+
+    /* Phone Preview */
+    .phone-wrap { position: relative; }
+    .phone-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 0 12px; }
+    .phone-label span { font-size: 9px; color: var(--text3); letter-spacing: 2px; text-transform: uppercase; font-weight: 700; }
+    .phone-shell { width: 242px; padding: 24px 12px 14px; background: linear-gradient(145deg, #1a1a2e, #0a0a14); border-radius: 28px; border: 2px solid #2a2a40; box-shadow: 0 16px 50px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04); position: relative; }
+    .phone-notch { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); width: 70px; height: 5px; border-radius: 4px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.03); }
+    .phone-screen { width: 218px; height: 387px; background: #050508; border-radius: 6px; overflow: hidden; position: relative; display: flex; flex-direction: column; }
+    .phone-topbar { height: 22px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 6px; background: rgba(5,5,8,.98); border-bottom: 1px solid rgba(0,255,208,.12); font-size: 5px; }
+    .phone-topbar .tb-mode { display: flex; align-items: center; gap: 2px; }
+    .phone-topbar .tb-dot { width: 3px; height: 3px; border-radius: 50%; background: #00ffd0; }
+    .phone-topbar span { font-family: monospace; font-weight: 800; letter-spacing: 1px; }
+    .phone-topbar .tb-abort { color: #64748b; }
+    .phone-topbar .tb-label { color: #00ffd0; }
+    .phone-topbar .tb-coins { color: #fbbf24; padding: 1px 4px; border-radius: 3px; background: rgba(255,255,255,.03); border: 1px solid rgba(251,191,36,.1); }
+    .phone-hud { margin: 5px 4px; border: 1px solid rgba(0,255,208,.12); border-radius: 4px; position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .phone-hud-corner { position: absolute; width: 8px; height: 8px; border-color: rgba(0,255,208,.25); border-style: solid; border-width: 0; z-index: 5; }
+    .phone-hud-corner.tl { top: 0; left: 0; border-top-width: 1.5px; border-left-width: 1.5px; }
+    .phone-hud-corner.tr { top: 0; right: 0; border-top-width: 1.5px; border-right-width: 1.5px; }
+    .phone-hud-corner.bl { bottom: 0; left: 0; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+    .phone-hud-corner.br { bottom: 0; right: 0; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+    .phone-hud-header { display: flex; justify-content: space-between; align-items: center; padding: 5px 7px; border-bottom: 1px solid rgba(255,255,255,.04); flex-shrink: 0; }
+    .phone-hud-header .enc { font-size: 5px; color: #4b5563; font-family: monospace; letter-spacing: 1.5px; display: flex; align-items: center; gap: 3px; }
+    .phone-hud-header .enc .d { width: 3px; height: 3px; border-radius: 50%; background: #00ffd0; }
+    .phone-diff-badge { font-size: 5px; font-family: monospace; font-weight: 800; padding: 1px 5px; border-radius: 3px; letter-spacing: .5px; }
+    /* Viewport: outer clips to phone size, inner is full 375px canvas scaled by CSS transform */
+    .phone-viewport-outer { flex: 1; overflow: hidden; position: relative; cursor: crosshair; }
+    .phone-viewport-inner { width: 375px; height: 510px; transform-origin: top left; position: absolute; top: 0; left: 0; }
+    .phone-viewport-inner .guide-v { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; border-left: 1px dashed rgba(124,58,237,.1); pointer-events: none; }
+    .phone-viewport-inner .guide-h { position: absolute; top: 50%; left: 0; right: 0; height: 1px; border-top: 1px dashed rgba(124,58,237,.1); pointer-events: none; }
+    .phone-statusbar { height: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 5px; background: rgba(5,5,8,.98); border-top: 1px solid rgba(0,255,208,.12); font-size: 4px; color: #333; font-family: monospace; letter-spacing: .5px; }
+    .phone-hint { text-align: center; margin-top: 8px; font-size: 9px; color: var(--text3); }
+    /* Type badges for Manage Riddles */
+    .badge-type-image { background: rgba(251,191,36,.1); color: #fbbf24; border: 1px solid rgba(251,191,36,.25); }
+    .badge-type-text  { background: rgba(124,58,237,.1); color: var(--purple-light); border: 1px solid rgba(124,58,237,.25); }
+    .riddle-thumb { width: 24px; height: 24px; border-radius: 3px; object-fit: cover; flex-shrink: 0; border: 1px solid rgba(255,255,255,.08); }
+
+    /* Canvas Elements */
+    .canvas-el { position: absolute; cursor: grab; box-sizing: border-box; display: flex; align-items: center; justify-content: center; overflow: hidden; user-select: none; transition: box-shadow .2s; }
+    .canvas-el.dragging { cursor: grabbing; }
+    .canvas-el.selected { border: 1.5px solid var(--purple) !important; box-shadow: 0 0 10px rgba(124,58,237,.3); z-index: 20 !important; }
+    .canvas-el:not(.selected) { border: 1px dashed rgba(124,58,237,.25); }
+    .canvas-el .resize-handle { position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; background: var(--purple); border-radius: 2px; cursor: nwse-resize; border: 1px solid #07070f; display: none; }
+    .canvas-el.selected .resize-handle { display: block; }
+    .canvas-el .el-text { pointer-events: none; width: 100%; padding: 3px; word-break: break-word; line-height: 1.4; }
+    .canvas-el .el-img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+    .canvas-el .el-placeholder { color: #4b5563; font-family: monospace; font-size: 8px; }
+
+    /* Element Inspector */
+    .inspector { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+    .inspector.empty { opacity: .5; text-align: center; font-size: 11px; color: var(--text3); padding: 20px; }
+    .inspector .insp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .inspector .insp-title { font-size: 10px; font-weight: 800; letter-spacing: 1px; color: var(--purple-light); text-transform: uppercase; }
+    .inspector .insp-delete { font-size: 10px; font-weight: 700; color: var(--red); cursor: pointer; background: none; border: none; padding: 2px 6px; }
+    .inspector .insp-delete:hover { background: rgba(244,63,94,.1); border-radius: 4px; }
+    .insp-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .insp-row .insp-field { flex: 1; }
+    .insp-row .insp-field label { font-size: 9px; margin-bottom: 2px; }
+    .insp-row .insp-field input { padding: 5px 8px; font-size: 12px; }
+    .pick-row { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 8px; }
+    .pick-btn { padding: 4px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; cursor: pointer; border: 1px solid var(--border); background: var(--card2); color: var(--text3); transition: all .15s; font-family: monospace; }
+    .pick-btn:hover { border-color: rgba(124,58,237,.3); }
+    .pick-btn.active { border-color: var(--purple); background: rgba(124,58,237,.15); color: var(--purple-light); }
+    .color-dot { width: 20px; height: 20px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: border-color .15s; }
+    .color-dot:hover { border-color: rgba(255,255,255,.3); }
+    .color-dot.active { border-color: #fff; }
+
+    .el-list-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; font-size: 11px; margin-bottom: 2px; transition: background .15s; }
+    .el-list-item:hover { background: rgba(124,58,237,.06); }
+    .el-list-item.active { background: rgba(124,58,237,.1); }
+    .el-list-item .eli-icon { font-size: 12px; }
+    .el-list-item .eli-name { flex: 1; color: var(--text2); font-family: monospace; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .el-list-item.active .eli-name { color: var(--purple-light); }
+    .el-list-item .eli-pos { color: var(--text3); font-family: monospace; font-size: 9px; }
+    .studio-section-toggle { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; cursor: pointer; margin-bottom: 2px; transition: background .15s; }
+    .studio-section-toggle:hover { background: var(--card2); }
+    .studio-section-toggle .sst-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: var(--text2); text-transform: uppercase; }
+    .studio-section-toggle .sst-arrow { color: var(--text3); font-size: 14px; }
+    .studio-fields { background: var(--card); border: 1px solid var(--border); border-top: none; border-radius: 0 0 10px 10px; padding: 16px; margin-bottom: 12px; }
   </style>
 </head>
 <body>
@@ -226,7 +328,7 @@
 
   <div class="tabs">
     <button class="tab active" onclick="switchTab(0)">Overview</button>
-    <button class="tab" onclick="switchTab(1)">Add Riddles</button>
+    <button class="tab" onclick="switchTab(1)">Riddle Studio</button>
     <button class="tab" onclick="switchTab(2)">Manage Riddles</button>
     <button class="tab" onclick="switchTab(3)">Pool Health</button>
     <button class="tab" onclick="switchTab(4)">Chain Sets</button>
@@ -242,12 +344,14 @@
       <div class="stat-card purple"><div class="val" id="s-total">—</div><div class="lbl">Total Riddles</div></div>
       <div class="stat-card green"><div class="val" id="s-served">—</div><div class="lbl">Served Today</div></div>
       <div class="stat-card yellow"><div class="val" id="s-users">—</div><div class="lbl">Active Users (24h)</div></div>
-      <div class="stat-card"><div class="val" id="s-arena">—</div><div class="lbl">Arena</div></div>
-      <div class="stat-card"><div class="val" id="s-daily">—</div><div class="lbl">Daily Drop</div></div>
+      <div class="stat-card"><div class="val" id="s-mcq">—</div><div class="lbl">Standard Queue</div></div>
+      <div class="stat-card"><div class="val" id="s-type">—</div><div class="lbl">Brain Blast</div></div>
+      <div class="stat-card"><div class="val" id="s-arena">—</div><div class="lbl">Eclipse/Ranked Pool</div></div>
+      <div class="stat-card"><div class="val" id="s-daily">—</div><div class="lbl">Cold Case</div></div>
       <div class="stat-card"><div class="val" id="s-gauntlet">—</div><div class="lbl">Gauntlet</div></div>
-      <div class="stat-card"><div class="val" id="s-chain">—</div><div class="lbl">Chain</div></div>
+      <div class="stat-card"><div class="val" id="s-chain">—</div><div class="lbl">The Chain</div></div>
       <div class="stat-card"><div class="val" id="s-wager">—</div><div class="lbl">Blind Wager</div></div>
-      <div class="stat-card"><div class="val" id="s-bounty">—</div><div class="lbl">Bounty</div></div>
+      <div class="stat-card"><div class="val" id="s-bounty">—</div><div class="lbl">Bounty Board</div></div>
     </div>
 
     <!-- Maintenance -->
@@ -259,6 +363,15 @@
         <button class="btn-ghost btn-sm" onclick="saveMaintMsg()">Save Message</button>
       </div>
       <p class="hint-text" style="margin-top:10px">When ON: players cannot log in. Only admin accounts can access the app. Turn on while uploading new riddles.</p>
+    </div>
+
+    <div class="section">
+      <h2>Panic Mode Timer</h2>
+      <div class="maint-block">
+        <input id="panic-timer-input" class="maint-msg-input" type="number" min="1" placeholder="Seconds (any positive number)" />
+        <button class="btn-ghost btn-sm" onclick="savePanicTimer()">Save Panic Timer</button>
+      </div>
+      <p class="hint-text" style="margin-top:10px">This countdown is used only when users explicitly enable Panic Mode. It applies globally across supported game modes.</p>
     </div>
 
     <!-- Low stock alerts -->
@@ -279,114 +392,235 @@
     </div>
   </div>
 
-  <!-- ═══ TAB 1: ADD RIDDLES ═══ -->
+  <!-- ═══ TAB 1: RIDDLE STUDIO ═══ -->
   <div class="tab-content" id="tab-1">
-    <!-- Single Riddle -->
-    <div class="section">
-      <h2>Add Single Riddle</h2>
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>Question *</label>
-          <textarea id="f-question" rows="3" placeholder="Enter the riddle question…"></textarea>
-        </div>
-        <div class="form-group full">
-          <label>Answer *</label>
-          <input id="f-answer" type="text" placeholder="Correct answer" />
-        </div>
-        <div class="form-group">
-          <label>Game Mode *</label>
-          <select id="f-mode">
-            <option value="">Select mode…</option>
-            <option value="arena">Arena</option>
-            <option value="daily">Daily Drop</option>
-            <option value="gauntlet">Gauntlet</option>
-            <option value="chain">Chain</option>
-            <option value="wager">Blind Wager</option>
-            <option value="bounty">Bounty</option>
-          </select>
-        </div>
-        <div class="form-group">
-          <label>Difficulty *</label>
-          <select id="f-diff">
-            <option value="">Select difficulty…</option>
-            <option value="Easy">Easy</option>
-            <option value="Medium">Medium</option>
-            <option value="Hard">Hard</option>
-          </select>
-        </div>
-        <div class="form-group full">
-          <label>Options (for MCQ)</label>
-          <input id="f-options" type="text" placeholder="Option A, Option B, Option C, Option D" />
-          <p class="hint-text">Comma-separated. Leave empty for typed-answer riddles.</p>
-        </div>
-        <div class="form-group">
-          <label>Hint</label>
-          <input id="f-hint" type="text" placeholder="Optional hint…" />
-        </div>
-        <div class="form-group">
-          <label>Category</label>
-          <input id="f-category" type="text" placeholder="e.g. Science, History…" />
-        </div>
-        <div class="form-group full">
-          <label>Fun Fact</label>
-          <input id="f-funfact" type="text" placeholder="Shown after answer is revealed…" />
-        </div>
-        <div class="form-group full">
-          <label>Explanation</label>
-          <textarea id="f-explanation" rows="2" placeholder="Why is the answer correct?"></textarea>
-        </div>
-        <div class="form-group">
-          <label>Family ID</label>
-          <input id="f-family" type="text" placeholder="e.g. chain-space-001" />
-          <p class="hint-text">Group variant riddles together. Users who see one will never get another from the same family.</p>
-        </div>
-        <div class="form-group">
-          <label>Custom Timer (seconds)</label>
-          <input id="f-timer" type="number" placeholder="Default: 30/45/60 by difficulty" />
-        </div>
-        <div class="form-group">
-          <div class="toggle-group">
-            <input type="checkbox" id="f-onboard" />
-            <label for="f-onboard" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">Onboarding riddle (shown to new players first)</label>
+
+    <!-- Studio Layout: Left Panel + Right Preview -->
+    <div class="studio-layout">
+      <!-- LEFT PANEL -->
+      <div class="studio-left">
+
+        <!-- Format Selector -->
+        <div class="section" style="padding:14px">
+          <h2 style="margin-bottom:12px">Riddle Format</h2>
+          <div class="format-cards">
+            <div class="format-card active" onclick="setRiddleType('text')" id="fc-text">
+              <div class="fc-icon">📝</div>
+              <div class="fc-label">Text Only</div>
+              <div class="fc-desc">Classic text riddle</div>
+            </div>
+            <div class="format-card" onclick="setRiddleType('image_text')" id="fc-image_text">
+              <div class="fc-icon">🖼️</div>
+              <div class="fc-label">Image + Text</div>
+              <div class="fc-desc">Image with text overlay</div>
+            </div>
+            <div class="format-card" onclick="setRiddleType('image_only')" id="fc-image_only">
+              <div class="fc-icon">🎨</div>
+              <div class="fc-label">Image Only</div>
+              <div class="fc-desc">Visual puzzle</div>
+            </div>
+            <div class="format-card" onclick="setRiddleType('audio_text')" id="fc-audio_text">
+              <div class="fc-icon">🎧</div>
+              <div class="fc-label">Audio + Text</div>
+              <div class="fc-desc">Sound clue</div>
+            </div>
+            <div class="format-card" onclick="setRiddleType('video_text')" id="fc-video_text">
+              <div class="fc-icon">🎬</div>
+              <div class="fc-label">Video + Text</div>
+              <div class="fc-desc">Motion clue</div>
+            </div>
+            <div class="format-card" onclick="setRiddleType('interactive')" id="fc-interactive">
+              <div class="fc-icon">🧩</div>
+              <div class="fc-label">Interactive</div>
+              <div class="fc-desc">HTML/JSON asset</div>
+            </div>
           </div>
         </div>
-      </div>
-      <div style="margin-top:16px; display:flex; gap:10px; align-items:center">
-        <button class="btn-primary" onclick="submitSingle()">Add Riddle</button>
-        <button class="btn-ghost btn-sm" onclick="clearForm()">Clear</button>
-        <span id="single-result"></span>
-      </div>
-    </div>
 
-    <hr class="sep" />
+        <!-- Media Upload (shown for rich media types) -->
+        <div class="section" id="upload-section" style="display:none;padding:14px">
+          <h2 id="upload-header" style="margin-bottom:10px;color:var(--yellow)">⬆ Upload Media <span style="color:var(--red)">*</span></h2>
+          <div id="upload-zone" class="upload-zone" onclick="triggerUpload()">
+            <div class="uz-icon">📁</div>
+            <div class="uz-text">Click to browse or drag & drop</div>
+            <div class="uz-hint" id="upload-hint">PNG, JPG, WEBP, MP3, MP4, HTML, JSON · Max 25MB</div>
+          </div>
+          <div id="upload-preview-wrap" style="display:none">
+            <div id="upload-preview-media"></div>
+            <div class="upload-actions">
+              <button class="btn-ghost btn-sm" onclick="triggerUpload()">Replace</button>
+              <button class="btn-danger btn-sm" onclick="removeUpload()">Remove</button>
+            </div>
+          </div>
+          <div id="upload-status" class="upload-status"></div>
+          <input type="file" id="file-input" accept="image/*,audio/*,video/*,.html,.htm,.json,.txt,.js" style="display:none" onchange="handleFileSelect(event)" />
+        </div>
 
-    <!-- Bulk Upload -->
-    <div class="section">
-      <h2>Bulk Upload (JSON)</h2>
-      <p class="hint-text" style="margin-bottom:12px">Paste a JSON array of riddles. Required fields: <strong>question, answer, game_mode, difficulty</strong></p>
-      <div class="json-sample">[
+        <!-- Layout Elements -->
+        <div class="section" style="padding:14px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <h2 style="margin:0;padding:0;border:0">Layout Elements (<span id="el-count">1</span>)</h2>
+            <div style="display:flex;gap:6px">
+              <button class="pick-btn" onclick="addCanvasText()" style="color:var(--purple-light);border-color:rgba(124,58,237,.3)">+ Text</button>
+              <button class="pick-btn" onclick="addCanvasImage()" style="color:var(--green);border-color:rgba(0,201,122,.25)">+ Image</button>
+            </div>
+          </div>
+          <div id="el-list"></div>
+        </div>
+
+        <!-- Element Inspector -->
+        <div id="inspector-panel"></div>
+
+        <!-- Collapsible Data Fields -->
+        <div class="studio-section-toggle" onclick="toggleStudioFields()">
+          <span class="sst-label">Riddle Data Fields</span>
+          <span class="sst-arrow" id="fields-arrow">▾</span>
+        </div>
+        <div class="studio-fields" id="studio-fields">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Game Mode *</label>
+              <select id="f-mode">
+                <option value="">Select mode…</option>
+                <option value="mcq">Standard Queue (mcq)</option>
+                <option value="type">Brain Blast (type)</option>
+                <option value="daily">Cold Case (daily)</option>
+                <option value="gauntlet">Gauntlet (gauntlet)</option>
+                <option value="chain">The Chain (chain)</option>
+                <option value="arena">Eclipse Level / Ranked Pool (arena)</option>
+                <option value="wager">Blind Wager (wager)</option>
+                <option value="bounty">Bounty Board (bounty)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Difficulty *</label>
+              <select id="f-diff">
+                <option value="">Select difficulty…</option>
+                <option value="Easy">Easy</option>
+                <option value="Medium">Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Question <span id="q-required" style="color:var(--red)">*</span></label>
+              <textarea id="f-question" rows="3" placeholder="Enter the riddle question…" oninput="syncQuestionToCanvas()"></textarea>
+            </div>
+            <div class="form-group full">
+              <label>Answer *</label>
+              <input id="f-answer" type="text" placeholder="Correct answer" />
+            </div>
+            <div class="form-group full">
+              <label>Options (for MCQ)</label>
+              <input id="f-options" type="text" placeholder="Option A, Option B, Option C, Option D" />
+              <p class="hint-text">Comma-separated. Leave empty for typed-answer riddles.</p>
+            </div>
+            <div class="form-group">
+              <label>Hint</label>
+              <input id="f-hint" type="text" placeholder="Optional hint…" />
+            </div>
+            <div class="form-group">
+              <label>Category</label>
+              <input id="f-category" type="text" placeholder="e.g. Science, History…" />
+            </div>
+            <div class="form-group full">
+              <label>Fun Fact</label>
+              <input id="f-funfact" type="text" placeholder="Shown after answer is revealed…" />
+            </div>
+            <div class="form-group full">
+              <label>Explanation *</label>
+              <textarea id="f-explanation" rows="2" placeholder="Why is the answer correct?"></textarea>
+            </div>
+            <div class="form-group">
+              <label>Family ID</label>
+              <input id="f-family" type="text" placeholder="e.g. chain-space-001" />
+            </div>
+            <div class="form-group">
+              <label>Custom Timer (seconds)</label>
+              <input id="f-timer" type="number" placeholder="Default: 30/45/60" />
+            </div>
+            <div class="form-group">
+              <div class="toggle-group">
+                <input type="checkbox" id="f-onboard" />
+                <label for="f-onboard" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">Onboarding riddle (new players first)</label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Publish -->
+        <div style="display:flex; gap:10px; align-items:center; margin-top:4px; margin-bottom:24px">
+          <button class="btn-primary" onclick="submitSingle()" style="padding:12px 28px;font-size:14px">🚀 Publish Riddle</button>
+          <button class="btn-ghost btn-sm" onclick="clearForm()">Clear All</button>
+          <span id="single-result"></span>
+        </div>
+
+        <hr class="sep" />
+
+        <!-- Bulk Upload -->
+        <div class="section">
+          <h2>Bulk Upload (JSON)</h2>
+          <p class="hint-text" style="margin-bottom:12px">Paste a JSON array of riddles. Required fields: <strong>question, answer, game_mode, difficulty</strong>. Optional: riddle_type, media_url, layout_config</p>
+          <div class="json-sample">[
   {
     "question": "What has keys but no locks?",
     "answer": "A keyboard",
-    "game_mode": "arena",
+    "game_mode": "mcq",
     "difficulty": "Easy",
     "hint": "You use it every day",
     "fun_fact": "The first keyboard was invented in 1868",
     "options": ["A piano","A keyboard","A safe","A car"],
-    "family_id": null,
-    "is_onboarding": false
+    "riddle_type": "text"
   }
 ]</div>
-      <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px">
-        <label style="text-transform:none;font-size:12px;color:var(--text2);margin:0">Game modes: arena | daily | gauntlet | chain | wager | bounty</label>
-        <label style="text-transform:none;font-size:12px;color:var(--text2);margin:0 0 0 12px">Difficulties: Easy | Medium | Hard</label>
+          <textarea id="bulk-json" rows="14" placeholder='[{"question":"...","answer":"...","game_mode":"arena","difficulty":"Easy"}]'></textarea>
+          <div style="margin-top:12px; display:flex; gap:10px; align-items:center">
+            <button class="btn-primary" onclick="submitBulk()">Upload All</button>
+            <button class="btn-ghost btn-sm" onclick="document.getElementById('bulk-json').value=''">Clear</button>
+          </div>
+          <div id="bulk-result" style="margin-top:14px"></div>
+        </div>
       </div>
-      <textarea id="bulk-json" rows="14" placeholder='[{"question":"...","answer":"...","game_mode":"arena","difficulty":"Easy"}]'></textarea>
-      <div style="margin-top:12px; display:flex; gap:10px; align-items:center">
-        <button class="btn-primary" onclick="submitBulk()">Upload All</button>
-        <button class="btn-ghost btn-sm" onclick="document.getElementById('bulk-json').value=''">Clear</button>
+
+      <!-- RIGHT PANEL: Live Preview -->
+      <div class="studio-right">
+        <div class="phone-wrap">
+          <div class="phone-label">
+            <span>Live Preview</span>
+            <span style="font-size:8px;letter-spacing:0">375×667</span>
+          </div>
+          <div class="phone-shell">
+            <div class="phone-notch"></div>
+            <div class="phone-screen">
+              <div class="phone-topbar">
+                <span class="tb-abort">ABORT</span>
+                <div class="tb-mode"><div class="tb-dot"></div><span class="tb-label">QUICK CRACK</span></div>
+                <span class="tb-coins">💰 250</span>
+              </div>
+              <div class="phone-hud">
+                <div class="phone-hud-corner tl"></div>
+                <div class="phone-hud-corner tr"></div>
+                <div class="phone-hud-corner bl"></div>
+                <div class="phone-hud-corner br"></div>
+                <div class="phone-hud-header">
+                  <div class="enc"><div class="d"></div>ENCRYPTED CHANNEL</div>
+                  <div class="phone-diff-badge" id="preview-diff" style="background:rgba(251,191,36,.1);color:#fbbf24;border:1px solid rgba(251,191,36,.25)">Medium</div>
+                </div>
+                <div class="phone-viewport-outer" id="phone-viewport-outer">
+                  <div class="phone-viewport-inner" id="phone-canvas" onclick="canvasClick(event)">
+                    <div class="guide-v"></div>
+                    <div class="guide-h"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="phone-statusbar">
+                <span>ID: RDL_???</span>
+                <span>CRACKL v1.0</span>
+              </div>
+            </div>
+          </div>
+          <div class="phone-hint">Click to select · Drag to move · Corner to resize</div>
+        </div>
       </div>
-      <div id="bulk-result" style="margin-top:14px"></div>
     </div>
   </div>
 
@@ -397,12 +631,14 @@
         <label>Mode</label>
         <select id="mg-mode">
           <option value="">All Modes</option>
-          <option value="arena">Arena</option>
-          <option value="daily">Daily Drop</option>
-          <option value="gauntlet">Gauntlet</option>
-          <option value="chain">Chain</option>
-          <option value="wager">Blind Wager</option>
-          <option value="bounty">Bounty</option>
+          <option value="mcq">Standard Queue (mcq)</option>
+          <option value="type">Brain Blast (type)</option>
+          <option value="daily">Cold Case (daily)</option>
+          <option value="gauntlet">Gauntlet (gauntlet)</option>
+          <option value="chain">The Chain (chain)</option>
+          <option value="arena">Eclipse Level / Ranked Pool (arena)</option>
+          <option value="wager">Blind Wager (wager)</option>
+          <option value="bounty">Bounty Board (bounty)</option>
         </select>
       </div>
       <div>
@@ -423,6 +659,14 @@
         </select>
       </div>
       <div>
+        <label>Type</label>
+        <select id="mg-type">
+          <option value="">All Types</option>
+          <option value="image">🖼 Image-Based</option>
+          <option value="text">📝 Text Only</option>
+        </select>
+      </div>
+      <div>
         <label>Search</label>
         <input id="mg-search" type="text" placeholder="Search question…" style="min-width:180px" />
       </div>
@@ -436,6 +680,7 @@
         <thead>
           <tr>
             <th>Question</th>
+            <th>Type</th>
             <th>Mode</th>
             <th>Diff</th>
             <th>Served</th>
@@ -488,7 +733,22 @@
   <div class="modal">
     <h2>Edit Riddle</h2>
     <input type="hidden" id="edit-id" />
+    <input type="hidden" id="edit-riddle-type" />
     <div class="form-grid">
+      <!-- Riddle type badge + image preview row -->
+      <div class="form-group full" id="edit-type-row" style="display:none">
+        <label>Riddle Classification</label>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span id="edit-type-badge" class="badge"></span>
+          <div id="edit-media-preview-wrap" style="display:none;align-items:center;gap:8px;flex:1">
+            <img id="edit-media-preview-img" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex-shrink:0" />
+            <div style="flex:1">
+              <label style="margin-bottom:2px">Image URL</label>
+              <input id="edit-media-url" type="text" placeholder="https://…" oninput="updateEditMediaPreview()" />
+            </div>
+          </div>
+        </div>
+      </div>
       <div class="form-group full">
         <label>Question</label>
         <textarea id="edit-question" rows="3"></textarea>
@@ -500,12 +760,14 @@
       <div class="form-group">
         <label>Game Mode</label>
         <select id="edit-mode">
-          <option value="arena">Arena</option>
-          <option value="daily">Daily Drop</option>
-          <option value="gauntlet">Gauntlet</option>
-          <option value="chain">Chain</option>
-          <option value="wager">Blind Wager</option>
-          <option value="bounty">Bounty</option>
+          <option value="mcq">Standard Queue (mcq)</option>
+          <option value="type">Brain Blast (type)</option>
+          <option value="daily">Cold Case (daily)</option>
+          <option value="gauntlet">Gauntlet (gauntlet)</option>
+          <option value="chain">The Chain (chain)</option>
+          <option value="arena">Eclipse Level / Ranked Pool (arena)</option>
+          <option value="wager">Blind Wager (wager)</option>
+          <option value="bounty">Bounty Board (bounty)</option>
         </select>
       </div>
       <div class="form-group">
@@ -661,14 +923,47 @@
     return h;
   }
 
+  function escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, ch => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    }[ch]));
+  }
+
+  function escapeAttr(value) {
+    return escapeHtml(value).replace(/`/g, '&#96;');
+  }
+
+  function safeMediaUrl(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+    try {
+      const url = new URL(raw);
+      return ['http:', 'https:', 'blob:'].includes(url.protocol) ? raw : '';
+    } catch {
+      return '';
+    }
+  }
+
+  function editArg(riddle) {
+    return escapeAttr(encodeURIComponent(JSON.stringify(riddle || {})));
+  }
+
+  function jsArg(value) {
+    return escapeAttr(encodeURIComponent(String(value ?? '')));
+  }
+
   function diffBadge(d) {
     const cls = d === 'Easy' ? 'badge-easy' : d === 'Medium' ? 'badge-medium' : 'badge-hard';
-    return `<span class="badge ${cls}">${d}</span>`;
+    return `<span class="badge ${cls}">${escapeHtml(d || '—')}</span>`;
   }
 
   function modeBadge(m) {
-    const labels = { arena: 'Arena', daily: 'Daily', gauntlet: 'Gauntlet', chain: 'Chain', wager: 'Wager', bounty: 'Bounty' };
-    return `<span class="badge badge-mode">${labels[m] || m}</span>`;
+    const labels = { mcq: 'Standard Q', type: 'Brain Blast', arena: 'Eclipse / Ranked', daily: 'Cold Case', gauntlet: 'Gauntlet', chain: 'Chain', wager: 'Wager', bounty: 'Bounty' };
+    return `<span class="badge badge-mode">${escapeHtml(labels[m] || m || '—')}</span>`;
   }
 
   function timeSince(ts) {
@@ -695,6 +990,8 @@
     document.getElementById('s-total').textContent = data.totalRiddles ?? '—';
     document.getElementById('s-served').textContent = data.servedToday ?? '—';
     document.getElementById('s-users').textContent = data.activeUsers24h ?? '—';
+    document.getElementById('s-mcq').textContent = data.byMode?.mcq ?? '—';
+    document.getElementById('s-type').textContent = data.byMode?.type ?? '—';
     document.getElementById('s-arena').textContent = data.byMode?.arena ?? '—';
     document.getElementById('s-daily').textContent = data.byMode?.daily ?? '—';
     document.getElementById('s-gauntlet').textContent = data.byMode?.gauntlet ?? '—';
@@ -704,6 +1001,7 @@
     document.getElementById('s-easy').textContent = data.byDifficulty?.Easy ?? '—';
     document.getElementById('s-medium').textContent = data.byDifficulty?.Medium ?? '—';
     document.getElementById('s-hard').textContent = data.byDifficulty?.Hard ?? '—';
+    document.getElementById('panic-timer-input').value = data.panicTimerSeconds ?? 30;
 
     currentMaintenance = !!data.maintenanceMode;
     updateMaintUI(currentMaintenance);
@@ -714,7 +1012,7 @@
     if (alerts.length > 0) {
       sec.style.display = '';
       list.innerHTML = alerts.map(a =>
-        `<span class="alert-chip" onclick="switchTab(3)">${a.mode} / ${a.difficulty}: ${a.count} left</span>`
+        `<span class="alert-chip" onclick="switchTab(3)">${escapeHtml(a.mode)} / ${escapeHtml(a.difficulty)}: ${escapeHtml(a.count)} left</span>`
       ).join('');
     } else {
       sec.style.display = 'none';
@@ -760,7 +1058,468 @@
     alert('Message saved.');
   }
 
-  // ─── Add Single ─────────────────────────────────────────────────────────
+  async function savePanicTimer() {
+    const input = document.getElementById('panic-timer-input');
+    const seconds = parseInt(input.value, 10);
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      alert('Panic timer must be a positive number of seconds.');
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/admin/panic-timer`, {
+        method: 'POST',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ seconds })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || 'Could not save panic timer.');
+        return;
+      }
+      input.value = data.panicTimerSeconds;
+      alert('Panic timer saved.');
+    } catch {
+      alert('Network error while saving panic timer.');
+    }
+  }
+
+  // ─── Studio State ────────────────────────────────────────────────────────
+  let studioType = 'text';
+  let studioMediaUrl = '';
+  let studioElements = [];
+  let studioSelectedId = null;
+  let studioFieldsOpen = true;
+  const MEDIA_RIDDLE_TYPES = ['image_text', 'image_only', 'audio_text', 'video_text', 'interactive'];
+  const MEDIA_ELEMENT_TYPES = ['image', 'audio', 'video', 'embed'];
+  const UPLOAD_META = {
+    image_text: { noun: 'IMAGE', icon: '🖼️', hint: 'PNG, JPG, WEBP, GIF · Max 25MB' },
+    image_only: { noun: 'IMAGE', icon: '🎨', hint: 'PNG, JPG, WEBP, GIF · Max 25MB' },
+    audio_text: { noun: 'AUDIO', icon: '🎧', hint: 'MP3, WAV, M4A, OGG · Max 25MB' },
+    video_text: { noun: 'VIDEO', icon: '🎬', hint: 'MP4, WEBM, MOV · Max 25MB' },
+    interactive: { noun: 'INTERACTIVE ASSET', icon: '🧩', hint: 'HTML, JSON, TXT, JS · Max 25MB' },
+  };
+  const CANVAS_W = 375;  // Logical canvas width — matches GameScreen base
+  const CANVAS_H = 510;  // Logical canvas height
+
+  function mediaElementTypeForStudio(type) {
+    if (type === 'audio_text') return 'audio';
+    if (type === 'video_text') return 'video';
+    if (type === 'interactive') return 'embed';
+    return 'image';
+  }
+
+  function elementIcon(type) {
+    if (type === 'audio') return '🎧';
+    if (type === 'video') return '🎬';
+    if (type === 'embed') return '🧩';
+    if (type === 'image') return '🖼️';
+    return '📝';
+  }
+
+  function elementLabel(type) {
+    if (type === 'audio') return 'Audio';
+    if (type === 'video') return 'Video';
+    if (type === 'embed') return 'Interactive';
+    if (type === 'image') return 'Image';
+    return 'Text';
+  }
+
+  // Compute the current visual scale from the outer wrapper's actual size
+  function getViewportScale() {
+    const outer = document.getElementById('phone-viewport-outer');
+    if (!outer) return 206 / 375;
+    return outer.clientWidth / CANVAS_W;
+  }
+
+  // Apply CSS transform to the inner canvas so it visually fits the outer wrapper
+  function applyViewportTransform() {
+    const inner = document.getElementById('phone-canvas');
+    if (!inner) return;
+    const scale = getViewportScale();
+    inner.style.transform = `scale(${scale})`;
+  }
+
+  function setRiddleType(type) {
+    studioType = type;
+    document.querySelectorAll('.format-card').forEach(c => c.classList.remove('active'));
+    document.getElementById('fc-' + type).classList.add('active');
+    const needsMedia = MEDIA_RIDDLE_TYPES.includes(type) && type !== 'text';
+    document.getElementById('upload-section').style.display = needsMedia ? '' : 'none';
+    const uploadMeta = UPLOAD_META[type] || UPLOAD_META.image_text;
+    document.getElementById('upload-header').innerHTML = `${uploadMeta.icon} Upload ${uploadMeta.noun} <span style="color:var(--red)">*</span>`;
+    document.getElementById('upload-header').style.color = 'var(--yellow)';
+    document.getElementById('upload-hint').textContent = uploadMeta.hint;
+    document.getElementById('q-required').style.display = (type === 'image_only' || type === 'interactive') ? 'none' : '';
+    // Init default elements
+    const q = document.getElementById('f-question').value || 'Your riddle question here...';
+    if (type === 'text') {
+      studioElements = [{ id: 'question-text', type: 'text', content: q, x: 12, y: 20, width: 335, height: 110, fontSize: 22, color: '#e2e8f0', fontFamily: 'serif', fontWeight: '700', textAlign: 'center' }];
+    } else if (type === 'image_text') {
+      studioElements = [
+        { id: 'riddle-image', type: 'image', src: studioMediaUrl, x: 20, y: 10, width: 320, height: 200, borderRadius: 8, opacity: 1 },
+        { id: 'question-text', type: 'text', content: q, x: 12, y: 220, width: 335, height: 100, fontSize: 20, color: '#e2e8f0', fontFamily: 'serif', fontWeight: '700', textAlign: 'center' },
+      ];
+    } else if (type === 'image_only') {
+      studioElements = [{ id: 'riddle-image', type: 'image', src: studioMediaUrl, x: 12, y: 10, width: 340, height: 340, borderRadius: 8, opacity: 1 }];
+    } else if (type === 'audio_text') {
+      studioElements = [
+        { id: 'riddle-audio', type: 'audio', src: studioMediaUrl, x: 20, y: 20, width: 335, height: 82, borderRadius: 8, opacity: 1 },
+        { id: 'question-text', type: 'text', content: q, x: 20, y: 126, width: 335, height: 110, fontSize: 20, color: '#e2e8f0', fontFamily: 'serif', fontWeight: '700', textAlign: 'center' },
+      ];
+    } else if (type === 'video_text') {
+      studioElements = [
+        { id: 'riddle-video', type: 'video', src: studioMediaUrl, x: 20, y: 12, width: 335, height: 190, borderRadius: 8, opacity: 1 },
+        { id: 'question-text', type: 'text', content: q, x: 20, y: 220, width: 335, height: 105, fontSize: 20, color: '#e2e8f0', fontFamily: 'serif', fontWeight: '700', textAlign: 'center' },
+      ];
+    } else if (type === 'interactive') {
+      studioElements = [
+        { id: 'interactive-clue', type: 'embed', src: studioMediaUrl, x: 12, y: 12, width: 350, height: 320, borderRadius: 8, opacity: 1 },
+      ];
+    }
+    studioSelectedId = null;
+    renderCanvas();
+    renderElementList();
+    renderInspector();
+  }
+
+  function toggleStudioFields() {
+    studioFieldsOpen = !studioFieldsOpen;
+    document.getElementById('studio-fields').style.display = studioFieldsOpen ? '' : 'none';
+    document.getElementById('fields-arrow').textContent = studioFieldsOpen ? '▾' : '▸';
+  }
+
+  function syncQuestionToCanvas() {
+    const q = document.getElementById('f-question').value || 'Your riddle question here...';
+    studioElements = studioElements.map(el => el.id === 'question-text' ? { ...el, content: q } : el);
+    renderCanvas();
+  }
+
+  // ─── Canvas Rendering ─────────────────────────────────────────────────────
+  function renderCanvas() {
+    const canvas = document.getElementById('phone-canvas');
+    // Apply CSS transform scale so the 375px canvas fits the outer wrapper
+    applyViewportTransform();
+    // Remove old elements, keep guides
+    canvas.querySelectorAll('.canvas-el').forEach(e => e.remove());
+
+    studioElements.forEach(el => {
+      const div = document.createElement('div');
+      div.className = 'canvas-el' + (studioSelectedId === el.id ? ' selected' : '');
+      // Render at TRUE logical coordinates — no scaling needed (CSS transform handles it)
+      div.style.left   = el.x + 'px';
+      div.style.top    = el.y + 'px';
+      div.style.width  = el.width + 'px';
+      div.style.height = el.height + 'px';
+      div.style.borderRadius = (el.borderRadius || 0) + 'px';
+      div.style.zIndex = studioSelectedId === el.id ? 20 : 10;
+      div.dataset.elId = el.id;
+
+      if (el.type === 'image') {
+        if (el.src) {
+          const img = document.createElement('img');
+          img.src = el.src;
+          img.className = 'el-img';
+          img.style.borderRadius = (el.borderRadius || 0) + 'px';
+          img.style.opacity = el.opacity ?? 1;
+          img.draggable = false;
+          div.appendChild(img);
+        } else {
+          const ph = document.createElement('span');
+          ph.className = 'el-placeholder';
+          ph.textContent = '🖼 IMAGE';
+          div.appendChild(ph);
+        }
+      } else if (el.type === 'audio') {
+        if (el.src) {
+          const audio = document.createElement('audio');
+          audio.src = el.src;
+          audio.controls = true;
+          audio.style.width = '100%';
+          audio.style.opacity = el.opacity ?? 1;
+          div.style.display = 'flex';
+          div.style.alignItems = 'center';
+          div.style.padding = '10px';
+          div.appendChild(audio);
+        } else {
+          const ph = document.createElement('span');
+          ph.className = 'el-placeholder';
+          ph.textContent = '🎧 AUDIO';
+          div.appendChild(ph);
+        }
+      } else if (el.type === 'video') {
+        if (el.src) {
+          const video = document.createElement('video');
+          video.src = el.src;
+          video.controls = true;
+          video.style.width = '100%';
+          video.style.height = '100%';
+          video.style.objectFit = 'contain';
+          video.style.background = '#000';
+          video.style.borderRadius = (el.borderRadius || 0) + 'px';
+          video.style.opacity = el.opacity ?? 1;
+          div.appendChild(video);
+        } else {
+          const ph = document.createElement('span');
+          ph.className = 'el-placeholder';
+          ph.textContent = '🎬 VIDEO';
+          div.appendChild(ph);
+        }
+      } else if (el.type === 'embed') {
+        if (el.src) {
+          const iframe = document.createElement('iframe');
+          iframe.src = el.src;
+          iframe.sandbox = 'allow-scripts allow-forms';
+          iframe.style.width = '100%';
+          iframe.style.height = '100%';
+          iframe.style.border = '0';
+          iframe.style.borderRadius = (el.borderRadius || 0) + 'px';
+          iframe.style.opacity = el.opacity ?? 1;
+          div.appendChild(iframe);
+        } else {
+          const ph = document.createElement('span');
+          ph.className = 'el-placeholder';
+          ph.textContent = '🧩 INTERACTIVE';
+          div.appendChild(ph);
+        }
+      } else {
+        const span = document.createElement('span');
+        span.className = 'el-text';
+        span.style.color      = el.color || '#e2e8f0';
+        span.style.fontSize   = (el.fontSize || 16) + 'px'; // True logical px — scaled visually by CSS transform
+        span.style.fontWeight = el.fontWeight || '700';
+        span.style.textAlign  = el.textAlign || 'center';
+        span.style.fontFamily = el.fontFamily === 'serif' ? 'Georgia, serif' : el.fontFamily === 'mono' ? 'monospace' : 'system-ui, sans-serif';
+        span.style.lineHeight = '1.4';
+        span.textContent = el.content || 'Text';
+        div.appendChild(span);
+      }
+
+      // Resize handle (bottom-right corner)
+      if (studioSelectedId === el.id) {
+        const rh = document.createElement('div');
+        rh.className = 'resize-handle';
+        rh.addEventListener('mousedown', e => startResize(e, el.id));
+        div.appendChild(rh);
+      }
+
+      div.addEventListener('mousedown', e => startDrag(e, el.id));
+      canvas.appendChild(div);
+    });
+
+    // Update difficulty badge in preview header
+    const diff = document.getElementById('f-diff').value || 'Medium';
+    const db = document.getElementById('preview-diff');
+    const dColors = { Easy: { bg: 'rgba(0,201,122,.1)', fg: '#00c97a', border: 'rgba(0,201,122,.25)' }, Medium: { bg: 'rgba(251,191,36,.1)', fg: '#fbbf24', border: 'rgba(251,191,36,.25)' }, Hard: { bg: 'rgba(244,63,94,.1)', fg: '#f43f5e', border: 'rgba(244,63,94,.25)' } };
+    const dc = dColors[diff] || dColors.Medium;
+    db.textContent = diff;
+    db.style.background = dc.bg;
+    db.style.color = dc.fg;
+    db.style.border = '1px solid ' + dc.border;
+    document.getElementById('el-count').textContent = studioElements.length;
+  }
+
+  function canvasClick(e) { if (e.target === e.currentTarget || e.target.classList.contains('guide-v') || e.target.classList.contains('guide-h')) { studioSelectedId = null; renderCanvas(); renderElementList(); renderInspector(); } }
+
+  // ─── Drag & Resize ───────────────────────────────────────────────────────────
+  function startDrag(e, id) {
+    e.stopPropagation();
+    studioSelectedId = id;
+    renderCanvas(); renderElementList(); renderInspector();
+    const el = studioElements.find(x => x.id === id);
+    if (!el) return;
+    const vs = getViewportScale(); // screen px / logical px
+    const startX = e.clientX, startY = e.clientY, ox = el.x, oy = el.y;
+    const onMove = ev => {
+      const dx = (ev.clientX - startX) / vs;
+      const dy = (ev.clientY - startY) / vs;
+      el.x = Math.max(0, Math.min(CANVAS_W - el.width,  Math.round(ox + dx)));
+      el.y = Math.max(0, Math.min(CANVAS_H - el.height, Math.round(oy + dy)));
+      renderCanvas();
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); renderElementList(); renderInspector(); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  function startResize(e, id) {
+    e.stopPropagation();
+    e.preventDefault();
+    const el = studioElements.find(x => x.id === id);
+    if (!el) return;
+    const vs = getViewportScale();
+    const startX = e.clientX, startY = e.clientY, ow = el.width, oh = el.height;
+    const onMove = ev => {
+      el.width  = Math.max(40, Math.round(ow + (ev.clientX - startX) / vs));
+      el.height = Math.max(20, Math.round(oh + (ev.clientY - startY) / vs));
+      renderCanvas();
+    };
+    const onUp = () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); renderInspector(); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }
+
+  // ─── Element List ─────────────────────────────────────────────────────
+  function renderElementList() {
+    const container = document.getElementById('el-list');
+    container.innerHTML = studioElements.map(el => `
+      <div class="el-list-item ${studioSelectedId === el.id ? 'active' : ''}" onclick="selectElement(decodeURIComponent('${jsArg(el.id)}'))">
+        <span class="eli-icon">${elementIcon(el.type)}</span>
+        <span class="eli-name">${escapeHtml(el.id)}</span>
+        <span class="eli-pos">${el.x},${el.y}</span>
+      </div>
+    `).join('');
+  }
+
+  function selectElement(id) { studioSelectedId = id; renderCanvas(); renderElementList(); renderInspector(); }
+
+  function addCanvasText() {
+    const id = 'text-' + Date.now();
+    studioElements.push({ id, type: 'text', content: 'New text', x: 50, y: 150, width: 260, height: 60, fontSize: 16, color: '#e2e8f0', fontFamily: 'sans', fontWeight: '600', textAlign: 'center' });
+    studioSelectedId = id;
+    renderCanvas(); renderElementList(); renderInspector();
+  }
+
+  function addCanvasImage() {
+    const mediaType = mediaElementTypeForStudio(studioType);
+    const id = `${mediaType}-${Date.now()}`;
+    const defaults = mediaType === 'audio'
+      ? { width: 260, height: 82 }
+      : mediaType === 'video'
+        ? { width: 280, height: 170 }
+        : mediaType === 'embed'
+          ? { width: 300, height: 240 }
+          : { width: 260, height: 180 };
+    studioElements.push({ id, type: mediaType, src: studioMediaUrl, x: 50, y: 100, ...defaults, borderRadius: 8, opacity: 1 });
+    studioSelectedId = id;
+    renderCanvas(); renderElementList(); renderInspector();
+  }
+
+  function deleteElement(id) {
+    studioElements = studioElements.filter(el => el.id !== id);
+    studioSelectedId = null;
+    renderCanvas(); renderElementList(); renderInspector();
+  }
+
+  // ─── Element Inspector ────────────────────────────────────────────────
+  function renderInspector() {
+    const panel = document.getElementById('inspector-panel');
+    const el = studioElements.find(x => x.id === studioSelectedId);
+    if (!el) { panel.innerHTML = '<div class="inspector empty">Select an element on the preview to edit its properties</div>'; return; }
+
+    const isMedia = MEDIA_ELEMENT_TYPES.includes(el.type);
+    let html = `<div class="inspector">
+      <div class="insp-header">
+        <span class="insp-title">${elementIcon(el.type)} ${elementLabel(el.type)} — ${escapeHtml(el.id)}</span>
+        <button class="insp-delete" onclick="deleteElement(decodeURIComponent('${jsArg(el.id)}'))">DELETE</button>
+      </div>
+      <div class="insp-row">
+        <div class="insp-field"><label>X</label><input type="number" value="${el.x}" onchange="updateEl(decodeURIComponent('${jsArg(el.id)}'),'x',+this.value)" /></div>
+        <div class="insp-field"><label>Y</label><input type="number" value="${el.y}" onchange="updateEl(decodeURIComponent('${jsArg(el.id)}'),'y',+this.value)" /></div>
+        <div class="insp-field"><label>W</label><input type="number" value="${el.width}" onchange="updateEl(decodeURIComponent('${jsArg(el.id)}'),'width',+this.value)" /></div>
+        <div class="insp-field"><label>H</label><input type="number" value="${el.height}" onchange="updateEl(decodeURIComponent('${jsArg(el.id)}'),'height',+this.value)" /></div>
+      </div>`;
+
+    if (!isMedia) {
+      html += `<label style="font-size:9px;margin-top:6px">Font Size</label><div class="pick-row">`;
+      [14,16,20,24,28,32].forEach(s => { html += `<button class="pick-btn ${el.fontSize===s?'active':''}" onclick="updateEl(decodeURIComponent('${jsArg(el.id)}'),'fontSize',${s})">${s}</button>`; });
+      html += `</div><label style="font-size:9px">Font</label><div class="pick-row">`;
+      [{id:'serif',l:'Serif'},{id:'sans',l:'Sans'},{id:'mono',l:'Mono'}].forEach(f => { html += `<button class="pick-btn ${el.fontFamily===f.id?'active':''}" onclick="updateEl(decodeURIComponent('${jsArg(el.id)}'),'fontFamily','${f.id}')">${f.l}</button>`; });
+      html += `</div><label style="font-size:9px">Color</label><div class="pick-row">`;
+      ['#e2e8f0','#00ffd0','#fbbf24','#a78bfa','#f43f5e','#64748b'].forEach(c => { html += `<div class="color-dot ${el.color===c?'active':''}" style="background:${c}" onclick="updateEl(decodeURIComponent('${jsArg(el.id)}'),'color','${c}')"></div>`; });
+      html += `</div><label style="font-size:9px">Align</label><div class="pick-row">`;
+      ['left','center','right'].forEach(a => { html += `<button class="pick-btn ${el.textAlign===a?'active':''}" onclick="updateEl(decodeURIComponent('${jsArg(el.id)}'),'textAlign','${a}')">${a.toUpperCase()}</button>`; });
+      html += `</div>`;
+    } else {
+      html += `<label style="font-size:9px;margin-top:6px">Border Radius</label><div class="pick-row">`;
+      [0,4,8,12,50].forEach(r => { html += `<button class="pick-btn ${el.borderRadius===r?'active':''}" onclick="updateEl(decodeURIComponent('${jsArg(el.id)}'),'borderRadius',${r})">${r}</button>`; });
+      html += `</div><label style="font-size:9px">Opacity</label><div class="pick-row">`;
+      [0.3,0.5,0.7,0.85,1].forEach(o => { html += `<button class="pick-btn ${(el.opacity??1)===o?'active':''}" onclick="updateEl(decodeURIComponent('${jsArg(el.id)}'),'opacity',${o})">${Math.round(o*100)}%</button>`; });
+      html += `</div>`;
+    }
+    html += `</div>`;
+    panel.innerHTML = html;
+  }
+
+  function updateEl(id, key, val) {
+    studioElements = studioElements.map(el => el.id === id ? { ...el, [key]: val } : el);
+    renderCanvas(); renderElementList(); renderInspector();
+  }
+
+  // ─── Image Upload ─────────────────────────────────────────────────────
+  function triggerUpload() { document.getElementById('file-input').click(); }
+
+  function renderUploadPreview(url, kind) {
+    const container = document.getElementById('upload-preview-media');
+    if (!container) return;
+    const cleanUrl = escapeAttr(safeMediaUrl(url));
+    if (!cleanUrl) {
+      container.innerHTML = '<div class="upload-preview-frame">Preview unavailable for this media URL.</div>';
+      return;
+    }
+    if (kind === 'audio') {
+      container.innerHTML = `<div class="upload-preview-frame"><audio controls src="${cleanUrl}" style="width:92%"></audio></div>`;
+    } else if (kind === 'video') {
+      container.innerHTML = `<video class="upload-preview" controls src="${cleanUrl}"></video>`;
+    } else if (kind === 'interactive') {
+      container.innerHTML = `<div class="upload-preview-frame"><iframe src="${cleanUrl}" sandbox="allow-scripts allow-forms" style="width:100%;height:180px;border:0"></iframe></div>`;
+    } else {
+      container.innerHTML = `<img class="upload-preview" src="${cleanUrl}" alt="Uploaded riddle media preview" />`;
+    }
+  }
+
+  async function handleFileSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 25 * 1024 * 1024) { alert('Max file size is 25MB.'); return; }
+
+    const status = document.getElementById('upload-status');
+    status.textContent = 'Uploading...';
+    status.style.color = 'var(--yellow)';
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const res = await fetch(`${API}/admin/upload`, { method: 'POST', headers: { 'x-admin-secret': ADMIN_KEY }, body: formData });
+      const data = await res.json();
+      if (data.success) {
+        studioMediaUrl = data.url;
+        const mediaKind = data.mediaKind || mediaElementTypeForStudio(studioType);
+        status.textContent = '✓ Uploaded successfully';
+        status.style.color = 'var(--green)';
+        document.getElementById('upload-header').textContent = `✓ ${(UPLOAD_META[studioType]?.noun || 'MEDIA')} UPLOADED`;
+        document.getElementById('upload-header').style.color = 'var(--green)';
+        document.getElementById('upload-zone').style.display = 'none';
+        document.getElementById('upload-preview-wrap').style.display = '';
+        renderUploadPreview(data.url, mediaKind);
+        // Sync to canvas media elements
+        studioElements = studioElements.map(el => MEDIA_ELEMENT_TYPES.includes(el.type) ? { ...el, src: data.url } : el);
+        renderCanvas();
+      } else {
+        status.textContent = '✗ ' + (data.error || 'Upload failed');
+        status.style.color = 'var(--red)';
+      }
+    } catch (err) {
+      status.textContent = '✗ ' + err.message;
+      status.style.color = 'var(--red)';
+    }
+    e.target.value = '';
+  }
+
+  function removeUpload() {
+    studioMediaUrl = '';
+    document.getElementById('upload-zone').style.display = '';
+    document.getElementById('upload-preview-wrap').style.display = 'none';
+    document.getElementById('upload-status').textContent = '';
+    const uploadMeta = UPLOAD_META[studioType] || UPLOAD_META.image_text;
+    document.getElementById('upload-header').innerHTML = `${uploadMeta.icon} Upload ${uploadMeta.noun} <span style="color:var(--red)">*</span>`;
+    document.getElementById('upload-header').style.color = 'var(--yellow)';
+    document.getElementById('upload-preview-media').innerHTML = '';
+    studioElements = studioElements.map(el => MEDIA_ELEMENT_TYPES.includes(el.type) ? { ...el, src: '' } : el);
+    renderCanvas();
+  }
+
+  // ─── Add Single (updated for studio) ──────────────────────────────────
   function clearForm() {
     ['f-question','f-answer','f-options','f-hint','f-category','f-funfact','f-explanation','f-family','f-timer'].forEach(id => {
       const el = document.getElementById(id);
@@ -770,6 +1529,8 @@
     document.getElementById('f-diff').value = '';
     document.getElementById('f-onboard').checked = false;
     document.getElementById('single-result').textContent = '';
+    removeUpload();
+    setRiddleType('text');
   }
 
   async function submitSingle() {
@@ -777,25 +1538,39 @@
     const a = document.getElementById('f-answer').value.trim();
     const m = document.getElementById('f-mode').value;
     const d = document.getElementById('f-diff').value;
+    const exp = document.getElementById('f-explanation').value.trim();
     const el = document.getElementById('single-result');
-    if (!q || !a || !m || !d) { el.innerHTML = '<span style="color:var(--red)">Fill in question, answer, mode, and difficulty.</span>'; return; }
+
+    if (!['image_only', 'interactive'].includes(studioType) && !q) { el.innerHTML = '<span style="color:var(--red)">Question is required for this format.</span>'; return; }
+    if (!a || !exp || !m || !d) { el.innerHTML = '<span style="color:var(--red)">Fill in answer, explanation, mode, and difficulty.</span>'; return; }
+    if (MEDIA_RIDDLE_TYPES.includes(studioType) && studioType !== 'text' && !studioMediaUrl) {
+      el.innerHTML = `<span style="color:var(--red)">Please upload ${UPLOAD_META[studioType]?.noun.toLowerCase() || 'media'} for this riddle type.</span>`;
+      return;
+    }
+
     el.innerHTML = '<span class="spinner"></span>';
 
     const optRaw = document.getElementById('f-options').value.trim();
     const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
     const timer = parseInt(document.getElementById('f-timer').value) || null;
 
+    const layoutConfig = studioElements.length > 0 ? { canvas: { width: 375, height: 667 }, elements: studioElements.map(e => ({ ...e })) } : null;
+
     const payload = {
       riddles: [{
-        question: q, answer: a, game_mode: m, difficulty: d,
+        question: q || (studioType === 'image_only' ? '[Visual Riddle]' : ''),
+        answer: a, game_mode: m, difficulty: d,
         options: opts,
         hint: document.getElementById('f-hint').value.trim() || null,
         category: document.getElementById('f-category').value.trim() || null,
         fun_fact: document.getElementById('f-funfact').value.trim() || null,
-        explanation: document.getElementById('f-explanation').value.trim() || null,
+        explanation: exp || null,
         family_id: document.getElementById('f-family').value.trim() || null,
         panic_time: timer,
-        is_onboarding: document.getElementById('f-onboard').checked
+        is_onboarding: document.getElementById('f-onboard').checked,
+        riddle_type: studioType,
+        media_url: studioMediaUrl || null,
+        layout_config: layoutConfig,
       }]
     };
 
@@ -803,15 +1578,28 @@
       const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify(payload) });
       const data = await res.json();
       if (data.success && data.added > 0) {
-        el.innerHTML = '<span style="color:var(--green)">✓ Riddle added!</span>';
+        el.innerHTML = '<span style="color:var(--green)">✓ Riddle published!</span>';
         clearForm();
         loadStats();
       } else {
         const err = data.results?.[0]?.error || data.error || 'Unknown error';
-        el.innerHTML = `<span style="color:var(--red)">Error: ${err}</span>`;
+        el.innerHTML = `<span style="color:var(--red)">Error: ${escapeHtml(err)}</span>`;
       }
     } catch (e) { el.innerHTML = `<span style="color:var(--red)">Network error</span>`; }
   }
+
+  // Init studio on page load
+  function initStudio() { setRiddleType('text'); }
+
+  // Listen for difficulty changes to update preview
+  document.addEventListener('DOMContentLoaded', () => {
+    const diffSel = document.getElementById('f-diff');
+    if (diffSel) diffSel.addEventListener('change', () => renderCanvas());
+    initStudio();
+    // Initial viewport transform — call after a tick so the DOM has rendered
+    setTimeout(applyViewportTransform, 50);
+  });
+  window.addEventListener('resize', applyViewportTransform);
 
   // ─── Bulk Upload ─────────────────────────────────────────────────────────
   async function submitBulk() {
@@ -823,18 +1611,24 @@
     try { parsed = JSON.parse(raw); } catch { el.innerHTML = '<div class="result-banner error">Invalid JSON. Check your formatting.</div>'; return; }
     if (!Array.isArray(parsed)) { el.innerHTML = '<div class="result-banner error">Must be a JSON array: [...]</div>'; return; }
 
+    for (let i = 0; i < parsed.length; i++) {
+      if (!parsed[i].question || !parsed[i].answer || !parsed[i].explanation) {
+        el.innerHTML = `<div class="result-banner error">Error: Item #${i + 1} is missing question, answer, or explanation.</div>`; return;
+      }
+    }
+
     el.innerHTML = `<div class="result-banner info"><span class="spinner"></span> Uploading ${parsed.length} riddles…</div>`;
 
     try {
       const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify({ riddles: parsed }) });
       const data = await res.json();
-      if (!data.success && !data.added) { el.innerHTML = `<div class="result-banner error">Error: ${data.error}</div>`; return; }
+      if (!data.success && !data.added) { el.innerHTML = `<div class="result-banner error">Error: ${escapeHtml(data.error)}</div>`; return; }
 
       const rows = (data.results || []).map(r =>
         `<tr>
           <td style="color:var(--text3);font-size:11px">#${r.index + 1}</td>
           <td>${r.success ? '<span style="color:var(--green)">✓ Added</span>' : '<span style="color:var(--red)">✗ Failed</span>'}</td>
-          <td style="color:var(--text2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.question || r.error || ''}</td>
+          <td style="color:var(--text2);max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(r.question || r.error || '')}</td>
         </tr>`
       ).join('');
 
@@ -851,9 +1645,10 @@
   // ─── Manage ──────────────────────────────────────────────────────────────
   async function loadManage(page = 1) {
     managePage = page;
-    const mode = document.getElementById('mg-mode').value;
-    const diff = document.getElementById('mg-diff').value;
+    const mode   = document.getElementById('mg-mode').value;
+    const diff   = document.getElementById('mg-diff').value;
     const active = document.getElementById('mg-active').value;
+    const typeFilter = document.getElementById('mg-type').value;
     const search = document.getElementById('mg-search').value.trim();
 
     const params = new URLSearchParams({ page, limit: LIMIT });
@@ -862,7 +1657,7 @@
     if (active !== '') params.set('is_active', active);
 
     const tbody = document.getElementById('manage-tbody');
-    tbody.innerHTML = '<tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty"><span class="spinner"></span></td></tr>';
 
     try {
       const res = await fetch(`${API}/admin/riddles?${params}`, { headers: adminHeaders() });
@@ -870,38 +1665,55 @@
       let riddles = data.riddles || [];
       manageTotal = data.total || 0;
 
-      // Client-side search filter (backend doesn't support text search)
+      // Client-side text search
       if (search) {
         const s = search.toLowerCase();
         riddles = riddles.filter(r => r.question?.toLowerCase().includes(s) || r.answer?.toLowerCase().includes(s));
       }
+      // Client-side type filter
+      if (typeFilter === 'image') {
+        riddles = riddles.filter(r => r.riddle_type === 'image_text' || r.riddle_type === 'image_only');
+      } else if (typeFilter === 'text') {
+        riddles = riddles.filter(r => !r.riddle_type || r.riddle_type === 'text');
+      }
 
       if (riddles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">No riddles found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">No riddles found.</td></tr>';
       } else {
-        tbody.innerHTML = riddles.map(r => `
-          <tr>
-            <td><span class="q-text" title="${(r.question||'').replace(/"/g,'&quot;')}">${r.question || '—'}</span></td>
-            <td>${modeBadge(r.game_mode)}</td>
-            <td>${diffBadge(r.difficulty)}</td>
-            <td style="color:var(--text3)">${r.times_served || 0}</td>
-            <td>
-              ${r.is_active ? '<span class="badge badge-easy">Active</span>' : '<span class="badge badge-inactive">Off</span>'}
-              ${r.is_onboarding ? '<span class="badge badge-onboard" style="margin-left:4px">New</span>' : ''}
-            </td>
-            <td>
-              <div class="actions">
-                <button class="btn-ghost btn-sm" onclick="openEdit(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
-                <button class="btn-danger btn-sm" onclick="deleteRiddle('${r.id}', this)">Del</button>
-              </div>
-            </td>
-          </tr>
-        `).join('');
+        tbody.innerHTML = riddles.map(r => {
+          const isImage = r.riddle_type === 'image_text' || r.riddle_type === 'image_only';
+          const typeBadge = isImage
+            ? `<span class="badge badge-type-image">🖼 Image</span>`
+            : `<span class="badge badge-type-text">📝 Text</span>`;
+          const mediaUrl = safeMediaUrl(r.media_url);
+          const thumb = mediaUrl
+            ? `<img src="${escapeAttr(mediaUrl)}" class="riddle-thumb" alt="" />`
+            : '';
+          return `
+            <tr>
+              <td><div style="display:flex;align-items:center;gap:6px">${thumb}<span class="q-text" title="${escapeAttr(r.question || '')}">${escapeHtml(r.question || '—')}</span></div></td>
+              <td>${typeBadge}</td>
+              <td>${modeBadge(r.game_mode)}</td>
+              <td>${diffBadge(r.difficulty)}</td>
+              <td style="color:var(--text3)">${r.times_served || 0}</td>
+              <td>
+                ${r.is_active ? '<span class="badge badge-easy">Active</span>' : '<span class="badge badge-inactive">Off</span>'}
+                ${r.is_onboarding ? '<span class="badge badge-onboard" style="margin-left:4px">New</span>' : ''}
+              </td>
+              <td>
+                <div class="actions">
+                  <button class="btn-ghost btn-sm" onclick="openEdit(decodeURIComponent('${editArg(r)}'))">Edit</button>
+                  <button class="btn-danger btn-sm" onclick="deleteRiddle('${escapeAttr(r.id)}', this)">Del</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('');
       }
 
       renderPagination(manageTotal, page);
     } catch {
-      tbody.innerHTML = '<tr><td colspan="6" class="empty">Error loading riddles.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="7" class="empty">Error loading riddles.</td></tr>';
     }
   }
 
@@ -930,6 +1742,7 @@
   function openEdit(r) {
     if (typeof r === 'string') r = JSON.parse(r);
     document.getElementById('edit-id').value = r.id;
+    document.getElementById('edit-riddle-type').value = r.riddle_type || 'text';
     document.getElementById('edit-question').value = r.question || '';
     document.getElementById('edit-answer').value = r.answer || '';
     document.getElementById('edit-mode').value = r.game_mode || 'arena';
@@ -943,19 +1756,51 @@
     document.getElementById('edit-timer').value = r.panic_time || '';
     document.getElementById('edit-onboard').checked = !!r.is_onboarding;
     document.getElementById('edit-active').checked = r.is_active !== false;
+    // Show riddle type badge + image preview for image riddles
+    const isImage = r.riddle_type === 'image_text' || r.riddle_type === 'image_only';
+    const typeRow = document.getElementById('edit-type-row');
+    const badge = document.getElementById('edit-type-badge');
+    const mediaWrap = document.getElementById('edit-media-preview-wrap');
+    typeRow.style.display = '';
+    badge.className = 'badge ' + (isImage ? 'badge-type-image' : 'badge-type-text');
+    badge.textContent = isImage ? '🖼 Image-Based Question' : '📝 Text-Only Question';
+    if (isImage && r.media_url) {
+      mediaWrap.style.display = 'flex';
+      const mediaUrl = safeMediaUrl(r.media_url);
+      document.getElementById('edit-media-url').value = mediaUrl;
+      document.getElementById('edit-media-preview-img').src = mediaUrl;
+    } else {
+      mediaWrap.style.display = 'none';
+      document.getElementById('edit-media-url').value = '';
+      document.getElementById('edit-media-preview-img').src = '';
+    }
     document.getElementById('edit-overlay').classList.add('open');
+  }
+
+  function updateEditMediaPreview() {
+    const url = safeMediaUrl(document.getElementById('edit-media-url').value.trim());
+    document.getElementById('edit-media-preview-img').src = url;
   }
 
   async function saveEdit() {
     const id = document.getElementById('edit-id').value;
+    const q = document.getElementById('edit-question').value.trim();
+    const a = document.getElementById('edit-answer').value.trim();
+    const exp = document.getElementById('edit-explanation').value.trim();
     const optRaw = document.getElementById('edit-options').value.trim();
+    const m = document.getElementById('edit-mode').value;
+    const d = document.getElementById('edit-diff').value;
+    if (!q || !a || !exp || !m || !d) { alert('Question, Answer, Explanation, Mode, and Difficulty are all required.'); return; }
     const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
     const timer = parseInt(document.getElementById('edit-timer').value) || null;
+    const typedMediaUrl = document.getElementById('edit-media-url')?.value.trim() || '';
+    const cleanMediaUrl = typedMediaUrl ? safeMediaUrl(typedMediaUrl) : '';
+    if (typedMediaUrl && !cleanMediaUrl) { alert('Media URL must be a valid http(s) URL.'); return; }
     const payload = {
-      question: document.getElementById('edit-question').value.trim(),
-      answer: document.getElementById('edit-answer').value.trim(),
-      game_mode: document.getElementById('edit-mode').value,
-      difficulty: document.getElementById('edit-diff').value,
+      question: q,
+      answer: a,
+      game_mode: m,
+      difficulty: d,
       options: opts,
       hint: document.getElementById('edit-hint').value.trim() || null,
       category: document.getElementById('edit-category').value.trim() || null,
@@ -965,6 +1810,7 @@
       panic_time: timer,
       is_onboarding: document.getElementById('edit-onboard').checked,
       is_active: document.getElementById('edit-active').checked,
+      media_url: cleanMediaUrl || null,
     };
     try {
       const res = await fetch(`${API}/admin/riddle/${id}`, { method: 'PUT', headers: adminHeaders(true), body: JSON.stringify(payload) });
@@ -982,8 +1828,8 @@
       const res = await fetch(`${API}/admin/pool-health`, { headers: adminHeaders() });
       const data = await res.json();
       if (!data.success) { el.innerHTML = '<div class="empty">Error loading pool health.</div>'; return; }
-      const modes = ['arena', 'daily', 'gauntlet', 'chain', 'wager', 'bounty'];
-      const modeLabels = { arena: 'Arena', daily: 'Daily Drop', gauntlet: 'Gauntlet', chain: 'Chain', wager: 'Blind Wager', bounty: 'Bounty' };
+      const modes = ['mcq', 'type', 'arena', 'daily', 'gauntlet', 'chain', 'wager', 'bounty'];
+      const modeLabels = { mcq: 'Standard Queue', type: 'Brain Blast', arena: 'Eclipse / Ranked', daily: 'Cold Case', gauntlet: 'Gauntlet', chain: 'The Chain', wager: 'Blind Wager', bounty: 'Bounty Board' };
       const diffs = ['Easy', 'Medium', 'Hard'];
       let html = `
         <div class="pool-cell header"></div>
@@ -1049,16 +1895,16 @@
         const setHtml = set.map((r, i) => `
           <div class="chain-riddle">
             <div class="chain-num">${i + 1}</div>
-            <div class="chain-q" title="${(r.question||'').replace(/"/g,'&quot;')}">${r.question || '—'}</div>
-            <div class="chain-ans">${r.answer || ''}</div>
+            <div class="chain-q" title="${escapeAttr(r.question || '')}">${escapeHtml(r.question || '—')}</div>
+            <div class="chain-ans">${escapeHtml(r.answer || '')}</div>
             <div class="chain-diff">${diffBadge(r.difficulty)}</div>
-            <button class="btn-ghost btn-sm" onclick="openEdit(${JSON.stringify(r).replace(/"/g,'&quot;')})">Edit</button>
+            <button class="btn-ghost btn-sm" onclick="openEdit(decodeURIComponent('${editArg(r)}'))">Edit</button>
           </div>
         `).join('');
         html += `
           <div class="chain-set">
             <div class="chain-set-header">
-              <h3>${label}</h3>
+              <h3>${escapeHtml(label)}</h3>
               <span class="meta">${set.length} riddle${set.length !== 1 ? 's' : ''} · ${set.filter(r => r.is_active).length} active</span>
             </div>
             <div class="chain-set-body">${setHtml}</div>
@@ -1125,10 +1971,10 @@
       const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify({ riddles }) });
       const data = await res.json();
       if (data.added > 0) {
-        el.innerHTML = `<div class="result-banner success">✓ ${data.added} riddles saved to chain set "${familyId}".</div>`;
+        el.innerHTML = `<div class="result-banner success">✓ ${data.added} riddles saved to chain set "${escapeHtml(familyId)}".</div>`;
         setTimeout(() => { closeModal('chain-modal'); loadChainSets(); loadStats(); }, 1200);
       } else {
-        el.innerHTML = `<div class="result-banner error">Failed: ${data.error || 'Unknown error'}</div>`;
+        el.innerHTML = `<div class="result-banner error">Failed: ${escapeHtml(data.error || 'Unknown error')}</div>`;
       }
     } catch { el.innerHTML = '<div class="result-banner error">Network error.</div>'; }
   }

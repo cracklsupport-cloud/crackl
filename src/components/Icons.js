@@ -145,20 +145,38 @@ export const ShieldIcon = (props) => (
   </IconBase>
 );
 
-export const IntelIcon = (props) => (
-  <IconBase {...props}>
-    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-    <rect x="8" y="8" width="8" height="8" />
-    <line x1="8" y1="1" x2="8" y2="3" />
-    <line x1="16" y1="1" x2="16" y2="3" />
-    <line x1="8" y1="21" x2="8" y2="23" />
-    <line x1="16" y1="21" x2="16" y2="23" />
-    <line x1="1" y1="8" x2="3" y2="8" />
-    <line x1="1" y1="16" x2="3" y2="16" />
-    <line x1="21" y1="8" x2="23" y2="8" />
-    <line x1="21" y1="16" x2="23" y2="16" />
-  </IconBase>
-);
+export const IntelIcon = ({ size = 20, color = 'currentColor', ...rest }) => {
+  const s = size / 20;
+  const scale = (n) => n * s;
+
+  const hex = [
+    [10, 1], [18, 5.5], [18, 14.5], [10, 19], [2, 14.5], [2, 5.5],
+  ].map(([x, y]) => `${scale(x)},${scale(y)}`).join(' ');
+
+  const hexInner = [
+    [10, 3.5], [15.8, 6.75], [15.8, 13.25], [10, 16.5], [4.2, 13.25], [4.2, 6.75],
+  ].map(([x, y]) => `${scale(x)},${scale(y)}`).join(' ');
+
+  const bolt = [
+    [11.2, 2.5], [6.8, 10.2], [9.8, 10.2], [8.2, 17.8], [13.4, 9.8], [10.2, 9.8],
+  ].map(([x, y]) => `${scale(x)},${scale(y)}`).join(' ');
+
+  const ticks = [
+    [10, 1, 10, -0.5], [18, 5.5, 19.5, 4.6], [18, 14.5, 19.5, 15.4],
+    [10, 19, 10, 20.5], [2, 14.5, 0.5, 15.4], [2, 5.5, 0.5, 4.6],
+  ];
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" style={rest.style}>
+      <polygon points={hex} fill="#0f1a15" stroke={color} strokeWidth={scale(0.9)} />
+      <polygon points={hexInner} fill="none" stroke={color} strokeWidth={scale(0.25)} opacity={0.2} />
+      <polygon points={bolt} fill={color} />
+      {ticks.map(([x1, y1, x2, y2], i) => (
+        <line key={i} x1={scale(x1)} y1={scale(y1)} x2={scale(x2)} y2={scale(y2)} stroke={color} strokeWidth={scale(0.7)} opacity={0.5} strokeLinecap="round" />
+      ))}
+    </svg>
+  );
+};
 
 export const LockIcon = (props) => (
   <IconBase {...props}>
@@ -369,6 +387,27 @@ export const ActivityIcon = (props) => (
   </IconBase>
 );
 
+export const ArchiveIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size||20} height={props.size||20} viewBox="0 0 24 24" fill="none" stroke={props.color||'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="3" width="20" height="5" rx="1" />
+    <path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8" />
+    <path d="M10 12h4" />
+  </svg>
+);
+
+export const FlagIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size||20} height={props.size||20} viewBox="0 0 24 24" fill="none" stroke={props.color||'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+    <line x1="4" y1="22" x2="4" y2="15" />
+  </svg>
+);
+
+export const StarIcon = (props) => (
+  <svg xmlns="http://www.w3.org/2000/svg" width={props.size||20} height={props.size||20} viewBox="0 0 24 24" fill="none" stroke={props.color||'currentColor'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+  </svg>
+);
+
 export const GoogleIcon = ({ size = 24, style }) => (
   <svg width={size} height={size} viewBox="0 0 48 48" style={style}>
     <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -378,6 +417,13 @@ export const GoogleIcon = ({ size = 24, style }) => (
   </svg>
 );
 
+export const EditIcon = (props) => (
+  <IconBase {...props}>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+  </IconBase>
+);
+
 export default {
   HomeIcon, CompassIcon, UsersIcon, SearchIcon, InfoIcon,
   LightningIcon, BrainIcon, FlameIcon, LinkIcon, EyeIcon, EyeOffIcon,
@@ -385,5 +431,6 @@ export default {
   ShieldIcon, IntelIcon, LockIcon, UnlockIcon, ArrowRightIcon, CrosshairIcon, LogOutIcon, BellIcon,
   TimerIcon, DatabaseIcon, UserIcon, ZapIcon, TrophyIcon, ChevronLeftIcon,
   SwordsIcon, PlusIcon, XIcon, AlertTriangleIcon, TerminalIcon, SunIcon, BombIcon, DiceIcon, GoogleIcon,
-  CpuIcon, LifeBuoyIcon, CheckIcon, ActivityIcon
+  CpuIcon, LifeBuoyIcon, CheckIcon, ActivityIcon,
+  ArchiveIcon, FlagIcon, StarIcon, EditIcon
 };

@@ -8,7 +8,23 @@ export const GlassLabel = ({ children }) => (
   <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 10, fontWeight: '900', letterSpacing: 2, textTransform: 'uppercase', marginBottom: 8, marginTop: 16, marginLeft: 4 }}>{children}</Text>
 );
 
-export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardType, autoCapitalize, maxLength, style, onSubmitEditing, icon, focusColor = '#a855f7' }) => {
+export const GlassField = ({
+  value,
+  onChangeText,
+  placeholder,
+  secure,
+  keyboardType,
+  autoCapitalize,
+  autoComplete,
+  textContentType,
+  maxLength,
+  style,
+  onSubmitEditing,
+  icon,
+  focusColor = '#a855f7',
+  nativeID,
+  name,
+}) => {
   const [isFocused, setIsFocused] = useState(false);
   
   // Helper to convert hex to rgba for backgrounds/shadows
@@ -56,6 +72,10 @@ export const GlassField = ({ value, onChangeText, placeholder, secure, keyboardT
         secureTextEntry={secure}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize || 'none'}
+        autoComplete={autoComplete}
+        textContentType={textContentType}
+        nativeID={nativeID}
+        dataSet={isWeb && name ? { field: name } : undefined}
         maxLength={maxLength}
         onSubmitEditing={onSubmitEditing}
         onFocus={() => setIsFocused(true)}

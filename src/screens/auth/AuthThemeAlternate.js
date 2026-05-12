@@ -263,12 +263,32 @@ export default function AuthThemeDefault(props) {
                 {step === 'login' && (
                   <View>
                     <GlassLabel>Gamer Tag or Email</GlassLabel>
-                    <GlassField placeholder="Identity code..." value={loginId} onChangeText={setLoginId} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>@</Text>} />
+                    <GlassField
+                      placeholder="Identity code..."
+                      value={loginId}
+                      onChangeText={setLoginId}
+                      autoComplete="username"
+                      textContentType="username"
+                      nativeID="crackl-login-id"
+                      name="login-id"
+                      icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>@</Text>}
+                    />
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 24 }}>
                       <GlassLabel>Access Key</GlassLabel>
                       <TouchableOpacity onPress={() => switchStep('forgot')} style={{ marginBottom: 8 }}><Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 10 }}>FORGOT?</Text></TouchableOpacity>
                     </View>
-                    <GlassField placeholder="••••••••" value={pass} onChangeText={setPass} secure={!showPass} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} onSubmitEditing={handleAction} />
+                    <GlassField
+                      placeholder="••••••••"
+                      value={pass}
+                      onChangeText={setPass}
+                      secure={!showPass}
+                      autoComplete="current-password"
+                      textContentType="password"
+                      nativeID="crackl-login-password"
+                      name="login-password"
+                      icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>}
+                      onSubmitEditing={handleAction}
+                    />
                     <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, marginBottom: 24 }} onPress={() => setRemember(!remember)}>
                       <View style={{ width: 16, height: 16, borderRadius: 4, borderWidth: 1, borderColor: '#374151', backgroundColor: remember ? '#9333ea' : '#111827', alignItems: 'center', justifyContent: 'center' }}>{remember && <Text style={{ color: '#fff', fontSize: 10 }}>✓</Text>}</View>
                       <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#9ca3af', fontSize: 12 }}>Stay synced</Text>

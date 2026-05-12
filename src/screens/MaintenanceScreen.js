@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, Easing, TouchableOpacity, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CONFIG } from '../../config';
+import { BACKEND } from '../utils/api';
 
 export default function MaintenanceScreen({ go, message }) {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -23,7 +23,7 @@ export default function MaintenanceScreen({ go, message }) {
     // Poll every 30s — when maintenance ends, go to home if session exists else auth
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`${CONFIG.BACKEND_URL}/app/status`);
+        const res = await fetch(`${BACKEND}/app/status`);
         const data = await res.json();
         if (!data.maintenance) {
           const raw = await AsyncStorage.getItem('crackl_user');

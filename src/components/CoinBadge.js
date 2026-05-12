@@ -1,5 +1,5 @@
 /**
- * CoinBadge — Animated coin display with pulsing glow
+ * CoinBadge — Animated Intel display with pulsing glow
  */
 import React, { useEffect, useRef } from 'react';
 import { View, Text, Animated } from 'react-native';

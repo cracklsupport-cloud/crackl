@@ -249,6 +249,10 @@ export default function AuthThemeDefault(props) {
                   <GlassField
                     placeholder="sys_admin@crackl.net"
                     value={loginId} onChangeText={setLoginId}
+                    autoComplete="username"
+                    textContentType="username"
+                    nativeID="crackl-login-id"
+                    name="login-id"
                     focusColor="#00ffd0"
                     icon={<Text style={{ color: '#64748b', fontFamily: mono }}>@</Text>}
                   />
@@ -263,6 +267,10 @@ export default function AuthThemeDefault(props) {
                     placeholder="••••••••••••••••"
                     value={pass} onChangeText={setPass}
                     secure={!showPass}
+                    autoComplete="current-password"
+                    textContentType="password"
+                    nativeID="crackl-login-password"
+                    name="login-password"
                     focusColor="#a855f7"
                     icon={<Icons.LockIcon size={14} color="#64748b" />}
                     onSubmitEditing={handleAction}
