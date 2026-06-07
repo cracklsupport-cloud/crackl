@@ -2,8 +2,10 @@
  * CyberInput — Styled text input with focus glow
  */
 import React, { useState } from 'react';
-import { TextInput } from 'react-native';
+import { TextInput, Platform } from 'react-native';
 import Colors from '../theme/colors';
+
+const isWeb = Platform.OS === 'web';
 
 export default function CyberInput({
   value, onChangeText, placeholder, style, accentColor,
@@ -33,13 +35,15 @@ export default function CyberInput({
           paddingVertical: 16,
           fontSize: 15,
           color: Colors.textPrimary,
-          ...(focused ? {
+          ...(focused ? (isWeb ? {
+            boxShadow: `0 0 12px ${accent}33`,
+          } : {
             shadowColor: accent,
             shadowOffset: { width: 0, height: 0 },
             shadowOpacity: 0.2,
             shadowRadius: 12,
             elevation: 4,
-          } : {}),
+          }) : {}),
         },
         style,
       ]}

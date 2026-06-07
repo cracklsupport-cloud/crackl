@@ -9,7 +9,7 @@
  * Uses React Context + optimistic updates + AsyncStorage persistence.
  */
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { saveSessionUser } from './authSession';
 
 const UserContext = createContext(null);
 
@@ -36,8 +36,8 @@ export function UserProvider({ children, initialUser, onUserChange }) {
     const merged = { ...userRef.current, ...updatedUser };
     setUser(merged);
     userRef.current = merged;
-    // Persist to AsyncStorage (fire-and-forget for speed)
-    AsyncStorage.setItem('crackl_user', JSON.stringify(merged)).catch(() => {});
+    // Persist the active tab session without clobbering other web tabs.
+    saveSessionUser(merged).catch(() => {});
     // Notify parent (AppNavigator) so its own state stays in sync
     if (onUserChange) onUserChange(merged);
   }, [onUserChange]);
@@ -47,8 +47,7 @@ export function UserProvider({ children, initialUser, onUserChange }) {
     const optimistic = { ...userRef.current, ...partialUpdate };
     setUser(optimistic);
     userRef.current = optimistic;
-    // Persist optimistically
-    AsyncStorage.setItem('crackl_user', JSON.stringify(optimistic)).catch(() => {});
+    saveSessionUser(optimistic).catch(() => {});
     if (onUserChange) onUserChange(optimistic);
   }, [onUserChange]);
 

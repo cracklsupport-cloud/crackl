@@ -5,6 +5,8 @@ import React from 'react';
 import { View, TouchableOpacity, Text, Platform } from 'react-native';
 import Colors from '../theme/colors';
 
+const isWeb = Platform.OS === 'web';
+
 const TABS = [
   { key: 'home',        icon: '🏠', label: 'Home' },
   { key: 'leaderboard', icon: '🏆', label: 'Board' },
@@ -24,7 +26,7 @@ export default function BottomNav({ active, onTab }) {
       backgroundColor: Colors.glassBg,
       borderTopWidth: 1,
       borderTopColor: Colors.glassBorder,
-      ...(Platform.OS === 'web' ? { backdropFilter: 'blur(20px)' } : {}),
+      ...(isWeb ? { backdropFilter: 'blur(20px)' } : {}),
     }}>
       {TABS.map(tab => {
         const isActive = active === tab.key;
@@ -42,10 +44,14 @@ export default function BottomNav({ active, onTab }) {
                 alignItems: 'center',
                 justifyContent: 'center',
                 marginTop: -20,
+                ...(isWeb ? {
+                  boxShadow: `0 0 16px ${Colors.purple}80`,
+                } : {
                 shadowColor: Colors.purple,
                 shadowOffset: { width: 0, height: 0 },
                 shadowOpacity: 0.5,
                 shadowRadius: 16,
+                }),
                 elevation: 8,
               }}
             >
@@ -76,10 +82,14 @@ export default function BottomNav({ active, onTab }) {
                 backgroundColor: Colors.purple,
                 borderRadius: 1,
                 marginTop: 3,
+                ...(isWeb ? {
+                  boxShadow: `0 0 4px ${Colors.purple}`,
+                } : {
                 shadowColor: Colors.purple,
                 shadowOffset: { width: 0, height: 0 },
                 shadowOpacity: 0.6,
                 shadowRadius: 4,
+                }),
               }} />
             )}
           </TouchableOpacity>

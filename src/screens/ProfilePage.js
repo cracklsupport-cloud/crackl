@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import Colors from '../theme/colors';
 import { useResponsive } from '../theme/breakpoints';
 import Icons from '../components/Icons';
 import { useUser } from '../utils/UserContext';
+import { getAuthToken } from '../utils/authSession';
 
 import { BACKEND } from '../utils/api';
 const isWeb = Platform.OS === 'web';
@@ -49,7 +49,7 @@ export default function ProfilePage({ user: initialUser, go, update, syncUser: p
 
     // BACKGROUND: Send to API — if it fails, revert
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const payload = { userId: user?.id, ...partial };
       const res = await fetch(`${BACKEND}/user/update`, {
         method: 'POST',
@@ -62,11 +62,9 @@ export default function ProfilePage({ user: initialUser, go, update, syncUser: p
         if (syncGlobal) syncGlobal(data.user);
       } else {
         // API rejected — revert optimistic update
-        console.warn('Profile update rejected:', data.error);
         if (syncGlobal) syncGlobal(previousUser);
       }
-    } catch (e) {
-      console.error("Failed to update user, reverting", e);
+    } catch {
       // Revert on network failure
       if (syncGlobal) syncGlobal(previousUser);
     }
@@ -77,7 +75,7 @@ export default function ProfilePage({ user: initialUser, go, update, syncUser: p
       if (!initialUser?.id) return;
       try {
         setLoading(true);
-        const token = await AsyncStorage.getItem('crackl_token');
+        const token = await getAuthToken();
         const res = await fetch(`${BACKEND}/user/${initialUser.id}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -136,7 +134,7 @@ export default function ProfilePage({ user: initialUser, go, update, syncUser: p
               style={[{ width:80, height:80, borderRadius:20, backgroundColor:Colors.bgBase, borderWidth:2, borderColor:Colors.purple+'40', alignItems:'center', justifyContent:'center', position: 'relative' }, isWeb ? { cursor: 'pointer' } : {}]}
             >
               {user?.avatar_url ? (
-                <Image source={{ uri: user.avatar_url }} style={{ width: '100%', height: '100%', borderRadius: 18, resizeMode: 'cover' }} />
+                <Image source={{ uri: user.avatar_url }} resizeMode="cover" style={{ width: '100%', height: '100%', borderRadius: 18 }} />
               ) : (
                 <Icons.UserIcon size={44} color={Colors.purple} />
               )}
@@ -196,7 +194,7 @@ export default function ProfilePage({ user: initialUser, go, update, syncUser: p
             <Text style={{ color:Colors.textSecondary, fontFamily:'Share Tech Mono', fontSize: isPhone ? 10 : 11, lineHeight: 18 }}>A clear read on how this operative is performing across the live arena.</Text>
             <View style={{ flexDirection:'row', gap: isPhone ? 6 : 8, marginTop: 12 }}>
               {[
-                ['DEPLOYMENTS', totalPlayed, Colors.cyan],
+                ['DECRYPTS', totalPlayed, Colors.cyan],
                 ['SOLVED', totalCorrect, Colors.gold],
                 ['ACCURACY', `${accuracyPct}%`, Colors.emerald],
               ].map(([label, value, color]) => (
@@ -312,14 +310,11 @@ export default function ProfilePage({ user: initialUser, go, update, syncUser: p
                          const asset = result.assets[0];
                          const b64 = `data:${asset.mimeType || 'image/jpeg'};base64,${asset.base64}`;
                          if (b64.length > 500_000) {
-                           console.warn('Avatar image too large, rejected by client.');
                            return;
                          }
                          setPromptValue(b64);
                        }
-                    } catch (e) {
-                       console.log("ImagePicker error", e);
-                    }
+                    } catch {}
                   }}
                   style={{ backgroundColor: 'rgba(255,255,255,0.05)', paddingVertical: 12, paddingHorizontal: 20, borderRadius: 10, borderWidth: 1, borderColor: Colors.purple + '50' }}
                 >

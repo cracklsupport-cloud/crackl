@@ -14,11 +14,11 @@ function Particle({ delay, x, y }) {
       Animated.sequence([
         Animated.delay(delay),
         Animated.parallel([
-          Animated.timing(op, { toValue: 0.6, duration: 1200, useNativeDriver: true }),
-          Animated.timing(ty, { toValue: -60, duration: 2400, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.timing(op, { toValue: 0.6, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(ty, { toValue: -60, duration: 2400, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web' }),
         ]),
-        Animated.timing(op, { toValue: 0, duration: 800, useNativeDriver: true }),
-        Animated.timing(ty, { toValue: 0, duration: 0, useNativeDriver: true }),
+        Animated.timing(op, { toValue: 0, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(ty, { toValue: 0, duration: 0, useNativeDriver: Platform.OS !== 'web' }),
       ])
     ).start();
   }, []);
@@ -60,13 +60,13 @@ export default function SplashScreen() {
     });
 
     Animated.loop(
-      Animated.timing(scanLine, { toValue: height, duration: 3000, easing: Easing.linear, useNativeDriver: true })
+      Animated.timing(scanLine, { toValue: height, duration: 3000, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web' })
     ).start();
 
     Animated.loop(
       Animated.sequence([
-        Animated.timing(glowPulse, { toValue: 0.25, duration: 1500, useNativeDriver: true }),
-        Animated.timing(glowPulse, { toValue: 0.08, duration: 1500, useNativeDriver: true }),
+        Animated.timing(glowPulse, { toValue: 0.25, duration: 1500, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(glowPulse, { toValue: 0.08, duration: 1500, useNativeDriver: Platform.OS !== 'web' }),
       ])
     ).start();
 
@@ -76,15 +76,15 @@ export default function SplashScreen() {
 
     setTimeout(() => {
       Animated.sequence([
-        Animated.timing(bootOp, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(bootOp, { toValue: 0, duration: 300, useNativeDriver: Platform.OS !== 'web' }),
         Animated.parallel([
-          Animated.spring(logoSc, { toValue: 1, tension: 50, friction: 7, useNativeDriver: true }),
-          Animated.timing(logoOp, { toValue: 1, duration: 500, useNativeDriver: true }),
-          Animated.timing(ringOp, { toValue: 0.3, duration: 600, useNativeDriver: true }),
-          Animated.spring(ringSc, { toValue: 1, tension: 40, friction: 8, useNativeDriver: true }),
+          Animated.spring(logoSc, { toValue: 1, tension: 50, friction: 7, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(logoOp, { toValue: 1, duration: 500, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(ringOp, { toValue: 0.3, duration: 600, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.spring(ringSc, { toValue: 1, tension: 40, friction: 8, useNativeDriver: Platform.OS !== 'web' }),
         ]),
-        Animated.timing(subOp, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.timing(taglineOp, { toValue: 1, duration: 300, delay: 200, useNativeDriver: true }),
+        Animated.timing(subOp, { toValue: 1, duration: 400, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(taglineOp, { toValue: 1, duration: 300, delay: 200, useNativeDriver: Platform.OS !== 'web' }),
       ]).start();
     }, 2400);
   }, []);

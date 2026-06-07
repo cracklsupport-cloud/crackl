@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView, ActivityIndicator,
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 import RiddleContent from '../components/RiddleContent';
 
 const mono = Platform.OS === 'web' ? '"JetBrains Mono", monospace' : 'Share Tech Mono';
@@ -40,6 +40,8 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [displayCoins, setDisplayCoins] = useState(room.userCoins ?? user?.coins ?? 0);
+  const [currentActor, setCurrentActor] = useState(user || null);
+  const [serverIsHost, setServerIsHost] = useState(false);
   const pollRef = useRef(null);
   const timerRef = useRef(null);
   const typedRef = useRef('');
@@ -61,8 +63,10 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
   const usesTypedInput = roomModeKey === 'type' || !Array.isArray(riddle?.options) || !riddle?.options?.length;
   const resolvedView = !!result && !result.pending;
   const livePanic = isPanicMode && !!riddle && !resolvedView;
-  const canStart = room.isHost && players.length >= 2 && !loading;
-  const canContinue = room.isHost && resolvedView && !loading && !result?.showdownComplete;
+  const actorId = currentActor?.id || user?.id;
+  const isHost = serverIsHost || (!!roomData?.host_id && actorId === roomData.host_id);
+  const canStart = isHost && players.length >= 2 && !loading;
+  const canContinue = isHost && resolvedView && !loading && !result?.showdownComplete;
   const roundStartedWithoutPayload = !riddle && status === 'playing';
 
   useEffect(() => {
@@ -75,7 +79,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
   }, []);
 
   async function getAuthHeaders() {
-    const token = await AsyncStorage.getItem('crackl_token');
+    const token = await getAuthToken();
     return {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -84,14 +88,26 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
 
   async function pollRoom() {
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
-      const res = await fetch(`${BACKEND}/room/${room.id}?userId=${user.id}`, {
+      const token = await getAuthToken();
+      const res = await fetch(`${BACKEND}/room/${room.id}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
       const data = await res.json();
       if (!data.success) return;
       setRoomData(data.room);
       setPlayers(data.players || []);
+      if (data.currentUser) {
+        const mergedUser = { ...(currentActor || user || {}), ...data.currentUser };
+        setCurrentActor(mergedUser);
+        if (data.currentUser.id !== user?.id || data.currentUser.coins !== user?.coins) {
+          update(mergedUser);
+        }
+      } else if (data.currentUserId) {
+        setCurrentActor((previous) => ({ ...(previous || user || {}), id: data.currentUserId }));
+      }
+      if (typeof data.isHost === 'boolean') {
+        setServerIsHost(data.isHost);
+      }
       if (typeof data.currentUserCoins === 'number') {
         setDisplayCoins(data.currentUserCoins);
       }
@@ -145,7 +161,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
   }
 
   function buildResolvedResult(summary) {
-    const iWon = summary.teamWin || summary.winnerId === user.id;
+    const iWon = summary.teamWin || summary.winnerId === actorId;
     const gaveUp = !!summary.gaveUp;
     const noWinner = !!summary.noWinner;
     const refunded = !!summary.refunded;
@@ -191,7 +207,9 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
     setResult(buildResolvedResult(summary));
     if (typeof currentUserCoins === 'number') {
       setDisplayCoins(currentUserCoins);
-      update({ ...user, coins: currentUserCoins });
+      const mergedUser = { ...(currentActor || user || {}), coins: currentUserCoins };
+      setCurrentActor(mergedUser);
+      update(mergedUser);
     }
   }
 
@@ -203,13 +221,15 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
       const res = await fetch(`${BACKEND}/room/start`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ roomId: room.id, hostId: user.id, xp: user?.xp || 0 }),
+        body: JSON.stringify({ roomId: room.id, xp: currentActor?.xp ?? user?.xp ?? 0 }),
       });
       const data = await res.json();
       if (data.success) {
         if (typeof data.currentUserCoins === 'number') {
           setDisplayCoins(data.currentUserCoins);
-          update({ ...user, coins: data.currentUserCoins });
+          const mergedUser = { ...(currentActor || user || {}), coins: data.currentUserCoins };
+          setCurrentActor(mergedUser);
+          update(mergedUser);
         }
         applyRoundPayload(data.riddle);
       } else {
@@ -238,7 +258,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
       const res = await fetch(`${BACKEND}/room/answer`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ roomId: room.id, userId: user.id, userAnswer: finalAnswer, timeTaken: elapsed }),
+        body: JSON.stringify({ roomId: room.id, userAnswer: finalAnswer, timeTaken: elapsed }),
       });
       const data = await res.json();
       if (!data.success) {
@@ -289,7 +309,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
       const res = await fetch(`${BACKEND}/room/giveup`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ roomId: room.id, hostId: user.id }),
+        body: JSON.stringify({ roomId: room.id }),
       });
       const data = await res.json();
       if (data.success) {
@@ -311,7 +331,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
       const res = await fetch(`${BACKEND}/room/next`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ roomId: room.id, hostId: user.id, xp: user?.xp || 0 }),
+        body: JSON.stringify({ roomId: room.id, xp: currentActor?.xp ?? user?.xp ?? 0 }),
       });
       const data = await res.json();
       if (data.success) applyRoundPayload(data.riddle);
@@ -425,7 +445,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
             <View key={`${player.user_id}_${index}`} style={{ backgroundColor: 'rgba(15,15,26,0.6)', borderRadius: 12, flexDirection: 'row', alignItems: 'center', gap: 14, padding: 16, marginBottom: 8, borderWidth: 1, borderColor: Colors.borderDefault }}>
               {player.user_id === roomData?.host_id ? <Icons.ShieldIcon size={20} color={Colors.gold} /> : <Icons.UserIcon size={20} color={Colors.cyan} />}
               <Text style={{ flex: 1, color: Colors.textPrimary, fontFamily: display, fontWeight: '700', fontSize: 16, letterSpacing: 0.5 }}>
-                {player.username}{player.user_id === user.id ? ' (You)' : ''}
+                {player.username}{player.user_id === actorId ? ' (You)' : ''}
               </Text>
               {player.user_id === roomData?.host_id ? (
                 <View style={{ backgroundColor: Colors.gold + '18', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 }}>
@@ -435,7 +455,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
             </View>
           ))}
 
-          {room.isHost ? (
+          {isHost ? (
             <TouchableOpacity
               style={{ backgroundColor: roomMode.accent, paddingVertical: 16, borderRadius: 10, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, marginTop: 24, opacity: canStart ? 1 : 0.4 }}
               onPress={startGame}
@@ -514,7 +534,11 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
           <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, fontWeight: '800', letterSpacing: 1.5, marginBottom: 10 }}>
             {engagementLabel} // {roomMode.label}
           </Text>
-          <RiddleContent riddle={riddle} accent={roomMode.accent} questionStyle={{ fontSize: 28, lineHeight: 38 }} />
+          <RiddleContent
+            riddle={riddle}
+            accent={roomMode.accent}
+            questionStyle={{ fontFamily: display, fontSize: 36, lineHeight: 46, fontWeight: '900' }}
+          />
         </View>
 
         {!usesTypedInput ? riddle.options?.map((option, index) => {
@@ -532,7 +556,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
               <View style={{ width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: right ? Colors.emerald : wrong ? Colors.rose : Colors.bgBase, borderWidth: 1, borderColor: right ? Colors.emerald : wrong ? Colors.rose : Colors.borderDefault }}>
                 <Text style={{ color: right || wrong ? '#000' : Colors.textSecondary, fontFamily: mono, fontWeight: '900', fontSize: 16 }}>{['A', 'B', 'C', 'D'][index] || '?'}</Text>
               </View>
-              <Text style={{ flex: 1, color: right ? Colors.emerald : wrong ? '#fca5a5' : Colors.textPrimary, fontFamily: display, fontSize: 17, fontWeight: '700', letterSpacing: 0.4 }}>
+              <Text style={{ flex: 1, color: right ? Colors.emerald : wrong ? '#fca5a5' : Colors.textPrimary, fontFamily: display, fontSize: 18, fontWeight: '800', lineHeight: 26, letterSpacing: 0.2 }}>
                 {option}
               </Text>
             </TouchableOpacity>
@@ -540,7 +564,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
         }) : !resolvedView ? (
           <View style={{ gap: 16 }}>
             <TextInput
-              style={{ backgroundColor: 'rgba(15,15,26,0.6)', borderWidth: 1.5, borderColor: Colors.borderDefault, borderRadius: 12, padding: 20, color: Colors.textPrimary, fontFamily: mono, fontSize: 16, minHeight: 110, textAlignVertical: 'top' }}
+              style={{ backgroundColor: 'rgba(15,15,26,0.6)', borderWidth: 1.5, borderColor: Colors.borderDefault, borderRadius: 8, padding: 20, color: Colors.textPrimary, fontFamily: mono, fontSize: 20, lineHeight: 28, minHeight: 118, textAlignVertical: 'top' }}
               placeholder="Transmit your answer..."
               placeholderTextColor={Colors.textMuted}
               value={typed}
@@ -615,7 +639,7 @@ export default function MultiRoomScreen({ user, go, exitToHome, room, update }) 
           </View>
         ) : null}
 
-        {room.isHost && riddle && !resolvedView ? (
+        {isHost && riddle && !resolvedView ? (
           <TouchableOpacity style={{ marginTop: 24, padding: 16, borderRadius: 10, borderWidth: 1, borderColor: Colors.rose + '35', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10, backgroundColor: Colors.rose + '08' }} onPress={giveUp}>
             <Icons.AlertTriangleIcon size={14} color={Colors.rose} />
             <Text style={{ color: Colors.rose, fontFamily: mono, fontWeight: '800', fontSize: 13, letterSpacing: 1 }}>SYSTEM ABORT</Text>

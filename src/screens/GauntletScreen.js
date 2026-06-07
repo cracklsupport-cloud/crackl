@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, 
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 import RiddleContent from '../components/RiddleContent';
 
 const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
-const grotesk = isWeb ? '"Black Ops One", sans-serif' : undefined;
+const grotesk = isWeb ? '"Space Grotesk", sans-serif' : 'Chakra Petch';
 const serif = 'Cormorant Garamond';
 const DEFAULT_TIME = 20;
 const MAX_STRIKES = 3;
@@ -91,7 +91,7 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
     riddleRef.current = null;
     answerLockRef.current = false;
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const params = new URLSearchParams({ mode: 'gauntlet', panicMode: panicMode ? 'true' : 'false' });
       const res = token
         ? await fetch(`${BACKEND}/api/riddles/next?${params.toString()}`, {
@@ -138,7 +138,7 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
 
     try {
       const limit = activeRiddle.timeLimit || DEFAULT_TIME;
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/answer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -325,7 +325,7 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
             </View>
           ) : null}
 
-          <View style={[{ backgroundColor: 'rgba(10,10,12,0.8)', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
+          <View style={[{ backgroundColor: 'rgba(10,10,12,0.82)', borderRadius: 8, padding: 30, borderWidth: 1, borderColor: accent + '25', marginBottom: 18, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: `0 18px 60px rgba(0,0,0,0.5), 0 0 34px ${accent}0F` } : {}]}>
             <CornerBrackets />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -334,7 +334,11 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
               </View>
               <Text style={{ fontFamily: mono, fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1.8 }}>NODE_{String(runIndex).padStart(2, '0')}</Text>
             </View>
-            <RiddleContent riddle={riddle} accent={accent} />
+            <RiddleContent
+              riddle={riddle}
+              accent={accent}
+              questionStyle={{ fontFamily: grotesk, fontSize: 36, lineHeight: 46, fontWeight: '900' }}
+            />
           </View>
 
           {Array.isArray(riddle?.options) && riddle.options.length > 1 ? riddle.options.map((opt, i) => {
@@ -344,14 +348,14 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
             return (
               <TouchableOpacity key={i} style={[{
                 flexDirection: 'row', alignItems: 'center', gap: 16,
-                padding: 18, borderRadius: 12, marginBottom: 10,
+                padding: 18, borderRadius: 8, marginBottom: 10,
                 backgroundColor: right ? Colors.emerald+'12' : wrong ? Colors.rose+'12' : 'rgba(255,255,255,0.02)',
                 borderWidth: 1.5, borderColor: right ? Colors.emerald+'55' : wrong ? Colors.rose+'55' : picked ? accent+'45' : 'rgba(255,255,255,0.07)'
               }, isWeb ? { transition: 'all 0.2s ease', cursor: 'pointer' } : {}]} onPress={() => !result && !selected && !submitting && submitAnswer(opt)} disabled={!!result || !!selected || submitting} activeOpacity={0.7}>
-                <View style={{ width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: right ? Colors.emerald : wrong ? Colors.rose : 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: right ? Colors.emerald : wrong ? Colors.rose : 'rgba(255,255,255,0.1)' }}>
-                  <Text style={{ color: right || wrong ? '#000' : Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 15 }}>{['A','B','C','D'][i]}</Text>
+                <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: right ? Colors.emerald : wrong ? Colors.rose : 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: right ? Colors.emerald : wrong ? Colors.rose : 'rgba(255,255,255,0.1)' }}>
+                  <Text style={{ color: right || wrong ? '#000' : Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 16 }}>{['A','B','C','D'][i]}</Text>
                 </View>
-                <Text style={{ flex: 1, color: right ? Colors.emerald : wrong ? '#fca5a5' : Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 }}>{opt}</Text>
+                <Text style={{ flex: 1, color: right ? Colors.emerald : wrong ? '#fca5a5' : Colors.textPrimary, fontFamily: grotesk, fontSize: 18, fontWeight: '700', lineHeight: 26, letterSpacing: 0.1 }}>{opt}</Text>
               </TouchableOpacity>
             );
           }) : (
@@ -360,9 +364,9 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
               <TextInput
                 style={[{
                   backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? accent+'60' : 'rgba(255,255,255,0.08)',
-                  borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
-                  color: Colors.textPrimary, fontFamily: mono, fontSize: 18, fontWeight: '900',
-                  letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+                  borderRadius: 8, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
+                  color: Colors.textPrimary, fontFamily: mono, fontSize: 20, fontWeight: '900',
+                  letterSpacing: 0.8, textTransform: 'uppercase', minHeight: 76,
                 }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? `0 0 15px ${accent}20` : 'none' } : {}]}
                 placeholder="ENTER DECRYPTION KEY..."
                 placeholderTextColor={Colors.textMuted}
@@ -381,7 +385,7 @@ export default function GauntletScreen({ user, go, exitToHome, update, panicMode
                 onPress={() => typed.trim() && !submitting && submitAnswer(typed.trim())}
                 disabled={!typed.trim() || submitting}
               >
-                {submitting ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Execute</Text>}
+                  {submitting ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: grotesk, fontWeight: '900', fontSize: 13, letterSpacing: 1.4, textTransform: 'uppercase' }}>Execute</Text>}
               </TouchableOpacity>
             </View>
           )}

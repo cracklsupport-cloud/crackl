@@ -1,0 +1,59 @@
+name: Verify
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  frontend:
+    name: Frontend verify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run doctor
+      - run: npm run audit:prod
+      - run: npm run build:web
+
+  backend:
+    name: Backend verify
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+      SMOKE_BACKEND_URL: http://localhost:3000
+    defaults:
+      run:
+        working-directory: CRACKL-backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: CRACKL-backend/package-lock.json
+      - run: npm ci
+      - run: npm run check
+      - run: npm run audit:prod
+      - name: Smoke core API
+        if: env.SUPABASE_URL != '' && env.SUPABASE_SERVICE_ROLE_KEY != '' && env.JWT_SECRET != '' && env.ADMIN_SECRET != ''
+        run: |
+          npm start &
+          SERVER_PID=$!
+          for i in {1..30}; do
+            if curl -fsS http://localhost:3000/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          npm run smoke:core
+          kill "$SERVER_PID"

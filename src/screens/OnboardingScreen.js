@@ -15,8 +15,8 @@ export default function OnboardingScreen({ user, go, update }) {
 
   const nextStep = () => {
     Animated.sequence([
-      Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: true }),
-      Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: true })
+      Animated.timing(fade, { toValue: 0, duration: 200, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(fade, { toValue: 1, duration: 200, useNativeDriver: Platform.OS !== 'web' })
     ]).start();
     setTimeout(() => setStep(2), 200);
   };

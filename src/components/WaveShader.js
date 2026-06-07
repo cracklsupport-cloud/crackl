@@ -7,7 +7,7 @@
  * Web-only — returns null on native platforms.
  */
 import React, { useRef, useEffect } from 'react';
-import { Platform, View, Text } from 'react-native';
+import { Platform } from 'react-native';
 
 const isWeb = Platform.OS === 'web';
 
@@ -62,7 +62,6 @@ function compileShader(gl, src, type) {
   gl.shaderSource(s, src);
   gl.compileShader(s);
   if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-    console.error('Shader compile error:', gl.getShaderInfoLog(s));
     gl.deleteShader(s);
     return null;
   }
@@ -70,13 +69,104 @@ function compileShader(gl, src, type) {
 }
 
 export function WaveShader({ opacity = 0.6 }) {
-  return (
-    <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10 }}>
-      <Text style={{ position: 'absolute', top: 100, left: 100, color: 'white', fontSize: 30, zIndex: 9999 }}>
-        WAVE IS DEFINITELY MOUNTED
-      </Text>
-    </View>
-  );
+  const canvasRef = useRef(null);
+  const mouseRef = useRef({ x: 0.5, y: 0.5 });
+
+  useEffect(() => {
+    if (!isWeb || !canvasRef.current) return undefined;
+    const canvas = canvasRef.current;
+    const gl = canvas.getContext('webgl', { alpha: true, antialias: true });
+    if (!gl) return undefined;
+
+    const vertex = compileShader(gl, VERT, gl.VERTEX_SHADER);
+    const fragment = compileShader(gl, FRAG, gl.FRAGMENT_SHADER);
+    if (!vertex || !fragment) return undefined;
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vertex);
+    gl.attachShader(program, fragment);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return undefined;
+    gl.useProgram(program);
+
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+
+    const position = gl.getAttribLocation(program, 'position');
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+
+    const uniforms = {
+      resolution: gl.getUniformLocation(program, 'u_resolution'),
+      time: gl.getUniformLocation(program, 'u_time'),
+      mouse: gl.getUniformLocation(program, 'u_mouse'),
+      xScale: gl.getUniformLocation(program, 'u_xScale'),
+      yScale: gl.getUniformLocation(program, 'u_yScale'),
+      distortion: gl.getUniformLocation(program, 'u_distortion'),
+    };
+
+    const resize = () => {
+      const width = Math.max(1, canvas.clientWidth || window.innerWidth);
+      const height = Math.max(1, canvas.clientHeight || window.innerHeight);
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.floor(width * dpr);
+      canvas.height = Math.floor(height * dpr);
+      gl.viewport(0, 0, canvas.width, canvas.height);
+    };
+
+    const handleMouse = (event) => {
+      mouseRef.current = {
+        x: event.clientX / Math.max(1, window.innerWidth),
+        y: event.clientY / Math.max(1, window.innerHeight),
+      };
+    };
+
+    let raf = 0;
+    const startedAt = performance.now();
+    const draw = () => {
+      const elapsed = (performance.now() - startedAt) / 1000;
+      const mouse = mouseRef.current;
+      gl.uniform2f(uniforms.resolution, canvas.width, canvas.height);
+      gl.uniform1f(uniforms.time, elapsed * 0.45);
+      gl.uniform2f(uniforms.mouse, mouse.x, mouse.y);
+      gl.uniform1f(uniforms.xScale, 5 + mouse.x * 8);
+      gl.uniform1f(uniforms.yScale, 0.08 + mouse.y * 0.12);
+      gl.uniform1f(uniforms.distortion, 0.12);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+      raf = requestAnimationFrame(draw);
+    };
+
+    resize();
+    window.addEventListener('resize', resize);
+    window.addEventListener('mousemove', handleMouse);
+    raf = requestAnimationFrame(draw);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handleMouse);
+      gl.deleteBuffer(buffer);
+      gl.deleteProgram(program);
+      gl.deleteShader(vertex);
+      gl.deleteShader(fragment);
+    };
+  }, []);
+
+  if (!isWeb) return null;
+  return React.createElement('canvas', {
+    ref: canvasRef,
+    'aria-hidden': true,
+    style: {
+      position: 'absolute',
+      inset: 0,
+      width: '100%',
+      height: '100%',
+      opacity,
+      pointerEvents: 'none',
+      zIndex: 0,
+    },
+  });
 }
 
 export default WaveShader;

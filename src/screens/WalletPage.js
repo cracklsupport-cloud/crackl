@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../theme/colors';
 import { useResponsive } from '../theme/breakpoints';
 import { BACKEND } from '../utils/api';
+import { getAuthToken } from '../utils/authSession';
 import Icons from '../components/Icons';
 
 export default function WalletPage({ user, update }) {
@@ -18,7 +18,7 @@ export default function WalletPage({ user, update }) {
     if ((user?.coins||0) < t.c) { setMsg(`Need ${t.c-user.coins} more Intel!`); return; }
     setLoading(true); setMsg('');
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/cashback`, { method:'POST', headers:{'Content-Type':'application/json', ...(token?{Authorization:`Bearer ${token}`}:{})}, body:JSON.stringify({ userId:user.id, coinsToRedeem:t.c, upiId:upi }) });
       const data = await res.json();
       if (data.success) { setMsg('✅ '+data.message); update({...user, coins:user.coins-t.c}); } else setMsg('❌ '+(data.error||'Error'));

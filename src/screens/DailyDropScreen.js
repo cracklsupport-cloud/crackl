@@ -3,13 +3,13 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, 
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 import RiddleContent from '../components/RiddleContent';
 import ChallengeShareButton from '../components/ChallengeShareButton';
 
 const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
-const grotesk = isWeb ? '"Black Ops One", sans-serif' : undefined;
+const grotesk = isWeb ? '"Space Grotesk", sans-serif' : 'Chakra Petch';
 
 function CornerBrackets() {
   const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 20 };
@@ -66,7 +66,7 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
     typedRef.current = '';
     submitLockRef.current = false;
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const params = new URLSearchParams({ mode: 'daily', panicMode: panicMode ? 'true' : 'false' });
       const res = token
         ? await fetch(`${BACKEND}/api/riddles/next?${params.toString()}`, {
@@ -108,7 +108,7 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
         ? Math.max(1, Math.ceil((Date.now() - startedAtRef.current) / 1000))
         : Math.max(1, limit - timeLeftRef.current);
       const timeTaken = panicMode ? (limit - timeLeftRef.current) : 0;
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/answer`, { method:'POST', headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})}, body:JSON.stringify({ userId:user.id, riddleId:activeRiddle.id, userAnswer:final, timeTaken, mode, gameMode:'daily', panicMode: !!panicMode }) });
       const data = await res.json();
       if (data.success) { setResult({ ...data, challengeTimeSeconds: elapsedForChallenge }); update({...user, coins:data.newTotal, xp:data.newXp, level:data.newLevel, streak:data.streakCount}); }
@@ -160,9 +160,9 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
       ) : loadError ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
           <Icons.XIcon size={48} color={Colors.rose} />
-          <Text style={{ color: Colors.rose, fontFamily: grotesk, fontSize: 20, fontWeight: '900', marginTop: 16, textAlign: 'center', letterSpacing: 1 }}>SIGNAL LOST</Text>
-          <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 13, marginTop: 12, textAlign: 'center', lineHeight: 22 }}>{loadError}</Text>
-          <TouchableOpacity style={[{ paddingVertical: 16, paddingHorizontal: 48, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.4)', marginTop: 32 }, isWeb ? { cursor: 'pointer' } : {}]} onPress={() => (exitToHome ? exitToHome() : go('home'))}>
+          <Text style={{ color: Colors.rose, fontFamily: grotesk, fontSize: 30, fontWeight: '900', marginTop: 16, textAlign: 'center', letterSpacing: 0.6 }}>SIGNAL LOST</Text>
+          <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 15, marginTop: 12, textAlign: 'center', lineHeight: 24, maxWidth: 560 }}>{loadError}</Text>
+          <TouchableOpacity style={[{ paddingVertical: 16, paddingHorizontal: 48, borderRadius: 8, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(0,0,0,0.4)', marginTop: 32 }, isWeb ? { cursor: 'pointer' } : {}]} onPress={() => (exitToHome ? exitToHome() : go('home'))}>
             <Text style={{ color: Colors.textPrimary, fontFamily: mono, fontWeight: '900', fontSize: 13, letterSpacing: 2 }}>RETURN TO HUB</Text>
           </TouchableOpacity>
         </View>
@@ -188,7 +188,7 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
           )}
 
           {/* Question Card */}
-          <View style={[{ backgroundColor: 'rgba(10,10,12,0.8)', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: accent + '30', marginBottom: 24, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
+          <View style={[{ backgroundColor: 'rgba(10,10,12,0.82)', borderRadius: 8, padding: 30, borderWidth: 1, borderColor: accent + '35', marginBottom: 18, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: `0 18px 60px rgba(0,0,0,0.5), 0 0 34px ${accent}14` } : {}]}>
             <CornerBrackets />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingBottom: 12 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -201,7 +201,11 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
                 {panicMode ? 'CRITICAL_BREACH' : 'COLD_CASE'}
               </Text>
             </View>
-            <RiddleContent riddle={riddle} accent={accent} />
+            <RiddleContent
+              riddle={riddle}
+              accent={accent}
+              questionStyle={{ fontFamily: grotesk, fontSize: 36, lineHeight: 46, fontWeight: '900' }}
+            />
           </View>
 
           {/* Options */}
@@ -212,17 +216,17 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
             return (
               <TouchableOpacity key={i} style={[{
                 flexDirection: 'row', alignItems: 'center', gap: 16,
-                padding: 18, borderRadius: 12, marginBottom: 10,
+                padding: 18, borderRadius: 8, marginBottom: 10,
                 backgroundColor: right ? Colors.emerald + '12' : wrong ? Colors.rose + '12' : 'rgba(255,255,255,0.02)',
                 borderWidth: 1.5,
                 borderColor: right ? Colors.emerald + '55' : wrong ? Colors.rose + '55' : picked ? accent + '45' : 'rgba(255,255,255,0.07)'
               }, isWeb ? { transition: 'all 0.2s ease', cursor: 'pointer' } : {}]} onPress={() => !result && !selected && submit(opt)} disabled={!!result||!!selected} activeOpacity={0.7}>
                 <View style={{
-                  width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center',
+                  width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
                   backgroundColor: right ? Colors.emerald : wrong ? Colors.rose : 'rgba(255,255,255,0.05)',
                   borderWidth: 1, borderColor: right ? Colors.emerald : wrong ? Colors.rose : 'rgba(255,255,255,0.1)'
-                }}><Text style={{ color: right||wrong ? '#000' : Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 15 }}>{['A','B','C','D'][i]}</Text></View>
-                <Text style={{ flex: 1, color: right ? Colors.emerald : wrong ? '#fca5a5' : Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 15, fontWeight: '600', lineHeight: 22, letterSpacing: 0.3 }}>{opt}</Text>
+                }}><Text style={{ color: right||wrong ? '#000' : Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 16 }}>{['A','B','C','D'][i]}</Text></View>
+                <Text style={{ flex: 1, color: right ? Colors.emerald : wrong ? '#fca5a5' : Colors.textPrimary, fontFamily: grotesk, fontSize: 18, fontWeight: '700', lineHeight: 26, letterSpacing: 0.1 }}>{opt}</Text>
                 {right && <Icons.TargetIcon size={18} color={Colors.emerald} />}
                 {wrong && <Icons.XIcon size={18} color={Colors.rose} />}
               </TouchableOpacity>
@@ -234,9 +238,9 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
                 <TextInput
                   style={[{
                     backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? accent + '60' : 'rgba(255,255,255,0.08)',
-                    borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
-                    color: Colors.textPrimary, fontFamily: mono, fontSize: 18, fontWeight: '900',
-                    letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+                    borderRadius: 8, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
+                    color: Colors.textPrimary, fontFamily: mono, fontSize: 20, fontWeight: '900',
+                    letterSpacing: 0.8, textTransform: 'uppercase', minHeight: 76,
                   }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? `0 0 15px ${accent}20` : 'none' } : {}]}
                   placeholder="ENTER DECRYPTION KEY..."
                   placeholderTextColor={Colors.textMuted}
@@ -255,7 +259,7 @@ export default function DailyDropScreen({ user, go, exitToHome, update, panicMod
                   onPress={() => typed.trim() && !submitting && submit(typed.trim())}
                   disabled={!typed.trim() || submitting}
                 >
-                  {submitting ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Execute</Text>}
+                  {submitting ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: grotesk, fontWeight: '900', fontSize: 13, letterSpacing: 1.4, textTransform: 'uppercase' }}>Execute</Text>}
                 </TouchableOpacity>
               </View>
             )

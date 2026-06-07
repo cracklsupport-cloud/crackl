@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
+import { View, Text, TouchableOpacity, ActivityIndicator, Animated, Platform } from 'react-native';
 import { BACKEND } from '../utils/api';
 import Colors from '../theme/colors';
 import { FilmGrainOverlay } from '../components/AtmosphericEffects';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 
 export default function ChallengeLandingScreen({ user, go, update, wagerId, setMode }) {
   const [loading, setLoading] = useState(true);
@@ -20,7 +20,7 @@ export default function ChallengeLandingScreen({ user, go, update, wagerId, setM
 
     const fetchChallenge = async () => {
       try {
-        const token = await AsyncStorage.getItem('crackl_token');
+        const token = await getAuthToken();
         const res = await fetch(`${BACKEND}/challenge/fetch`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -30,7 +30,7 @@ export default function ChallengeLandingScreen({ user, go, update, wagerId, setM
         
         if (data.success && data.challenge) {
           setChallengeData(data.challenge);
-          Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: true }).start();
+          Animated.timing(fadeAnim, { toValue: 1, duration: 800, useNativeDriver: Platform.OS !== 'web' }).start();
         } else {
           setErrorMsg(data.error || 'This challenge node is invalid or corrupted.');
         }

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Platform, Share, Text, TouchableOpacity, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND } from '../utils/api';
+import { getAuthToken } from '../utils/authSession';
 import Icons from './Icons';
 
 const isWeb = Platform.OS === 'web';
@@ -75,7 +75,7 @@ export default function ChallengeShareButton({
     setBusy(true);
     setStatus('');
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const response = await fetch(`${BACKEND}/challenge/create`, {
         method: 'POST',
         headers: {

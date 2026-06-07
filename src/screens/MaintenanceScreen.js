@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Animated, Easing, TouchableOpacity, Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { BACKEND } from '../utils/api';
+import { getStoredUser } from '../utils/authSession';
 
 export default function MaintenanceScreen({ go, message }) {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -11,13 +11,13 @@ export default function MaintenanceScreen({ go, message }) {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.15, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1.15, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(pulse, { toValue: 1, duration: 1200, easing: Easing.inOut(Easing.ease), useNativeDriver: Platform.OS !== 'web' }),
       ])
     ).start();
 
     Animated.loop(
-      Animated.timing(spin, { toValue: 1, duration: 6000, easing: Easing.linear, useNativeDriver: true })
+      Animated.timing(spin, { toValue: 1, duration: 6000, easing: Easing.linear, useNativeDriver: Platform.OS !== 'web' })
     ).start();
 
     // Poll every 30s — when maintenance ends, go to home if session exists else auth
@@ -26,7 +26,7 @@ export default function MaintenanceScreen({ go, message }) {
         const res = await fetch(`${BACKEND}/app/status`);
         const data = await res.json();
         if (!data.maintenance) {
-          const raw = await AsyncStorage.getItem('crackl_user');
+          const raw = await getStoredUser();
           go(raw ? 'home' : 'auth');
         }
       } catch {}

@@ -2,8 +2,10 @@
  * LogoIcon — CRACKL brain logo with neon glow
  */
 import React from 'react';
-import { View, Image } from 'react-native';
+import { View, Image, Platform } from 'react-native';
 import Colors from '../theme/colors';
+
+const isWeb = Platform.OS === 'web';
 
 export default function LogoIcon({ size = 44, r = 14 }) {
   return (
@@ -16,10 +18,14 @@ export default function LogoIcon({ size = 44, r = 14 }) {
       overflow: 'hidden',
       borderWidth: 1.5,
       borderColor: Colors.purple,
+      ...(isWeb ? {
+        boxShadow: `0 0 15px ${Colors.purple}`,
+      } : {
       shadowColor: Colors.purple,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 1,
       shadowRadius: 15,
+      }),
       elevation: 12,
       backgroundColor: Colors.black,
     }}>

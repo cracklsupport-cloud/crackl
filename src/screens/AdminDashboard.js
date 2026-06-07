@@ -616,7 +616,7 @@ function MediaPreviewBox({ url, kind, height = 132 }) {
     }
     return (
       <div style={{ width: '100%', height: 170, borderRadius: 8, overflow: 'hidden', marginBottom: 8, backgroundColor: '#0A0A14', border: '1px solid #1F1F35' }}>
-        <iframe title="Interactive asset preview" src={url} sandbox="allow-scripts allow-forms" style={{ width: '100%', height: '100%', border: 0, backgroundColor: '#050508' }} />
+        <iframe title="Interactive asset preview" src={url} sandbox="allow-scripts" referrerPolicy="no-referrer" style={{ width: '100%', height: '100%', border: 0, backgroundColor: '#050508' }} />
       </div>
     );
   }
@@ -1414,17 +1414,17 @@ function RiddleStudioTab({ adminKey }) {
           <View style={[S.card, { borderColor: '#1F1F3566' }]}>
             <Text style={[S.label, { color: '#7C3AED' }]}>Required fields per riddle</Text>
             <Text style={{ color: '#9CA3AF', fontFamily: 'Share Tech Mono', fontSize: 11, lineHeight: 18 }}>
-              {"question, answer, game_mode, difficulty\n\nOptional: hint, fun_fact, explanation,\noptions (array), family_id, is_onboarding,\npanic_time, riddle_type, media_url, layout_config"}
+              {"question, answer, game_mode, difficulty\n\nOptional: difficulty_tier, hint, fun_fact, explanation,\noptions (array), family_id, is_onboarding,\npanic_time, riddle_type, media_url, layout_config"}
             </Text>
             <Text style={{ color: '#6B7280', fontFamily: 'Share Tech Mono', fontSize: 10, marginTop: 8 }}>
-              {"game_mode: mcq | type | arena | daily | gauntlet | chain | wager | bounty\ndifficulty: Easy | Medium | Hard\nriddle_type: text | image_text | image_only | audio_text | video_text | interactive"}
+              {"game_mode: mcq | type | arena | daily | gauntlet | chain | wager | bounty\ndifficulty: Easy | Medium | Hard\ndifficulty_tier: 1 | 2 | 3 | 4 | 5\nriddle_type: text | image_text | image_only | audio_text | video_text | interactive"}
             </Text>
           </View>
 
           <Text style={S.label}>Paste your riddles here (JSON array)</Text>
           <TextInput
             style={[S.input, { height: 200, textAlignVertical: 'top', fontFamily: 'Share Tech Mono', fontSize: 12 }]}
-            placeholder={'[\n  {\n    "question": "What has hands but cannot clap?",\n    "answer": "A clock",\n    "game_mode": "arena",\n    "difficulty": "Easy"\n  }\n]'}
+            placeholder={'[\n  {\n    "question": "What has hands but cannot clap?",\n    "answer": "A clock",\n    "game_mode": "arena",\n    "difficulty": "Easy",\n    "difficulty_tier": 1\n  }\n]'}
             placeholderTextColor="#374151"
             multiline
             value={bulkJson}
@@ -1462,6 +1462,7 @@ function ManageTab({ adminKey }) {
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [previewRiddle, setPreviewRiddle] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
   const LIMIT = 20;
 
   const fetchRiddles = useCallback(async () => {
@@ -1483,9 +1484,59 @@ function ManageTab({ adminKey }) {
     confirm('Delete Riddle?', 'This cannot be undone.', async () => {
       try {
         await fetch(`${CONFIG.BACKEND_URL}/admin/riddle/${id}`, { method: 'DELETE', headers: { 'x-admin-secret': adminKey } });
+        setSelectedIds(ids => ids.filter(existingId => existingId !== id));
         fetchRiddles();
       } catch { Alert.alert('Error', 'Could not delete.'); }
     });
+  };
+
+  const toggleSelected = (id) => {
+    setSelectedIds(ids => ids.includes(id) ? ids.filter(existingId => existingId !== id) : [...ids, id]);
+  };
+
+  const toggleCurrentPage = () => {
+    const pageIds = riddles.map(r => r.id).filter(Boolean);
+    const allVisibleSelected = pageIds.length > 0 && pageIds.every(id => selectedIds.includes(id));
+    setSelectedIds(ids => {
+      if (allVisibleSelected) return ids.filter(id => !pageIds.includes(id));
+      return [...new Set([...ids, ...pageIds])];
+    });
+  };
+
+  const bulkDelete = async (purge = false) => {
+    if (selectedIds.length === 0) {
+      Alert.alert('Select riddles first', 'Choose at least one riddle to delete.');
+      return;
+    }
+    if (purge && Platform.OS === 'web') {
+      const typed = window.prompt(`Purge ${selectedIds.length} selected riddle(s) everywhere?\n\nType DELETE to continue.`);
+      if (typed !== 'DELETE') return;
+    }
+    confirm(
+      purge ? 'Purge Everywhere?' : 'Delete Selected?',
+      purge
+        ? 'This removes selected riddles plus linked history, queues, and challenge links unless a live room is using them.'
+        : 'Referenced riddles will be archived safely; clean drafts will be removed.',
+      async () => {
+        try {
+          const res = await fetch(`${CONFIG.BACKEND_URL}/admin/riddles/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-admin-secret': adminKey },
+            body: JSON.stringify({ ids: selectedIds, purge })
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error || 'Bulk delete failed');
+          setSelectedIds([]);
+          fetchRiddles();
+          Alert.alert(
+            'Bulk delete complete',
+            `${data.deleted?.length || 0} deleted, ${data.archived?.length || 0} archived, ${data.skipped?.length || 0} skipped.`
+          );
+        } catch (error) {
+          Alert.alert('Bulk delete failed', error.message || 'Could not delete selected riddles.');
+        }
+      }
+    );
   };
 
   const toggleActive = async (riddle) => {
@@ -1539,6 +1590,25 @@ function ManageTab({ adminKey }) {
         <Text style={{ color: '#6B7280', fontFamily: 'Share Tech Mono', fontSize: 10, marginTop: 6 }}>
           Showing {riddles.length} of {total} riddles
         </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, alignItems: 'center', marginTop: 10 }}>
+          <TouchableOpacity onPress={toggleCurrentPage} style={S.pill('#7C3AED')}>
+            <Text style={S.pillText('#C4B5FD')}>
+              {riddles.length > 0 && riddles.every(r => selectedIds.includes(r.id)) ? 'Unselect Page' : 'Select Page'}
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ color: '#C4B5FD', fontFamily: 'Share Tech Mono', fontSize: 10, fontWeight: '900' }}>
+            {selectedIds.length} SELECTED
+          </Text>
+          <TouchableOpacity onPress={() => setSelectedIds([])} style={S.pill('#6B7280')}>
+            <Text style={S.pillText('#9CA3AF')}>Clear</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => bulkDelete(false)} style={S.pill('#FF0055')}>
+            <Text style={S.pillText('#FF0055')}>Delete Selected</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => bulkDelete(true)} style={S.pill('#FF0055')}>
+            <Text style={S.pillText('#FF0055')}>Purge Everywhere</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {loading
@@ -1549,7 +1619,24 @@ function ManageTab({ adminKey }) {
               ? <Text style={{ color: '#6B7280', fontFamily: 'Share Tech Mono', textAlign: 'center', marginTop: 40 }}>No riddles found</Text>
               : riddles.map(r => (
                 <View key={r.id} style={[S.card, { borderColor: DIFF_COLORS[r.difficulty] + '44', opacity: r.is_active ? 1 : 0.5 }]}>
-                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6 }}>
+                  <View style={{ flexDirection: 'row', gap: 6, marginBottom: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <TouchableOpacity
+                      onPress={() => toggleSelected(r.id)}
+                      style={{
+                        width: 24,
+                        height: 24,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: selectedIds.includes(r.id) ? '#00FFD0' : '#374151',
+                        backgroundColor: selectedIds.includes(r.id) ? 'rgba(0,255,208,0.14)' : '#0A0A14',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <Text style={{ color: selectedIds.includes(r.id) ? '#00FFD0' : '#374151', fontFamily: 'Share Tech Mono', fontSize: 13, fontWeight: '900' }}>
+                        {selectedIds.includes(r.id) ? '✓' : ''}
+                      </Text>
+                    </TouchableOpacity>
                     <View style={S.pill(DIFF_COLORS[r.difficulty])}>
                       <Text style={S.pillText(DIFF_COLORS[r.difficulty])}>{r.difficulty}</Text>
                     </View>

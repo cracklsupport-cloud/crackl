@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, 
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 import RiddleContent from '../components/RiddleContent';
 
 const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
-const grotesk = isWeb ? '"Black Ops One", sans-serif' : undefined;
+const grotesk = isWeb ? '"Space Grotesk", sans-serif' : 'Chakra Petch';
 const WAGER_PRESETS = [25, 50, 100, 250, 500];
 const MIN_WAGER = 10;
 
@@ -92,7 +92,7 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
     if (stake > balance) { setErr(`Insufficient funds. You have ${balance} Intel.`); return; }
     setLoading(true); setErr(''); setResult(null); setSelected(null); setTyped(''); typedRef.current = ''; riddleRef.current = null; submitLockRef.current = false;
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/wager/start`, { method:'POST', headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0, wageredCoins:stake, panicMode: !!panicMode }) });
       const data = await res.json();
       if (data.success && data.riddle) {
@@ -127,7 +127,7 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
     setSelected(final);
     try {
       const timeTaken = panicMode ? ((activeRiddle.timeLimit||30)-timeLeftRef.current) : 0;
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const settleRes = await fetch(`${BACKEND}/wager/settle`, {
         method:'POST',
         headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})},
@@ -142,7 +142,7 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
         return;
       }
       const finalTotal = settleData.newTotal != null ? settleData.newTotal : Math.max(0, stakedBalanceRef.current);
-      const wagerDelta = settleData.isCorrect ? (settleData.delta ?? 0) : -wager;
+      const wagerDelta = settleData.netDelta ?? (settleData.isCorrect ? currentWager : -currentWager);
 
       const combined = { ...settleData, wagerDelta, finalTotal, settleError: null };
       setResult(combined);
@@ -260,15 +260,17 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
       <TopBar />
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         {result.isCorrect ? <Icons.TargetIcon size={80} color={Colors.gold} /> : <Icons.XIcon size={80} color={Colors.rose} />}
-        <Text style={{ color: result.isCorrect?Colors.gold:Colors.rose, fontFamily: grotesk, fontSize: 36, fontWeight: '900', marginTop: 24, textAlign: 'center', letterSpacing: 2 }}>{result.isCorrect?`WAGER WON: +${Math.abs(result.wagerDelta ?? wager)}`:`WAGER LOST: -${Math.abs(result.wagerDelta ?? wager)}`}</Text>
+        <Text style={{ color: result.isCorrect?Colors.gold:Colors.rose, fontFamily: grotesk, fontSize: 36, fontWeight: '900', marginTop: 24, textAlign: 'center', letterSpacing: 2 }}>
+          {result.isCorrect ? `PAYOUT RELEASED: +${result.payout ?? result.delta ?? 0}` : `STAKE BURNED: -${result.stake ?? currentWager}`}
+        </Text>
         <View style={{ flexDirection: 'row', gap: 12, marginTop: 24, flexWrap: 'wrap', justifyContent: 'center' }}>
           <View style={{ minWidth: 130, padding: 14, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', alignItems: 'center' }}>
-            <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, letterSpacing: 1.5 }}>BASE RESULT</Text>
-            <Text style={{ color: (result.coinsChange??0) >= 0 ? Colors.emerald : Colors.rose, fontFamily: mono, fontSize: 22, fontWeight: '900', marginTop: 6 }}>{(result.coinsChange??0) > 0 ? '+' : ''}{result.coinsChange??0}</Text>
+            <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, letterSpacing: 1.5 }}>LOCKED STAKE</Text>
+            <Text style={{ color: Colors.rose, fontFamily: mono, fontSize: 22, fontWeight: '900', marginTop: 6 }}>-{result.stake ?? currentWager}</Text>
           </View>
           <View style={{ minWidth: 130, padding: 14, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', alignItems: 'center' }}>
-            <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, letterSpacing: 1.5 }}>WAGER SWING</Text>
-            <Text style={{ color: (result.wagerDelta??0) > 0 ? Colors.gold : Colors.rose, fontFamily: mono, fontSize: 22, fontWeight: '900', marginTop: 6 }}>{(result.wagerDelta??0) > 0 ? '+' : ''}{result.wagerDelta ?? (result.isCorrect ? wager : -wager)}</Text>
+            <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, letterSpacing: 1.5 }}>NET CHANGE</Text>
+            <Text style={{ color: (result.wagerDelta??0) > 0 ? Colors.gold : Colors.rose, fontFamily: mono, fontSize: 22, fontWeight: '900', marginTop: 6 }}>{(result.wagerDelta??0) > 0 ? '+' : ''}{result.wagerDelta ?? (result.isCorrect ? currentWager : -currentWager)}</Text>
           </View>
           <View style={{ minWidth: 130, padding: 14, borderRadius: 12, backgroundColor: Colors.gold+'10', borderWidth: 1, borderColor: Colors.gold+'35', alignItems: 'center' }}>
             <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, letterSpacing: 1.5 }}>NEW BALANCE</Text>
@@ -317,7 +319,7 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
         </View>
 
         {/* Question */}
-        <View style={[{ backgroundColor: 'rgba(10,10,12,0.8)', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
+        <View style={[{ backgroundColor: 'rgba(10,10,12,0.82)', borderRadius: 8, padding: 30, borderWidth: 1, borderColor: accent + '28', marginBottom: 18, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: `0 18px 60px rgba(0,0,0,0.5), 0 0 34px ${accent}12` } : {}]}>
           <CornerBrackets />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -328,7 +330,11 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
             </View>
             <Text style={{ fontFamily: mono, fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1.8 }}>WAGER_{wager}</Text>
           </View>
-          <RiddleContent riddle={riddle} accent={accent} />
+          <RiddleContent
+            riddle={riddle}
+            accent={accent}
+            questionStyle={{ fontFamily: grotesk, fontSize: 36, lineHeight: 46, fontWeight: '900' }}
+          />
         </View>
 
         {/* Options */}
@@ -338,14 +344,14 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
           return (
             <TouchableOpacity key={i} style={[{
               flexDirection: 'row', alignItems: 'center', gap: 16,
-              padding: 18, borderRadius: 12, marginBottom: 10,
+              padding: 18, borderRadius: 8, marginBottom: 10,
               backgroundColor: right?Colors.emerald+'12':wrong?Colors.rose+'12':'rgba(255,255,255,0.02)',
               borderWidth: 1.5, borderColor: right?Colors.emerald+'55':wrong?Colors.rose+'55':picked?accent+'45':'rgba(255,255,255,0.07)'
             }, isWeb ? { transition: 'all 0.2s ease', cursor: 'pointer' } : {}]} onPress={() => !result&&!selected&&!submitting&&submitWager(opt)} disabled={!!result||!!selected||submitting} activeOpacity={0.7}>
-              <View style={{ width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.1)' }}>
-                <Text style={{ color: right||wrong?'#000':Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 15 }}>{['A','B','C','D'][i]}</Text>
+              <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.1)' }}>
+                <Text style={{ color: right||wrong?'#000':Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 16 }}>{['A','B','C','D'][i]}</Text>
               </View>
-              <Text style={{ flex: 1, color: right?Colors.emerald:wrong?'#fca5a5':Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 }}>{opt}</Text>
+              <Text style={{ flex: 1, color: right?Colors.emerald:wrong?'#fca5a5':Colors.textPrimary, fontFamily: grotesk, fontSize: 18, fontWeight: '700', lineHeight: 26, letterSpacing: 0.1 }}>{opt}</Text>
             </TouchableOpacity>
           );
         }) : (
@@ -354,9 +360,9 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
             <TextInput
               style={[{
                 backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? accent+'60' : 'rgba(255,255,255,0.08)',
-                borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
-                color: Colors.textPrimary, fontFamily: mono, fontSize: 18, fontWeight: '900',
-                letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+                borderRadius: 8, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
+                color: Colors.textPrimary, fontFamily: mono, fontSize: 20, fontWeight: '900',
+                letterSpacing: 0.8, textTransform: 'uppercase', minHeight: 76,
               }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? `0 0 15px ${accent}20` : 'none' } : {}]}
               placeholder="ENTER DECRYPTION KEY..."
               placeholderTextColor={Colors.textMuted}
@@ -375,7 +381,7 @@ export default function BlindWagerScreen({ user, go, exitToHome, update, panicMo
               onPress={() => typed.trim() && !submitting && submitWager(typed.trim())}
               disabled={!typed.trim() || submitting}
             >
-              {submitting ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Execute</Text>}
+              {submitting ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: grotesk, fontWeight: '900', fontSize: 13, letterSpacing: 1.4, textTransform: 'uppercase' }}>Execute</Text>}
             </TouchableOpacity>
           </View>
         )}

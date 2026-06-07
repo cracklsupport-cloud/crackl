@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Animated } from 'react-native';
-import { Audio } from 'expo-av';
+import { Animated, Platform } from 'react-native';
+import { useAudioPlayer } from 'expo-audio';
 import * as WebBrowser from 'expo-web-browser';
 import * as Google from 'expo-auth-session/providers/google';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import Constants from 'expo-constants';
 import { BACKEND } from '../utils/api';
 import { useLoginTheme } from '../utils/useLoginTheme';
+import { LEGAL_UPDATED_AT } from '../legal/legalContent';
 import AuthThemeDefault from './auth/AuthThemeDefault';
 import AuthThemeAlternate from './auth/AuthThemeAlternate';
 
@@ -21,7 +22,7 @@ const readWebInputValue = (selectors) => {
   return '';
 };
 
-export default function AuthScreen({ onLogin, onSignup }) {
+export default function AuthScreen({ onLogin, onSignup, openLegal }) {
   const [step, setStep] = useState('login');
   const [loginId, setLoginId] = useState('');
   const [email, setEmail] = useState('');
@@ -31,23 +32,26 @@ export default function AuthScreen({ onLogin, onSignup }) {
   const [otp, setOtp] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [legalAccepted, setLegalAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState('');
   const [tagAvail, setTagAvail] = useState(null);
-  const [sound, setSound] = useState(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const themeIndex = useLoginTheme();
+  const clickPlayer = useAudioPlayer('https://actions.google.com/sounds/v1/interfaces/button_push.ogg', { updateInterval: 1000 });
 
   async function clickSound() {
-    try { const { sound: s } = await Audio.Sound.createAsync({ uri: 'https://actions.google.com/sounds/v1/interfaces/button_push.ogg' }); setSound(s); await s.playAsync(); } catch { }
+    try {
+      clickPlayer.seekTo(0).catch(() => {});
+      clickPlayer.play();
+    } catch { }
   }
-  useEffect(() => { return sound ? () => { sound.unloadAsync(); } : undefined; }, [sound]);
 
   const switchStep = (newStep) => {
     clickSound();
     Animated.sequence([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: true }),
-      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true })
+      Animated.timing(fadeAnim, { toValue: 0, duration: 120, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: Platform.OS !== 'web' })
     ]).start();
     setErr(''); setStep(newStep);
   };
@@ -90,8 +94,9 @@ export default function AuthScreen({ onLogin, onSignup }) {
       if (!tag.trim() || !email.trim() || !pass || !pass2) { setErr('Fill in all fields'); setLoading(false); return; }
       if (pass !== pass2) { setErr('Passwords do not match'); setLoading(false); return; }
       if (tagAvail === false) { setErr('Gamer Tag is taken'); setLoading(false); return; }
+      if (!legalAccepted) { setErr('Accept the Terms, Privacy, Fair Play, and Rewards rules.'); setLoading(false); return; }
       try {
-        const res = await fetch(`${BACKEND}/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: tag.trim(), email: email.trim(), password: pass }) });
+        const res = await fetch(`${BACKEND}/auth/signup`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: tag.trim(), email: email.trim(), password: pass, legalAccepted: true, legalVersion: LEGAL_UPDATED_AT }) });
         const data = await res.json();
         if (data.success) {
           if (onSignup) onSignup(data.user, data.token);
@@ -112,9 +117,11 @@ export default function AuthScreen({ onLogin, onSignup }) {
   const themeProps = {
     step, loginId, setLoginId, email, setEmail, tag, pass, setPass, pass2, setPass2, otp, setOtp,
     showPass, setShowPass, remember, setRemember, loading, err, tagAvail,
+    legalAccepted, setLegalAccepted,
     switchStep, checkTag, handleAction, promptAsync, request,
     handleAppleSignIn,
     fadeAnim,
+    openLegal,
   };
 
   const ThemeComponent = themeIndex === 0 ? AuthThemeDefault : AuthThemeAlternate;

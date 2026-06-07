@@ -3,9 +3,9 @@
  * Central routing: manages screen state and renders the active screen.
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { UserProvider } from '../utils/UserContext';
 import { BACKEND } from '../utils/api';
+import { clearAuthSession, getAuthToken, getStoredUser, saveAuthSession, saveSessionUser } from '../utils/authSession';
 
 // Screens
 import SplashScreen from '../screens/SplashScreen';
@@ -26,6 +26,7 @@ import BrainProfileScreen from '../screens/BrainProfileScreen';
 import AdminDashboard from '../screens/AdminDashboard';
 import MaintenanceScreen from '../screens/MaintenanceScreen';
 import ChallengeLandingScreen from '../screens/ChallengeLandingScreen';
+import LegalScreen from '../screens/LegalScreen';
 
 export default function AppNavigator() {
   const [screen, setScreen]             = useState('splash');
@@ -45,7 +46,7 @@ export default function AppNavigator() {
   if (typeof window !== 'undefined') {
     window.updateUserContext = (newUser) => {
       setUser(newUser);
-      AsyncStorage.setItem('crackl_user', JSON.stringify(newUser));
+      saveSessionUser(newUser);
     };
   }
 
@@ -76,8 +77,8 @@ export default function AppNavigator() {
 
       // 2. Load Auth State
 	      try {
-	        const raw = await AsyncStorage.getItem('crackl_user');
-	        const token = await AsyncStorage.getItem('crackl_token');
+	        const raw = await getStoredUser();
+	        const token = await getAuthToken();
 	        if (raw && token) {
 	          const cachedUser = JSON.parse(raw);
 	          const res = await fetch(`${BACKEND}/user/${cachedUser.id}`, {
@@ -86,16 +87,16 @@ export default function AppNavigator() {
 	          const data = await res.json();
 	          if (data.success && data.user) {
 	            setUser(data.user);
-	            await AsyncStorage.setItem('crackl_user', JSON.stringify(data.user));
+	            await saveSessionUser(data.user);
 	            setScreen(incomingWagerId ? 'challenge_landing' : 'home');
 	            return;
 	          }
 	        }
 	        if (raw && !token) {
-	          await AsyncStorage.multiRemove(['crackl_user', 'crackl_token']);
+	          await clearAuthSession();
 	        }
 	      } catch {
-	        await AsyncStorage.multiRemove(['crackl_user', 'crackl_token']);
+	        await clearAuthSession();
 	      }
 
       // 3. Unauthenticated route handling
@@ -111,23 +112,20 @@ export default function AppNavigator() {
 
 	  const save = async (u, token) => {
 	    setUser(u);
-	    await AsyncStorage.setItem('crackl_user', JSON.stringify(u));
-	    if (token) await AsyncStorage.setItem('crackl_token', token);
-	    else await AsyncStorage.removeItem('crackl_token');
+	    await saveAuthSession(u, token);
 	    setScreen(wagerNode ? 'challenge_landing' : 'home');
 	  };
 
   const handleSignup = async (u, token) => {
     setUser(u);
-    await AsyncStorage.setItem('crackl_user', JSON.stringify(u));
-    if (token) await AsyncStorage.setItem('crackl_token', token);
+    await saveAuthSession(u, token);
     setScreen('onboarding');
   };
 
   // Update user state + storage WITHOUT navigating (for in-game updates)
   const syncUser = async (u) => {
     setUser(u);
-    await AsyncStorage.setItem('crackl_user', JSON.stringify(u));
+    await saveSessionUser(u);
   };
 
   const go = (nextScreen) => {
@@ -148,10 +146,11 @@ export default function AppNavigator() {
   const routeScreen = () => {
     if (screen === 'splash')      return <SplashScreen />;
     if (screen === 'maintenance') return <MaintenanceScreen go={go} message={maintenanceMsg} />;
-    if (screen === 'auth')        return <AuthScreen onLogin={save} onSignup={handleSignup} />;
+    if (screen === 'legal')       return <LegalScreen user={user} go={go} />;
+    if (screen === 'auth')        return <AuthScreen onLogin={save} onSignup={handleSignup} openLegal={() => go('legal')} />;
     if (screen === 'challenge_landing') return <ChallengeLandingScreen user={user} go={go} update={save} wagerId={wagerNode} setMode={setMode} />;
 
-    if (!user) return <AuthScreen onLogin={save} onSignup={handleSignup} />;
+    if (!user) return <AuthScreen onLogin={save} onSignup={handleSignup} openLegal={() => go('legal')} />;
 
     if (screen === 'setup')       return <MultiSetupScreen user={user} go={go} setRoom={setRoom} />;
     if (screen === 'room')        return <MultiRoomScreen user={user} go={go} exitToHome={exitGameToHome} room={room} update={syncUser} />;

@@ -31,7 +31,9 @@
       "googleAndroidClientId": ""
     },
     "plugins": [
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-audio",
+      "expo-asset"
     ]
   }
 }

@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>CRACKL Admin</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2307070f'/%3E%3Cpath d='M17 44 32 14l15 30h-8l-7-16-7 16z' fill='%2300ffd0'/%3E%3C/svg%3E" />
   <style>
     :root {
       --bg: #07070f;
@@ -132,6 +133,13 @@
     .pagination { display: flex; align-items: center; gap: 8px; margin-top: 16px; justify-content: flex-end; }
     .pagination button { padding: 6px 12px; font-size: 12px; }
     .pagination span { color: var(--text2); font-size: 12px; }
+    .check-cell { width: 34px; text-align: center; }
+    .bulk-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 12px; border: 1px solid rgba(124,58,237,.22); border-radius: 8px; background: rgba(124,58,237,.06); margin-bottom: 12px; }
+    .bulk-left, .bulk-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .bulk-select { display: flex; align-items: center; gap: 6px; color: var(--text2); font-size: 12px; font-weight: 700; }
+    .bulk-select input { width: auto; }
+    .bulk-count { color: var(--purple-light); font-size: 12px; font-weight: 800; letter-spacing: .5px; }
+    .bulk-note { color: var(--text3); font-size: 10px; line-height: 1.4; max-width: 560px; }
 
     /* ── Filter Bar ── */
     .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; align-items: flex-end; }
@@ -218,6 +226,65 @@
     .upload-preview-frame { width: 100%; min-height: 84px; border-radius: 8px; margin-bottom: 10px; background: #050508; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--text2); }
     .upload-actions { display: flex; gap: 8px; }
     .upload-status { font-size: 11px; margin-top: 6px; font-weight: 600; }
+    .upload-progress { height: 7px; border-radius: 99px; background: rgba(255,255,255,.05); border: 1px solid var(--border); overflow: hidden; margin-top: 9px; display: none; }
+    .upload-progress .bar { height: 100%; width: 0%; background: linear-gradient(90deg, var(--purple), var(--green)); transition: width .2s ease; }
+
+    /* Image Editor */
+    .image-editor-shell { margin-top: 14px; border: 1px solid rgba(0,255,208,.16); border-radius: 12px; background: linear-gradient(180deg, rgba(0,255,208,.04), rgba(124,58,237,.03)), #090912; overflow: hidden; }
+    .image-editor-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 14px; border-bottom: 1px solid var(--border); }
+    .image-editor-title { font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; font-weight: 900; color: var(--green); }
+    .image-editor-meta { color: var(--text3); font-size: 10px; font-family: monospace; }
+    .image-editor-grid { display: grid; grid-template-columns: minmax(360px, 1.1fr) minmax(310px, .9fr); gap: 14px; padding: 14px; }
+    .image-editor-left, .image-editor-right { min-width: 0; }
+    .image-editor-stage { border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: radial-gradient(circle at center, rgba(124,58,237,.08), transparent 42%), #050508; padding: 10px; position: relative; }
+    #image-editor-canvas { width: 100%; height: auto; display: block; border-radius: 8px; background: #030306; cursor: grab; }
+    #image-editor-canvas.dragging { cursor: grabbing; }
+    .image-editor-hint { margin-top: 8px; color: var(--text3); font-size: 10px; font-family: monospace; display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .image-editor-controls { display: grid; gap: 10px; }
+    .editor-card { background: rgba(12,12,24,.72); border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+    .editor-card h3 { font-size: 10px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--text2); margin-bottom: 10px; }
+    .editor-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .editor-row.three { grid-template-columns: repeat(3, 1fr); }
+    .editor-row.four { grid-template-columns: repeat(4, 1fr); }
+    .editor-field label { font-size: 9px; color: var(--text3); }
+    .editor-field input { font-size: 12px; padding: 7px 9px; }
+    .editor-range { display: grid; grid-template-columns: 76px 1fr 52px; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .editor-range label { margin: 0; color: var(--text2); font-size: 10px; }
+    .editor-range input[type="range"] { padding: 0; accent-color: var(--purple); }
+    .editor-range output { font-family: monospace; font-size: 10px; color: var(--green); text-align: right; }
+    .editor-btn-row { display: flex; gap: 7px; flex-wrap: wrap; }
+    .editor-btn { background: var(--card2); border: 1px solid var(--border); color: var(--text2); padding: 7px 10px; font-size: 10px; letter-spacing: .6px; text-transform: uppercase; }
+    .editor-btn:hover:not(:disabled) { border-color: rgba(0,255,208,.28); color: var(--text); }
+    .editor-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .editor-btn.primary { background: rgba(0,201,122,.12); border-color: rgba(0,201,122,.32); color: var(--green); }
+    .editor-btn.warn { background: rgba(251,191,36,.1); border-color: rgba(251,191,36,.25); color: var(--yellow); }
+    .editor-btn.danger { background: rgba(244,63,94,.1); border-color: rgba(244,63,94,.25); color: var(--red); }
+    .editor-toggle { display: flex; align-items: center; gap: 8px; color: var(--text2); font-size: 11px; cursor: pointer; user-select: none; }
+    .editor-toggle input { width: auto; }
+    .device-tabs { display: flex; gap: 6px; margin-bottom: 10px; }
+    .device-tab { flex: 1; padding: 7px 8px; font-size: 10px; background: #0b0b14; border: 1px solid var(--border); color: var(--text3); border-radius: 6px; }
+    .device-tab.active { color: var(--green); border-color: rgba(0,255,208,.32); background: rgba(0,255,208,.06); }
+    .device-preview-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .device-preview { min-height: 132px; border: 1px solid rgba(255,255,255,.08); border-radius: 8px; background: #050508; padding: 8px; display: flex; flex-direction: column; gap: 7px; }
+    .device-preview .label { font-size: 9px; letter-spacing: 1px; color: var(--text3); text-transform: uppercase; font-weight: 800; }
+    .device-frame { position: relative; width: 100%; background: #020204; border: 1px solid rgba(0,255,208,.15); border-radius: 6px; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+    .device-frame.desktop { aspect-ratio: 16 / 10; }
+    .device-frame.tablet { aspect-ratio: 4 / 3; }
+    .device-frame.mobile { aspect-ratio: 9 / 16; max-height: 180px; margin: 0 auto; width: 62%; }
+    .device-frame img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .device-frame::after { content: ''; position: absolute; inset: 10%; border: 1px dashed rgba(251,191,36,.55); pointer-events: none; box-shadow: 0 0 0 999px rgba(251,191,36,.035); }
+    .compare-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .compare-tile { border: 1px solid var(--border); border-radius: 8px; background: #050508; min-height: 110px; padding: 7px; }
+    .compare-tile span { display: block; font-size: 9px; letter-spacing: 1px; color: var(--text3); text-transform: uppercase; margin-bottom: 6px; }
+    .compare-tile img { width: 100%; max-height: 140px; object-fit: contain; border-radius: 5px; background: #020204; }
+    .editor-toast { min-height: 18px; font-size: 11px; color: var(--text3); margin-top: 8px; font-weight: 600; }
+    .editor-toast.ok { color: var(--green); }
+    .editor-toast.err { color: var(--red); }
+    @media (max-width: 1040px) {
+      .image-editor-grid { grid-template-columns: 1fr; }
+      .device-preview-grid { grid-template-columns: 1fr; }
+      .device-frame.mobile { width: 44%; }
+    }
 
     /* Phone Preview */
     .phone-wrap { position: relative; }
@@ -263,7 +330,7 @@
     .canvas-el .resize-handle { position: absolute; right: -3px; bottom: -3px; width: 8px; height: 8px; background: var(--purple); border-radius: 2px; cursor: nwse-resize; border: 1px solid #07070f; display: none; }
     .canvas-el.selected .resize-handle { display: block; }
     .canvas-el .el-text { pointer-events: none; width: 100%; padding: 3px; word-break: break-word; line-height: 1.4; }
-    .canvas-el .el-img { width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+    .canvas-el .el-img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
     .canvas-el .el-placeholder { color: #4b5563; font-family: monospace; font-size: 8px; }
 
     /* Element Inspector */
@@ -307,7 +374,7 @@
     <h1>CRACKL</h1>
     <p>ADMIN PANEL</p>
     <div class="server-row">
-      <input id="server-url" type="text" value="http://localhost:3000" placeholder="Backend URL" />
+      <input id="server-url" type="text" placeholder="Backend URL" />
     </div>
     <input id="admin-key" type="password" placeholder="Admin Key" />
     <button onclick="doLogin()">ENTER</button>
@@ -332,6 +399,7 @@
     <button class="tab" onclick="switchTab(2)">Manage Riddles</button>
     <button class="tab" onclick="switchTab(3)">Pool Health</button>
     <button class="tab" onclick="switchTab(4)">Chain Sets</button>
+    <button class="tab" onclick="switchTab(5)">Ops Audit</button>
   </div>
 
   <!-- ═══ TAB 0: OVERVIEW ═══ -->
@@ -388,6 +456,17 @@
         <div class="stat-card green"><div class="val" id="s-easy">—</div><div class="lbl">Easy</div></div>
         <div class="stat-card yellow"><div class="val" id="s-medium">—</div><div class="lbl">Medium</div></div>
         <div class="stat-card red"><div class="val" id="s-hard">—</div><div class="lbl">Hard</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>RDE Tier Distribution</h2>
+      <div class="stats-grid">
+        <div class="stat-card green"><div class="val" id="s-tier-1">—</div><div class="lbl">T1 Rookie</div></div>
+        <div class="stat-card green"><div class="val" id="s-tier-2">—</div><div class="lbl">T2 Field</div></div>
+        <div class="stat-card yellow"><div class="val" id="s-tier-3">—</div><div class="lbl">T3 Senior</div></div>
+        <div class="stat-card red"><div class="val" id="s-tier-4">—</div><div class="lbl">T4 Elite</div></div>
+        <div class="stat-card red"><div class="val" id="s-tier-5">—</div><div class="lbl">T5 Shadow</div></div>
       </div>
     </div>
   </div>
@@ -453,6 +532,133 @@
             </div>
           </div>
           <div id="upload-status" class="upload-status"></div>
+          <div class="upload-progress" id="upload-progress"><div class="bar" id="upload-progress-bar"></div></div>
+
+          <div id="image-editor-panel" class="image-editor-shell" style="display:none">
+            <div class="image-editor-head">
+              <div>
+                <div class="image-editor-title">Image Editor</div>
+                <div class="image-editor-meta" id="image-editor-meta">Upload an image to begin.</div>
+              </div>
+              <div class="editor-btn-row">
+                <button class="editor-btn" id="image-editor-undo" onclick="undoImageEdit()" disabled>Undo</button>
+                <button class="editor-btn" id="image-editor-redo" onclick="redoImageEdit()" disabled>Redo</button>
+                <button class="editor-btn warn" onclick="resetImageEditor()">Reset</button>
+              </div>
+            </div>
+            <div class="image-editor-grid">
+              <div class="image-editor-left">
+                <div class="image-editor-stage">
+                  <canvas id="image-editor-canvas" width="920" height="540"></canvas>
+                </div>
+                <div class="image-editor-hint">
+                  <span>Drag on the canvas to reposition. Yellow dashed line is the safe area.</span>
+                  <span id="image-editor-dimensions">0 x 0 px</span>
+                </div>
+                <div class="compare-wrap" id="image-compare-wrap" style="display:none">
+                  <div class="compare-tile">
+                    <span>Original</span>
+                    <img id="image-compare-original" alt="Original image comparison" />
+                  </div>
+                  <div class="compare-tile">
+                    <span>Edited</span>
+                    <img id="image-compare-edited" alt="Edited image comparison" />
+                  </div>
+                </div>
+              </div>
+              <div class="image-editor-right">
+                <div class="image-editor-controls">
+                  <div class="editor-card">
+                    <h3>Output Size</h3>
+                    <label class="editor-toggle" style="margin-bottom:10px">
+                      <input type="checkbox" id="image-editor-aspect" checked onchange="setImageEditorAspectLock(this.checked)" />
+                      Maintain aspect ratio
+                    </label>
+                    <div class="editor-row">
+                      <div class="editor-field">
+                        <label>Width</label>
+                        <input id="image-editor-width" type="number" min="64" max="4096" onchange="setImageEditorSize('width', this.value)" />
+                      </div>
+                      <div class="editor-field">
+                        <label>Height</label>
+                        <input id="image-editor-height" type="number" min="64" max="4096" onchange="setImageEditorSize('height', this.value)" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="editor-card">
+                    <h3>Transform</h3>
+                    <div class="editor-range">
+                      <label>Zoom</label>
+                      <input id="image-editor-zoom" type="range" min="0.25" max="3" step="0.01" value="1" oninput="setImageEditorRange('zoom', this.value)" />
+                      <output id="image-editor-zoom-out">100%</output>
+                    </div>
+                    <div class="editor-range">
+                      <label>Rotate</label>
+                      <input id="image-editor-rotation" type="range" min="-180" max="180" step="1" value="0" oninput="setImageEditorRange('rotation', this.value)" />
+                      <output id="image-editor-rotation-out">0 deg</output>
+                    </div>
+                    <div class="editor-btn-row">
+                      <button class="editor-btn" onclick="rotateImageEditor(-90)">Rotate Left</button>
+                      <button class="editor-btn" onclick="rotateImageEditor(90)">Rotate Right</button>
+                      <button class="editor-btn" onclick="flipImageEditor('x')">Flip H</button>
+                      <button class="editor-btn" onclick="flipImageEditor('y')">Flip V</button>
+                      <button class="editor-btn" onclick="toggleImageCompare()">Compare</button>
+                    </div>
+                  </div>
+
+                  <div class="editor-card">
+                    <h3>Crop Source</h3>
+                    <div class="editor-row four">
+                      <div class="editor-field"><label>X</label><input id="image-editor-crop-x" type="number" min="0" onchange="setImageEditorCrop('x', this.value)" /></div>
+                      <div class="editor-field"><label>Y</label><input id="image-editor-crop-y" type="number" min="0" onchange="setImageEditorCrop('y', this.value)" /></div>
+                      <div class="editor-field"><label>W</label><input id="image-editor-crop-w" type="number" min="1" onchange="setImageEditorCrop('width', this.value)" /></div>
+                      <div class="editor-field"><label>H</label><input id="image-editor-crop-h" type="number" min="1" onchange="setImageEditorCrop('height', this.value)" /></div>
+                    </div>
+                    <div class="editor-btn-row" style="margin-top:8px">
+                      <button class="editor-btn" onclick="applyCropPreset('full')">Full</button>
+                      <button class="editor-btn" onclick="applyCropPreset('square')">Square</button>
+                      <button class="editor-btn" onclick="applyCropPreset('16:9')">16:9</button>
+                      <button class="editor-btn" onclick="applyCropPreset('4:5')">4:5</button>
+                    </div>
+                  </div>
+
+                  <div class="editor-card">
+                    <h3>User Screen Preview</h3>
+                    <div class="device-tabs">
+                      <button class="device-tab active" id="device-tab-desktop" onclick="setImagePreviewDevice('desktop')">Desktop</button>
+                      <button class="device-tab" id="device-tab-tablet" onclick="setImagePreviewDevice('tablet')">Tablet</button>
+                      <button class="device-tab" id="device-tab-mobile" onclick="setImagePreviewDevice('mobile')">Mobile</button>
+                    </div>
+                    <div class="device-preview-grid">
+                      <div class="device-preview">
+                        <div class="label">Desktop</div>
+                        <div class="device-frame desktop"><img id="image-preview-desktop" alt="Desktop edited image preview" /></div>
+                      </div>
+                      <div class="device-preview">
+                        <div class="label">Tablet</div>
+                        <div class="device-frame tablet"><img id="image-preview-tablet" alt="Tablet edited image preview" /></div>
+                      </div>
+                      <div class="device-preview">
+                        <div class="label">Mobile</div>
+                        <div class="device-frame mobile"><img id="image-preview-mobile" alt="Mobile edited image preview" /></div>
+                      </div>
+                    </div>
+                    <div class="editor-toast" id="image-editor-toast"></div>
+                  </div>
+
+                  <div class="editor-card">
+                    <h3>Save</h3>
+                    <div class="editor-btn-row">
+                      <button class="editor-btn primary" id="image-editor-save" onclick="saveEditedImage()">Save Final Image</button>
+                      <button class="editor-btn" onclick="renderImageEditor()">Preview</button>
+                      <button class="editor-btn danger" onclick="cancelImageEditor()">Cancel</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
           <input type="file" id="file-input" accept="image/*,audio/*,video/*,.html,.htm,.json,.txt,.js" style="display:none" onchange="handleFileSelect(event)" />
         </div>
 
@@ -494,12 +700,24 @@
             </div>
             <div class="form-group">
               <label>Difficulty *</label>
-              <select id="f-diff">
+              <select id="f-diff" onchange="syncTierFromDifficulty('f-diff','f-tier', true)">
                 <option value="">Select difficulty…</option>
                 <option value="Easy">Easy</option>
                 <option value="Medium">Medium</option>
                 <option value="Hard">Hard</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label>RDE Tier *</label>
+              <select id="f-tier">
+                <option value="">Auto from difficulty…</option>
+                <option value="1">Tier 1 · Rookie</option>
+                <option value="2">Tier 2 · Field Agent</option>
+                <option value="3">Tier 3 · Senior Agent</option>
+                <option value="4">Tier 4 · Elite</option>
+                <option value="5">Tier 5 · Shadow Operative</option>
+              </select>
+              <p class="hint-text">Controls progression and duplicate-safe delivery.</p>
             </div>
             <div class="form-group full">
               <label>Question <span id="q-required" style="color:var(--red)">*</span></label>
@@ -508,6 +726,37 @@
             <div class="form-group full">
               <label>Answer *</label>
               <input id="f-answer" type="text" placeholder="Correct answer" />
+            </div>
+            <div class="form-group">
+              <div class="toggle-group">
+                <input type="checkbox" id="f-semantic-enabled" />
+                <label for="f-semantic-enabled" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">AI semantic answer checking</label>
+              </div>
+              <p class="hint-text">Optional. Leave off for exact/case-insensitive answer matching. Enable only when paraphrases should count.</p>
+            </div>
+            <div class="form-group">
+              <label>AI Strictness</label>
+              <select id="f-strictness">
+                <option value="normal">Normal · balanced</option>
+                <option value="lenient">Lenient · accepts broad paraphrases</option>
+                <option value="strict">Strict · requires every key idea</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Accepted Aliases</label>
+              <input id="f-aliases" type="text" placeholder="Comma-separated alternate correct answers" />
+            </div>
+            <div class="form-group">
+              <label>Required Meanings</label>
+              <input id="f-required" type="text" placeholder="Comma-separated must-have ideas" />
+            </div>
+            <div class="form-group">
+              <label>Forbidden Meanings</label>
+              <input id="f-forbidden" type="text" placeholder="Wrong-but-common meanings to reject" />
+            </div>
+            <div class="form-group full">
+              <label>AI Rubric</label>
+              <textarea id="f-rubric" rows="2" placeholder="Extra judging rule, e.g. accept the animal, reject the actor name."></textarea>
             </div>
             <div class="form-group full">
               <label>Options (for MCQ)</label>
@@ -559,20 +808,24 @@
         <!-- Bulk Upload -->
         <div class="section">
           <h2>Bulk Upload (JSON)</h2>
-          <p class="hint-text" style="margin-bottom:12px">Paste a JSON array of riddles. Required fields: <strong>question, answer, game_mode, difficulty</strong>. Optional: riddle_type, media_url, layout_config</p>
+          <p class="hint-text" style="margin-bottom:12px">Paste a JSON array of riddles. Required fields: <strong>question, answer, game_mode, difficulty</strong>. Optional: difficulty_tier, riddle_type, media_url, layout_config, semantic_check_enabled, answer_strictness, accepted_aliases, required_keywords, forbidden_meanings, answer_rubric</p>
           <div class="json-sample">[
   {
     "question": "What has keys but no locks?",
     "answer": "A keyboard",
     "game_mode": "mcq",
     "difficulty": "Easy",
+    "difficulty_tier": 1,
     "hint": "You use it every day",
     "fun_fact": "The first keyboard was invented in 1868",
     "options": ["A piano","A keyboard","A safe","A car"],
+    "semantic_check_enabled": false,
+    "answer_strictness": "normal",
+    "accepted_aliases": ["keyboard"],
     "riddle_type": "text"
   }
 ]</div>
-          <textarea id="bulk-json" rows="14" placeholder='[{"question":"...","answer":"...","game_mode":"arena","difficulty":"Easy"}]'></textarea>
+          <textarea id="bulk-json" rows="14" placeholder='[{"question":"...","answer":"...","game_mode":"arena","difficulty":"Easy","difficulty_tier":1}]'></textarea>
           <div style="margin-top:12px; display:flex; gap:10px; align-items:center">
             <button class="btn-primary" onclick="submitBulk()">Upload All</button>
             <button class="btn-ghost btn-sm" onclick="document.getElementById('bulk-json').value=''">Clear</button>
@@ -651,11 +904,32 @@
         </select>
       </div>
       <div>
+        <label>RDE Tier</label>
+        <select id="mg-tier">
+          <option value="">All</option>
+          <option value="1">Tier 1</option>
+          <option value="2">Tier 2</option>
+          <option value="3">Tier 3</option>
+          <option value="4">Tier 4</option>
+          <option value="5">Tier 5</option>
+        </select>
+      </div>
+      <div>
         <label>Status</label>
         <select id="mg-active">
           <option value="">All</option>
           <option value="true">Active</option>
           <option value="false">Inactive</option>
+        </select>
+      </div>
+      <div>
+        <label>Review</label>
+        <select id="mg-review">
+          <option value="">All</option>
+          <option value="approved">Approved</option>
+          <option value="review">Needs Review</option>
+          <option value="draft">Draft</option>
+          <option value="archived">Archived</option>
         </select>
       </div>
       <div>
@@ -675,21 +949,41 @@
       </div>
     </div>
     <div id="manage-result" style="margin-bottom:10px"></div>
+    <div class="bulk-toolbar">
+      <div class="bulk-left">
+        <label class="bulk-select">
+          <input id="mg-select-page" type="checkbox" onchange="toggleSelectCurrentPage(this.checked)" />
+          Select this page
+        </label>
+        <span id="bulk-count" class="bulk-count">0 selected</span>
+        <button class="btn-ghost btn-sm" onclick="clearBulkSelection()">Clear</button>
+      </div>
+      <div class="bulk-actions">
+        <button class="btn-danger btn-sm" onclick="bulkDeleteSelected(false)">Delete Selected</button>
+        <button class="btn-danger btn-sm" onclick="bulkDeleteSelected(true)">Purge Everywhere</button>
+      </div>
+      <div class="bulk-note">
+        Delete Selected hides referenced riddles safely and hard-deletes clean drafts. Purge Everywhere removes selected riddles plus their history, queues, and challenge links unless a live room is using them.
+      </div>
+    </div>
     <div class="table-wrap">
       <table>
         <thead>
           <tr>
+            <th class="check-cell"></th>
             <th>Question</th>
             <th>Type</th>
             <th>Mode</th>
             <th>Diff</th>
+            <th>Tier</th>
             <th>Served</th>
             <th>Status</th>
+            <th>Review</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody id="manage-tbody">
-          <tr><td colspan="6" class="empty">Loading…</td></tr>
+          <tr><td colspan="10" class="empty">Loading…</td></tr>
         </tbody>
       </table>
     </div>
@@ -726,6 +1020,147 @@
       <div class="empty">Loading…</div>
     </div>
   </div>
+
+  <!-- ═══ TAB 5: OPS AUDIT ═══ -->
+  <div class="tab-content" id="tab-5">
+    <div class="top-row">
+      <h2>Ops Audit & Storage Cleanup</h2>
+      <button class="btn-ghost btn-sm" onclick="loadOps()">↻ Refresh</button>
+    </div>
+
+    <div class="section">
+      <h2>Production Pulse</h2>
+      <div class="stats-grid">
+        <div class="stat-card green"><div class="val" id="ops-attempts">—</div><div class="lbl">Attempts (7d)</div></div>
+        <div class="stat-card yellow"><div class="val" id="ops-accuracy">—</div><div class="lbl">Accuracy</div></div>
+        <div class="stat-card purple"><div class="val" id="ops-open-reports">—</div><div class="lbl">Open Reports</div></div>
+        <div class="stat-card red"><div class="val" id="ops-open-tickets">—</div><div class="lbl">Open Tickets</div></div>
+        <div class="stat-card"><div class="val" id="ops-deliverable">—</div><div class="lbl">Deliverable Riddles</div></div>
+        <div class="stat-card"><div class="val" id="ops-review">—</div><div class="lbl">Needs Review</div></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>User Riddle Reports</h2>
+      <p class="hint-text" style="margin-bottom:12px">Player-submitted bad-answer, duplicate, typo, or unfair-riddle reports. Resolve only after checking the riddle in Manage Riddles.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Reason</th>
+              <th>Riddle</th>
+              <th>Status</th>
+              <th>Details</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="reports-tbody">
+            <tr><td colspan="6" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Support Tickets</h2>
+      <p class="hint-text" style="margin-bottom:12px">User support queue for account, gameplay, reward, and content issues.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Subject</th>
+              <th>Category</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="tickets-tbody">
+            <tr><td colspan="6" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Admin Operators</h2>
+      <p class="hint-text" style="margin-bottom:12px">Create scoped admin tokens instead of sharing the master key. New tokens are shown once.</p>
+      <div class="filter-bar">
+        <input id="op-name" type="text" placeholder="Operator name…" />
+        <select id="op-role">
+          <option value="auditor">Auditor</option>
+          <option value="support">Support</option>
+          <option value="editor">Editor</option>
+          <option value="owner">Owner</option>
+        </select>
+        <button class="btn-primary btn-sm" onclick="createOperator()">Create Operator Token</button>
+      </div>
+      <div id="operator-token-result" style="margin-bottom:10px"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Role</th>
+              <th>Status</th>
+              <th>Last Used</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="operators-tbody">
+            <tr><td colspan="5" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Admin Audit Trail</h2>
+      <p class="hint-text" style="margin-bottom:12px">Shows privileged admin actions: riddle changes, deletes, uploads, maintenance, panic timer changes, and storage cleanup.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>Target</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="audit-tbody">
+            <tr><td colspan="5" class="empty">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Orphan Media Cleanup</h2>
+      <p class="hint-text" style="margin-bottom:12px">Finds files in the riddle-media uploads bucket that are no longer referenced by any riddle. Cleanup never deletes media still attached to a riddle.</p>
+      <div class="row" style="margin-bottom:12px">
+        <button class="btn-ghost btn-sm" onclick="scanOrphanMedia()">Scan Orphans</button>
+        <button class="btn-danger btn-sm" onclick="deleteOrphanMedia()">Delete Orphans</button>
+        <span id="storage-summary" class="refresh-note">Not scanned yet.</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Path</th>
+              <th>Size</th>
+              <th>Updated</th>
+            </tr>
+          </thead>
+          <tbody id="storage-tbody">
+            <tr><td colspan="3" class="empty">Run a scan to see orphan files.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ EDIT MODAL ═══ -->
@@ -758,6 +1193,37 @@
         <input id="edit-answer" type="text" />
       </div>
       <div class="form-group">
+        <div class="toggle-group">
+          <input type="checkbox" id="edit-semantic-enabled" />
+          <label for="edit-semantic-enabled" style="text-transform:none;font-size:13px;color:var(--text2);margin:0">AI semantic answer checking</label>
+        </div>
+        <p class="hint-text">Use for typed answers where equivalent wording should count.</p>
+      </div>
+      <div class="form-group">
+        <label>AI Strictness</label>
+        <select id="edit-strictness">
+          <option value="normal">Normal · balanced</option>
+          <option value="lenient">Lenient · accepts broad paraphrases</option>
+          <option value="strict">Strict · requires every key idea</option>
+        </select>
+      </div>
+      <div class="form-group full">
+        <label>Accepted Aliases</label>
+        <input id="edit-aliases" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Required Meanings</label>
+        <input id="edit-required" type="text" />
+      </div>
+      <div class="form-group">
+        <label>Forbidden Meanings</label>
+        <input id="edit-forbidden" type="text" />
+      </div>
+      <div class="form-group full">
+        <label>AI Rubric</label>
+        <textarea id="edit-rubric" rows="2"></textarea>
+      </div>
+      <div class="form-group">
         <label>Game Mode</label>
         <select id="edit-mode">
           <option value="mcq">Standard Queue (mcq)</option>
@@ -772,11 +1238,31 @@
       </div>
       <div class="form-group">
         <label>Difficulty</label>
-        <select id="edit-diff">
+        <select id="edit-diff" onchange="syncTierFromDifficulty('edit-diff','edit-tier', true)">
           <option value="Easy">Easy</option>
           <option value="Medium">Medium</option>
           <option value="Hard">Hard</option>
         </select>
+      </div>
+      <div class="form-group">
+        <label>RDE Tier</label>
+        <select id="edit-tier">
+          <option value="1">Tier 1 · Rookie</option>
+          <option value="2">Tier 2 · Field Agent</option>
+          <option value="3">Tier 3 · Senior Agent</option>
+          <option value="4">Tier 4 · Elite</option>
+          <option value="5">Tier 5 · Shadow Operative</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Review Status</label>
+        <select id="edit-review">
+          <option value="approved">Approved · Live</option>
+          <option value="review">Needs Review</option>
+          <option value="draft">Draft</option>
+          <option value="archived">Archived</option>
+        </select>
+        <p class="hint-text">Only approved + active riddles can be served.</p>
       </div>
       <div class="form-group full">
         <label>Options (comma-separated)</label>
@@ -856,12 +1342,17 @@
 
 <script>
   // ─── State ──────────────────────────────────────────────────────────────
-  let API = 'http://localhost:3000';
+  const DEFAULT_API = location.protocol === 'file:' ? 'http://localhost:3000' : location.origin;
+  let API = DEFAULT_API;
   let ADMIN_KEY = '';
   let managePage = 1;
   let manageTotal = 0;
+  let manageVisibleIds = [];
+  const selectedRiddleIds = new Set();
   const LIMIT = 20;
   let currentMaintenance = false;
+  const ADMIN_SESSION_KEY = 'crackl_admin_key';
+  const ADMIN_URL_KEY = 'crackl_admin_url';
 
   // ─── Login ──────────────────────────────────────────────────────────────
   async function doLogin() {
@@ -875,8 +1366,9 @@
       if (!data.success) { errEl.textContent = 'Wrong admin key.'; return; }
       API = url;
       ADMIN_KEY = key;
-      localStorage.setItem('crackl_admin_key', key);
-      localStorage.setItem('crackl_admin_url', url);
+      sessionStorage.setItem(ADMIN_SESSION_KEY, key);
+      localStorage.setItem(ADMIN_URL_KEY, url);
+      localStorage.removeItem(ADMIN_SESSION_KEY);
       errEl.textContent = '';
       document.getElementById('login-screen').style.display = 'none';
       document.getElementById('app').classList.add('visible');
@@ -888,7 +1380,8 @@
   }
 
   function doLogout() {
-    localStorage.removeItem('crackl_admin_key');
+    sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    localStorage.removeItem(ADMIN_SESSION_KEY);
     ADMIN_KEY = '';
     document.getElementById('app').classList.remove('visible');
     document.getElementById('login-screen').style.display = 'flex';
@@ -897,9 +1390,10 @@
 
   // Auto-login from saved key
   window.addEventListener('load', () => {
-    const saved = localStorage.getItem('crackl_admin_key');
-    const savedUrl = localStorage.getItem('crackl_admin_url');
-    if (savedUrl) document.getElementById('server-url').value = savedUrl;
+    const saved = sessionStorage.getItem(ADMIN_SESSION_KEY);
+    const savedUrl = localStorage.getItem(ADMIN_URL_KEY);
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+    document.getElementById('server-url').value = savedUrl || DEFAULT_API;
     if (saved) {
       document.getElementById('admin-key').value = saved;
       doLogin();
@@ -914,6 +1408,7 @@
     if (i === 2) loadManage(1);
     if (i === 3) loadPool();
     if (i === 4) loadChainSets();
+    if (i === 5) loadOps();
   }
 
   // ─── Helpers ────────────────────────────────────────────────────────────
@@ -961,6 +1456,38 @@
     return `<span class="badge ${cls}">${escapeHtml(d || '—')}</span>`;
   }
 
+  function defaultTierForDifficulty(difficulty) {
+    if (difficulty === 'Hard') return 5;
+    if (difficulty === 'Medium') return 3;
+    return 1;
+  }
+
+  function normalizeTier(value, difficulty) {
+    const parsed = parseInt(value, 10);
+    if (Number.isFinite(parsed)) return Math.max(1, Math.min(5, parsed));
+    return defaultTierForDifficulty(difficulty);
+  }
+
+  function tierBadge(value, difficulty) {
+    const tier = normalizeTier(value, difficulty);
+    const labels = { 1: 'Rookie', 2: 'Field Agent', 3: 'Senior', 4: 'Elite', 5: 'Shadow' };
+    return `<span class="badge badge-mode">T${tier} · ${escapeHtml(labels[tier])}</span>`;
+  }
+
+  function reviewStatusBadge(status) {
+    const value = status || 'approved';
+    const labels = { approved: 'Approved', review: 'Review', draft: 'Draft', archived: 'Archived' };
+    const cls = value === 'approved' ? 'badge-easy' : value === 'archived' ? 'badge-inactive' : value === 'review' ? 'badge-medium' : 'badge-mode';
+    return `<span class="badge ${cls}">${escapeHtml(labels[value] || value)}</span>`;
+  }
+
+  function syncTierFromDifficulty(diffId, tierId, force = false) {
+    const diff = document.getElementById(diffId)?.value;
+    const tierEl = document.getElementById(tierId);
+    if (!tierEl || !diff) return;
+    if (force || !tierEl.value) tierEl.value = String(defaultTierForDifficulty(diff));
+  }
+
   function modeBadge(m) {
     const labels = { mcq: 'Standard Q', type: 'Brain Blast', arena: 'Eclipse / Ranked', daily: 'Cold Case', gauntlet: 'Gauntlet', chain: 'Chain', wager: 'Wager', bounty: 'Bounty' };
     return `<span class="badge badge-mode">${escapeHtml(labels[m] || m || '—')}</span>`;
@@ -976,6 +1503,19 @@
   }
 
   function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  function formatBytes(value) {
+    const n = parseInt(value, 10);
+    if (!Number.isFinite(n) || n <= 0) return '—';
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function compactJson(value) {
+    const text = JSON.stringify(value || {});
+    return text.length > 160 ? `${text.slice(0, 160)}…` : text;
+  }
 
   // ─── Stats ──────────────────────────────────────────────────────────────
   async function loadStats() {
@@ -1001,6 +1541,10 @@
     document.getElementById('s-easy').textContent = data.byDifficulty?.Easy ?? '—';
     document.getElementById('s-medium').textContent = data.byDifficulty?.Medium ?? '—';
     document.getElementById('s-hard').textContent = data.byDifficulty?.Hard ?? '—';
+    [1, 2, 3, 4, 5].forEach(tier => {
+      const el = document.getElementById(`s-tier-${tier}`);
+      if (el) el.textContent = data.byTier?.[tier] ?? '—';
+    });
     document.getElementById('panic-timer-input').value = data.panicTimerSeconds ?? 30;
 
     currentMaintenance = !!data.maintenanceMode;
@@ -1083,17 +1627,300 @@
     }
   }
 
+  // ─── Ops Audit / Storage ────────────────────────────────────────────────
+  async function loadOps() {
+    loadOpsSummary();
+    loadReports();
+    loadTickets();
+    loadOperators();
+    loadAuditLogs();
+    scanOrphanMedia(false);
+  }
+
+  async function loadOpsSummary() {
+    try {
+      const res = await fetch(`${API}/admin/analytics/summary?days=7`, { headers: adminHeaders() });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Analytics unavailable');
+      document.getElementById('ops-attempts').textContent = data.attempts ?? '—';
+      document.getElementById('ops-accuracy').textContent = `${data.accuracy ?? 0}%`;
+      document.getElementById('ops-open-reports').textContent = data.openReports ?? '—';
+      document.getElementById('ops-open-tickets').textContent = data.openTickets ?? '—';
+      document.getElementById('ops-deliverable').textContent = data.inventory?.deliverable ?? '—';
+      document.getElementById('ops-review').textContent = data.inventory?.review ?? '—';
+    } catch {
+      ['ops-attempts','ops-accuracy','ops-open-reports','ops-open-tickets','ops-deliverable','ops-review'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = '—';
+      });
+    }
+  }
+
+  async function loadReports() {
+    const tbody = document.getElementById('reports-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr>';
+    try {
+      const res = await fetch(`${API}/admin/reports?limit=80`, { headers: adminHeaders() });
+      const data = await res.json();
+      const reports = data.reports || [];
+      if (!data.success || reports.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No riddle reports.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = reports.map(report => `
+        <tr>
+          <td style="white-space:nowrap;color:var(--text2)">${escapeHtml(timeSince(report.created_at))}</td>
+          <td><span class="badge badge-mode">${escapeHtml(report.reason)}</span></td>
+          <td style="font-family:monospace;font-size:11px">${escapeHtml(report.riddle_id || '—')}</td>
+          <td>${reviewStatusBadge(report.status === 'open' ? 'review' : report.status)}</td>
+          <td style="color:var(--text3);max-width:360px">${escapeHtml((report.details || '').slice(0, 180) || '—')}</td>
+          <td>
+            ${['resolved','dismissed'].includes(report.status)
+              ? '<span class="refresh-note">Done</span>'
+              : `<button class="btn-success btn-sm" onclick="updateReportStatus('${escapeAttr(report.id)}','resolved')">Resolve</button>
+                 <button class="btn-ghost btn-sm" onclick="updateReportStatus('${escapeAttr(report.id)}','dismissed')">Dismiss</button>`}
+          </td>
+        </tr>
+      `).join('');
+    } catch {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Could not load reports.</td></tr>';
+    }
+  }
+
+  async function updateReportStatus(id, status) {
+    try {
+      const res = await fetch(`${API}/admin/reports/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Update failed');
+      loadReports();
+      loadOpsSummary();
+      loadAuditLogs();
+    } catch (e) {
+      alert('Report update failed: ' + (e.message || 'Network error'));
+    }
+  }
+
+  async function loadTickets() {
+    const tbody = document.getElementById('tickets-tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty"><span class="spinner"></span></td></tr>';
+    try {
+      const res = await fetch(`${API}/admin/support-tickets?limit=80`, { headers: adminHeaders() });
+      const data = await res.json();
+      const tickets = data.tickets || [];
+      if (!data.success || tickets.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">No support tickets.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = tickets.map(ticket => `
+        <tr>
+          <td style="white-space:nowrap;color:var(--text2)">${escapeHtml(timeSince(ticket.created_at))}</td>
+          <td title="${escapeAttr(ticket.message || '')}">${escapeHtml(ticket.subject || '—')}</td>
+          <td>${escapeHtml(ticket.category || 'general')}</td>
+          <td>${reviewStatusBadge(ticket.status === 'open' ? 'review' : ticket.status)}</td>
+          <td><span class="badge ${ticket.priority === 'urgent' || ticket.priority === 'high' ? 'badge-hard' : 'badge-mode'}">${escapeHtml(ticket.priority || 'normal')}</span></td>
+          <td>
+            ${['resolved','closed'].includes(ticket.status)
+              ? '<span class="refresh-note">Done</span>'
+              : `<button class="btn-success btn-sm" onclick="updateTicket('${escapeAttr(ticket.id)}','resolved')">Resolve</button>
+                 <button class="btn-ghost btn-sm" onclick="updateTicket('${escapeAttr(ticket.id)}','in_progress')">In Progress</button>`}
+          </td>
+        </tr>
+      `).join('');
+    } catch {
+      tbody.innerHTML = '<tr><td colspan="6" class="empty">Could not load support tickets.</td></tr>';
+    }
+  }
+
+  async function updateTicket(id, status) {
+    try {
+      const res = await fetch(`${API}/admin/support-tickets/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ status })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Update failed');
+      loadTickets();
+      loadOpsSummary();
+      loadAuditLogs();
+    } catch (e) {
+      alert('Ticket update failed: ' + (e.message || 'Network error'));
+    }
+  }
+
+  async function loadOperators() {
+    const tbody = document.getElementById('operators-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="empty"><span class="spinner"></span></td></tr>';
+    try {
+      const res = await fetch(`${API}/admin/operators`, { headers: adminHeaders() });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Operators unavailable');
+      const operators = data.operators || [];
+      if (operators.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">No scoped operators yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = operators.map(op => `
+        <tr>
+          <td>${escapeHtml(op.display_name || '—')}</td>
+          <td><span class="badge badge-mode">${escapeHtml(op.role || 'viewer')}</span></td>
+          <td>${op.is_active ? '<span class="badge badge-easy">Active</span>' : '<span class="badge badge-inactive">Disabled</span>'}</td>
+          <td>${escapeHtml(timeSince(op.last_used_at))}</td>
+          <td>
+            <button class="${op.is_active ? 'btn-danger' : 'btn-success'} btn-sm" onclick="toggleOperator('${escapeAttr(op.id)}', ${op.is_active ? 'false' : 'true'})">
+              ${op.is_active ? 'Disable' : 'Enable'}
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">Operator list unavailable. Owner token required.</td></tr>`;
+    }
+  }
+
+  async function createOperator() {
+    const name = document.getElementById('op-name').value.trim();
+    const role = document.getElementById('op-role').value;
+    const result = document.getElementById('operator-token-result');
+    if (!name) {
+      result.innerHTML = '<div class="result-banner error">Enter an operator name.</div>';
+      return;
+    }
+    result.innerHTML = '<div class="result-banner info"><span class="spinner"></span> Creating token…</div>';
+    try {
+      const res = await fetch(`${API}/admin/operators`, {
+        method: 'POST',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ displayName: name, role })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Operator create failed');
+      result.innerHTML = `<div class="result-banner success">Token created. Copy it now; it will not be shown again.<br><code>${escapeHtml(data.token)}</code></div>`;
+      document.getElementById('op-name').value = '';
+      loadOperators();
+      loadAuditLogs();
+    } catch (e) {
+      result.innerHTML = `<div class="result-banner error">Operator create failed: ${escapeHtml(e.message || 'Network error')}</div>`;
+    }
+  }
+
+  async function toggleOperator(id, isActive) {
+    try {
+      const res = await fetch(`${API}/admin/operators/${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ is_active: !!isActive })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Operator update failed');
+      loadOperators();
+      loadAuditLogs();
+    } catch (e) {
+      alert('Operator update failed: ' + (e.message || 'Network error'));
+    }
+  }
+
+  async function loadAuditLogs() {
+    const tbody = document.getElementById('audit-tbody');
+    tbody.innerHTML = '<tr><td colspan="5" class="empty"><span class="spinner"></span></td></tr>';
+    try {
+      const res = await fetch(`${API}/admin/audit-logs?limit=80`, { headers: adminHeaders() });
+      const data = await res.json();
+      const logs = data.logs || [];
+      if (!data.success || logs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">No audit logs yet.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = logs.map(log => `
+        <tr>
+          <td style="white-space:nowrap;color:var(--text2)">${escapeHtml(timeSince(log.created_at))}</td>
+          <td>${escapeHtml(log.actor_label || 'admin')}</td>
+          <td><span class="badge badge-mode">${escapeHtml(log.action)}</span></td>
+          <td>${escapeHtml([log.entity_type, log.entity_id].filter(Boolean).join(': ') || '—')}</td>
+          <td style="color:var(--text3);font-family:monospace;font-size:11px">${escapeHtml(compactJson(log.metadata))}</td>
+        </tr>
+      `).join('');
+    } catch {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">Could not load audit logs.</td></tr>';
+    }
+  }
+
+  async function scanOrphanMedia(showSpinner = true) {
+    const summary = document.getElementById('storage-summary');
+    const tbody = document.getElementById('storage-tbody');
+    if (showSpinner) {
+      summary.innerHTML = '<span class="spinner"></span> Scanning storage…';
+      tbody.innerHTML = '<tr><td colspan="3" class="empty"><span class="spinner"></span></td></tr>';
+    }
+    try {
+      const res = await fetch(`${API}/admin/storage/orphans`, { headers: adminHeaders() });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Scan failed');
+      summary.textContent = `${data.orphanCount} orphan(s) · ${data.referencedCount} referenced · ${data.totalObjects} total files`;
+      const orphans = data.orphans || [];
+      if (orphans.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">No orphan media found.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = orphans.map(file => `
+        <tr>
+          <td style="font-family:monospace;font-size:11px">${escapeHtml(file.path)}</td>
+          <td>${escapeHtml(formatBytes(file.size))}</td>
+          <td>${escapeHtml(timeSince(file.updated_at || file.created_at))}</td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      summary.textContent = 'Storage scan failed.';
+      tbody.innerHTML = `<tr><td colspan="3" class="empty">Storage scan failed: ${escapeHtml(e.message || 'Network error')}</td></tr>`;
+    }
+  }
+
+  async function deleteOrphanMedia() {
+    const typed = prompt('Delete orphan media files not referenced by any riddle? Type DELETE to continue.');
+    if (typed !== 'DELETE') return;
+    const summary = document.getElementById('storage-summary');
+    summary.innerHTML = '<span class="spinner"></span> Deleting orphan media…';
+    try {
+      const res = await fetch(`${API}/admin/storage/orphans/delete`, {
+        method: 'POST',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ confirm: 'DELETE', limit: 500 })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Cleanup failed');
+      alert(`Deleted ${data.deletedCount} orphan file(s).`);
+      scanOrphanMedia();
+      loadAuditLogs();
+    } catch (e) {
+      alert('Cleanup failed: ' + (e.message || 'Network error'));
+      scanOrphanMedia();
+    }
+  }
+
   // ─── Studio State ────────────────────────────────────────────────────────
   let studioType = 'text';
   let studioMediaUrl = '';
   let studioElements = [];
   let studioSelectedId = null;
   let studioFieldsOpen = true;
+  let studioImageAsset = null;
+  let uploadProgressTimer = null;
+  let imageEditor = null;
+  let imageEditorHistory = [];
+  let imageEditorFuture = [];
+  let imageEditorCompareOpen = false;
+  let imageEditorDrag = null;
   const MEDIA_RIDDLE_TYPES = ['image_text', 'image_only', 'audio_text', 'video_text', 'interactive'];
   const MEDIA_ELEMENT_TYPES = ['image', 'audio', 'video', 'embed'];
+  const EDITABLE_IMAGE_MIMES = ['image/png', 'image/jpeg', 'image/webp'];
+  const MAX_ADMIN_UPLOAD_BYTES = 25 * 1024 * 1024;
   const UPLOAD_META = {
-    image_text: { noun: 'IMAGE', icon: '🖼️', hint: 'PNG, JPG, WEBP, GIF · Max 25MB' },
-    image_only: { noun: 'IMAGE', icon: '🎨', hint: 'PNG, JPG, WEBP, GIF · Max 25MB' },
+    image_text: { noun: 'IMAGE', icon: '🖼️', hint: 'PNG, JPG, JPEG, WEBP · Max 25MB' },
+    image_only: { noun: 'IMAGE', icon: '🎨', hint: 'PNG, JPG, JPEG, WEBP · Max 25MB' },
     audio_text: { noun: 'AUDIO', icon: '🎧', hint: 'MP3, WAV, M4A, OGG · Max 25MB' },
     video_text: { noun: 'VIDEO', icon: '🎬', hint: 'MP4, WEBM, MOV · Max 25MB' },
     interactive: { noun: 'INTERACTIVE ASSET', icon: '🧩', hint: 'HTML, JSON, TXT, JS · Max 25MB' },
@@ -1149,6 +1976,7 @@
     document.getElementById('upload-header').innerHTML = `${uploadMeta.icon} Upload ${uploadMeta.noun} <span style="color:var(--red)">*</span>`;
     document.getElementById('upload-header').style.color = 'var(--yellow)';
     document.getElementById('upload-hint').textContent = uploadMeta.hint;
+    if (!['image_text', 'image_only'].includes(type)) cancelImageEditor(true);
     document.getElementById('q-required').style.display = (type === 'image_only' || type === 'interactive') ? 'none' : '';
     // Init default elements
     const q = document.getElementById('f-question').value || 'Your riddle question here...';
@@ -1268,7 +2096,8 @@
         if (el.src) {
           const iframe = document.createElement('iframe');
           iframe.src = el.src;
-          iframe.sandbox = 'allow-scripts allow-forms';
+          iframe.sandbox = 'allow-scripts';
+          iframe.referrerPolicy = 'no-referrer';
           iframe.style.width = '100%';
           iframe.style.height = '100%';
           iframe.style.border = '0';
@@ -1451,63 +2280,671 @@
   function renderUploadPreview(url, kind) {
     const container = document.getElementById('upload-preview-media');
     if (!container) return;
-    const cleanUrl = escapeAttr(safeMediaUrl(url));
+    const cleanUrl = safeMediaUrl(url);
+    container.innerHTML = '';
     if (!cleanUrl) {
       container.innerHTML = '<div class="upload-preview-frame">Preview unavailable for this media URL.</div>';
       return;
     }
+    const frame = document.createElement('div');
+    frame.className = 'upload-preview-frame';
     if (kind === 'audio') {
-      container.innerHTML = `<div class="upload-preview-frame"><audio controls src="${cleanUrl}" style="width:92%"></audio></div>`;
+      const audio = document.createElement('audio');
+      audio.controls = true;
+      audio.src = cleanUrl;
+      audio.style.width = '92%';
+      frame.appendChild(audio);
+      container.appendChild(frame);
     } else if (kind === 'video') {
-      container.innerHTML = `<video class="upload-preview" controls src="${cleanUrl}"></video>`;
+      const video = document.createElement('video');
+      video.className = 'upload-preview';
+      video.controls = true;
+      video.src = cleanUrl;
+      container.appendChild(video);
     } else if (kind === 'interactive') {
-      container.innerHTML = `<div class="upload-preview-frame"><iframe src="${cleanUrl}" sandbox="allow-scripts allow-forms" style="width:100%;height:180px;border:0"></iframe></div>`;
+      const iframe = document.createElement('iframe');
+      iframe.src = cleanUrl;
+      iframe.sandbox = 'allow-scripts';
+      iframe.referrerPolicy = 'no-referrer';
+      iframe.style.width = '100%';
+      iframe.style.height = '180px';
+      iframe.style.border = '0';
+      frame.appendChild(iframe);
+      container.appendChild(frame);
     } else {
-      container.innerHTML = `<img class="upload-preview" src="${cleanUrl}" alt="Uploaded riddle media preview" />`;
+      const img = document.createElement('img');
+      img.className = 'upload-preview';
+      img.src = cleanUrl;
+      img.alt = 'Uploaded riddle media preview';
+      container.appendChild(img);
     }
+  }
+
+  function isImageEditorMode() {
+    return studioType === 'image_text' || studioType === 'image_only';
+  }
+
+  function setUploadStatus(message, color = 'var(--text3)') {
+    const status = document.getElementById('upload-status');
+    if (!status) return;
+    status.textContent = message;
+    status.style.color = color;
+  }
+
+  function setEditorToast(message, kind = '') {
+    const toast = document.getElementById('image-editor-toast');
+    if (!toast) return;
+    toast.textContent = message || '';
+    toast.className = 'editor-toast' + (kind ? ` ${kind}` : '');
+  }
+
+  function showUploadProgress(start = 8) {
+    const wrap = document.getElementById('upload-progress');
+    const bar = document.getElementById('upload-progress-bar');
+    if (!wrap || !bar) return;
+    clearInterval(uploadProgressTimer);
+    wrap.style.display = 'block';
+    bar.style.width = `${start}%`;
+    let progress = start;
+    uploadProgressTimer = setInterval(() => {
+      progress = Math.min(88, progress + Math.max(1, Math.round((90 - progress) * 0.08)));
+      bar.style.width = `${progress}%`;
+      if (progress >= 88) clearInterval(uploadProgressTimer);
+    }, 220);
+  }
+
+  function finishUploadProgress(success = true) {
+    const wrap = document.getElementById('upload-progress');
+    const bar = document.getElementById('upload-progress-bar');
+    clearInterval(uploadProgressTimer);
+    if (!wrap || !bar) return;
+    bar.style.width = success ? '100%' : '0%';
+    setTimeout(() => {
+      wrap.style.display = 'none';
+      bar.style.width = '0%';
+    }, success ? 650 : 250);
+  }
+
+  function validateEditableImage(file) {
+    if (!file) return 'No file selected.';
+    if (file.size > MAX_ADMIN_UPLOAD_BYTES) return 'Max file size is 25MB.';
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (!EDITABLE_IMAGE_MIMES.includes(file.type) || !['png', 'jpg', 'jpeg', 'webp'].includes(ext)) {
+      return 'Image editor supports PNG, JPG, JPEG, and WEBP only.';
+    }
+    return '';
+  }
+
+  async function uploadAdminFile(file, label = 'Uploading...') {
+    if (!file) throw new Error('No file selected.');
+    if (file.size > MAX_ADMIN_UPLOAD_BYTES) throw new Error('Max file size is 25MB.');
+    setUploadStatus(label, 'var(--yellow)');
+    showUploadProgress(12);
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/admin/upload`, {
+      method: 'POST',
+      headers: { 'x-admin-secret': ADMIN_KEY },
+      body: formData
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      finishUploadProgress(false);
+      throw new Error(data.error || 'Upload failed');
+    }
+    finishUploadProgress(true);
+    return data;
   }
 
   async function handleFileSelect(e) {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 25 * 1024 * 1024) { alert('Max file size is 25MB.'); return; }
-
-    const status = document.getElementById('upload-status');
-    status.textContent = 'Uploading...';
-    status.style.color = 'var(--yellow)';
-
-    const formData = new FormData();
-    formData.append('file', file);
 
     try {
-      const res = await fetch(`${API}/admin/upload`, { method: 'POST', headers: { 'x-admin-secret': ADMIN_KEY }, body: formData });
-      const data = await res.json();
-      if (data.success) {
-        studioMediaUrl = data.url;
-        const mediaKind = data.mediaKind || mediaElementTypeForStudio(studioType);
-        status.textContent = '✓ Uploaded successfully';
-        status.style.color = 'var(--green)';
-        document.getElementById('upload-header').textContent = `✓ ${(UPLOAD_META[studioType]?.noun || 'MEDIA')} UPLOADED`;
-        document.getElementById('upload-header').style.color = 'var(--green)';
-        document.getElementById('upload-zone').style.display = 'none';
-        document.getElementById('upload-preview-wrap').style.display = '';
-        renderUploadPreview(data.url, mediaKind);
-        // Sync to canvas media elements
-        studioElements = studioElements.map(el => MEDIA_ELEMENT_TYPES.includes(el.type) ? { ...el, src: data.url } : el);
-        renderCanvas();
-      } else {
-        status.textContent = '✗ ' + (data.error || 'Upload failed');
-        status.style.color = 'var(--red)';
+      if (isImageEditorMode() && file.type.startsWith('image/')) {
+        const error = validateEditableImage(file);
+        if (error) throw new Error(error);
+        await openImageEditor(file);
+        setUploadStatus('Image ready. Edit it, preview it, then save the final version.', 'var(--green)');
+        return;
       }
+
+      if (file.size > MAX_ADMIN_UPLOAD_BYTES) throw new Error('Max file size is 25MB.');
+      const data = await uploadAdminFile(file, 'Uploading media...');
+      applyUploadedMedia(data.url, data.mediaKind || mediaElementTypeForStudio(studioType));
+      setUploadStatus('Uploaded successfully', 'var(--green)');
     } catch (err) {
-      status.textContent = '✗ ' + err.message;
-      status.style.color = 'var(--red)';
+      setUploadStatus(err.message || 'Upload failed', 'var(--red)');
+      alert(err.message || 'Upload failed');
+    } finally {
+      e.target.value = '';
     }
-    e.target.value = '';
+  }
+
+  function applyUploadedMedia(url, mediaKind = 'image') {
+    studioMediaUrl = url;
+    studioImageAsset = mediaKind === 'image' ? studioImageAsset : null;
+    document.getElementById('upload-header').textContent = `${(UPLOAD_META[studioType]?.noun || 'MEDIA')} READY`;
+    document.getElementById('upload-header').style.color = 'var(--green)';
+    document.getElementById('upload-zone').style.display = 'none';
+    document.getElementById('upload-preview-wrap').style.display = '';
+    renderUploadPreview(url, mediaKind);
+    studioElements = studioElements.map(el => MEDIA_ELEMENT_TYPES.includes(el.type) ? { ...el, src: url } : el);
+    renderCanvas();
+  }
+
+  function imageOrientation(width, height) {
+    if (width === height) return 'square';
+    return width > height ? 'landscape' : 'portrait';
+  }
+
+  function baseImageEditorSnapshot() {
+    if (!imageEditor) return null;
+    return {
+      width: imageEditor.width,
+      height: imageEditor.height,
+      crop: { ...imageEditor.crop },
+      zoom: imageEditor.zoom,
+      rotation: imageEditor.rotation,
+      flipX: imageEditor.flipX,
+      flipY: imageEditor.flipY,
+      offsetX: imageEditor.offsetX,
+      offsetY: imageEditor.offsetY,
+      maintainAspect: imageEditor.maintainAspect,
+      previewDevice: imageEditor.previewDevice
+    };
+  }
+
+  function pushImageEditorHistory() {
+    const snap = baseImageEditorSnapshot();
+    if (!snap) return;
+    const last = imageEditorHistory[imageEditorHistory.length - 1];
+    if (last && JSON.stringify(last) === JSON.stringify(snap)) return;
+    imageEditorHistory.push(snap);
+    if (imageEditorHistory.length > 40) imageEditorHistory.shift();
+    imageEditorFuture = [];
+    updateImageEditorButtons();
+  }
+
+  function restoreImageEditorSnapshot(snap) {
+    if (!imageEditor || !snap) return;
+    Object.assign(imageEditor, {
+      width: snap.width,
+      height: snap.height,
+      crop: { ...snap.crop },
+      zoom: snap.zoom,
+      rotation: snap.rotation,
+      flipX: snap.flipX,
+      flipY: snap.flipY,
+      offsetX: snap.offsetX,
+      offsetY: snap.offsetY,
+      maintainAspect: snap.maintainAspect,
+      previewDevice: snap.previewDevice
+    });
+    clampImageEditor();
+    renderImageEditor();
+  }
+
+  function updateImageEditorButtons() {
+    const undo = document.getElementById('image-editor-undo');
+    const redo = document.getElementById('image-editor-redo');
+    if (undo) undo.disabled = imageEditorHistory.length === 0;
+    if (redo) redo.disabled = imageEditorFuture.length === 0;
+  }
+
+  function undoImageEdit() {
+    if (!imageEditor || imageEditorHistory.length === 0) return;
+    imageEditorFuture.push(baseImageEditorSnapshot());
+    restoreImageEditorSnapshot(imageEditorHistory.pop());
+    updateImageEditorButtons();
+  }
+
+  function redoImageEdit() {
+    if (!imageEditor || imageEditorFuture.length === 0) return;
+    imageEditorHistory.push(baseImageEditorSnapshot());
+    restoreImageEditorSnapshot(imageEditorFuture.pop());
+    updateImageEditorButtons();
+  }
+
+  function clampImageEditor() {
+    if (!imageEditor) return;
+    const maxW = imageEditor.originalWidth;
+    const maxH = imageEditor.originalHeight;
+    imageEditor.width = Math.max(64, Math.min(4096, Math.round(imageEditor.width || maxW)));
+    imageEditor.height = Math.max(64, Math.min(4096, Math.round(imageEditor.height || maxH)));
+    imageEditor.zoom = Math.max(0.25, Math.min(3, Number(imageEditor.zoom) || 1));
+    imageEditor.rotation = Math.max(-180, Math.min(180, Number(imageEditor.rotation) || 0));
+    imageEditor.crop.width = Math.max(1, Math.min(maxW, Math.round(imageEditor.crop.width || maxW)));
+    imageEditor.crop.height = Math.max(1, Math.min(maxH, Math.round(imageEditor.crop.height || maxH)));
+    imageEditor.crop.x = Math.max(0, Math.min(maxW - imageEditor.crop.width, Math.round(imageEditor.crop.x || 0)));
+    imageEditor.crop.y = Math.max(0, Math.min(maxH - imageEditor.crop.height, Math.round(imageEditor.crop.y || 0)));
+  }
+
+  function setImageEditorFormValues() {
+    if (!imageEditor) return;
+    const ids = {
+      'image-editor-width': imageEditor.width,
+      'image-editor-height': imageEditor.height,
+      'image-editor-zoom': imageEditor.zoom,
+      'image-editor-rotation': imageEditor.rotation,
+      'image-editor-crop-x': imageEditor.crop.x,
+      'image-editor-crop-y': imageEditor.crop.y,
+      'image-editor-crop-w': imageEditor.crop.width,
+      'image-editor-crop-h': imageEditor.crop.height
+    };
+    Object.entries(ids).forEach(([id, value]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    });
+    const aspect = document.getElementById('image-editor-aspect');
+    if (aspect) aspect.checked = imageEditor.maintainAspect;
+    const zoomOut = document.getElementById('image-editor-zoom-out');
+    const rotationOut = document.getElementById('image-editor-rotation-out');
+    if (zoomOut) zoomOut.textContent = `${Math.round(imageEditor.zoom * 100)}%`;
+    if (rotationOut) rotationOut.textContent = `${Math.round(imageEditor.rotation)} deg`;
+    const dimensions = document.getElementById('image-editor-dimensions');
+    if (dimensions) dimensions.textContent = `${imageEditor.width} x ${imageEditor.height}px final`;
+    const meta = document.getElementById('image-editor-meta');
+    if (meta) meta.textContent = `${imageEditor.originalWidth} x ${imageEditor.originalHeight}px source | ${imageOrientation(imageEditor.width, imageEditor.height)} | ${formatBytes(imageEditor.file.size)}`;
+  }
+
+  function drawEditedImageToCanvas(canvas) {
+    if (!imageEditor || !canvas) return null;
+    clampImageEditor();
+    canvas.width = imageEditor.width;
+    canvas.height = imageEditor.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#050508';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.translate(canvas.width / 2 + imageEditor.offsetX, canvas.height / 2 + imageEditor.offsetY);
+    ctx.rotate((imageEditor.rotation * Math.PI) / 180);
+    ctx.scale((imageEditor.flipX ? -1 : 1) * imageEditor.zoom, (imageEditor.flipY ? -1 : 1) * imageEditor.zoom);
+    ctx.drawImage(
+      imageEditor.image,
+      imageEditor.crop.x,
+      imageEditor.crop.y,
+      imageEditor.crop.width,
+      imageEditor.crop.height,
+      -canvas.width / 2,
+      -canvas.height / 2,
+      canvas.width,
+      canvas.height
+    );
+    ctx.restore();
+    return canvas;
+  }
+
+  function renderImageEditor() {
+    if (!imageEditor) return;
+    clampImageEditor();
+    setImageEditorFormValues();
+
+    const canvas = document.getElementById('image-editor-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const displayW = canvas.width;
+    const displayH = canvas.height;
+    ctx.clearRect(0, 0, displayW, displayH);
+    ctx.fillStyle = '#030306';
+    ctx.fillRect(0, 0, displayW, displayH);
+
+    for (let x = 0; x < displayW; x += 24) {
+      for (let y = 0; y < displayH; y += 24) {
+        ctx.fillStyle = (x / 24 + y / 24) % 2 ? 'rgba(255,255,255,.025)' : 'rgba(255,255,255,.045)';
+        ctx.fillRect(x, y, 24, 24);
+      }
+    }
+
+    const outputCanvas = document.createElement('canvas');
+    drawEditedImageToCanvas(outputCanvas);
+    const scale = Math.min((displayW - 56) / imageEditor.width, (displayH - 56) / imageEditor.height, 1);
+    const w = imageEditor.width * scale;
+    const h = imageEditor.height * scale;
+    const x = (displayW - w) / 2;
+    const y = (displayH - h) / 2;
+
+    ctx.shadowColor = 'rgba(0,255,208,.22)';
+    ctx.shadowBlur = 22;
+    ctx.drawImage(outputCanvas, x, y, w, h);
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = 'rgba(0,255,208,.52)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, w, h);
+    ctx.setLineDash([8, 8]);
+    ctx.strokeStyle = 'rgba(251,191,36,.9)';
+    ctx.strokeRect(x + w * .1, y + h * .1, w * .8, h * .8);
+    ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(251,191,36,.9)';
+    ctx.font = '12px monospace';
+    ctx.fillText('SAFE AREA', x + w * .1 + 8, y + h * .1 + 18);
+
+    renderImageDevicePreviews(outputCanvas);
+    updateImageEditorButtons();
+  }
+
+  function renderImageDevicePreviews(outputCanvas) {
+    if (!outputCanvas) return;
+    const dataUrl = outputCanvas.toDataURL('image/webp', 0.9);
+    ['desktop', 'tablet', 'mobile'].forEach(device => {
+      const img = document.getElementById(`image-preview-${device}`);
+      if (img) img.src = dataUrl;
+      const tab = document.getElementById(`device-tab-${device}`);
+      if (tab) tab.classList.toggle('active', imageEditor.previewDevice === device);
+    });
+    if (imageEditorCompareOpen) {
+      const original = document.getElementById('image-compare-original');
+      const edited = document.getElementById('image-compare-edited');
+      if (original) original.src = imageEditor.sourceUrl;
+      if (edited) edited.src = dataUrl;
+    }
+  }
+
+  function setImageEditorSize(axis, rawValue) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    const value = Math.max(64, Math.min(4096, parseInt(rawValue, 10) || 64));
+    if (axis === 'width') {
+      imageEditor.width = value;
+      if (imageEditor.maintainAspect) imageEditor.height = Math.round(value / imageEditor.aspect);
+    } else {
+      imageEditor.height = value;
+      if (imageEditor.maintainAspect) imageEditor.width = Math.round(value * imageEditor.aspect);
+    }
+    renderImageEditor();
+  }
+
+  function setImageEditorAspectLock(locked) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    imageEditor.maintainAspect = !!locked;
+    renderImageEditor();
+  }
+
+  function setImageEditorRange(key, rawValue) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    imageEditor[key] = Number(rawValue);
+    renderImageEditor();
+  }
+
+  function rotateImageEditor(delta) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    imageEditor.rotation = ((imageEditor.rotation + delta + 180) % 360) - 180;
+    renderImageEditor();
+  }
+
+  function flipImageEditor(axis) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    if (axis === 'x') imageEditor.flipX = !imageEditor.flipX;
+    if (axis === 'y') imageEditor.flipY = !imageEditor.flipY;
+    renderImageEditor();
+  }
+
+  function setImageEditorCrop(key, rawValue) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    imageEditor.crop[key] = parseInt(rawValue, 10) || 0;
+    renderImageEditor();
+  }
+
+  function applyCropPreset(preset) {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    const ow = imageEditor.originalWidth;
+    const oh = imageEditor.originalHeight;
+    if (preset === 'full') {
+      imageEditor.crop = { x: 0, y: 0, width: ow, height: oh };
+    } else {
+      const ratio = preset === 'square' ? 1 : preset === '16:9' ? 16 / 9 : 4 / 5;
+      let width = ow;
+      let height = Math.round(width / ratio);
+      if (height > oh) {
+        height = oh;
+        width = Math.round(height * ratio);
+      }
+      imageEditor.crop = {
+        x: Math.round((ow - width) / 2),
+        y: Math.round((oh - height) / 2),
+        width,
+        height
+      };
+      if (imageEditor.maintainAspect) {
+        imageEditor.width = Math.min(1200, Math.max(320, width));
+        imageEditor.height = Math.round(imageEditor.width / ratio);
+        imageEditor.aspect = ratio;
+      }
+    }
+    renderImageEditor();
+  }
+
+  function setImagePreviewDevice(device) {
+    if (!imageEditor) return;
+    imageEditor.previewDevice = device;
+    renderImageEditor();
+  }
+
+  function toggleImageCompare() {
+    imageEditorCompareOpen = !imageEditorCompareOpen;
+    const wrap = document.getElementById('image-compare-wrap');
+    if (wrap) wrap.style.display = imageEditorCompareOpen ? '' : 'none';
+    renderImageEditor();
+  }
+
+  function resetImageEditor() {
+    if (!imageEditor) return;
+    pushImageEditorHistory();
+    Object.assign(imageEditor, imageEditor.initial);
+    imageEditor.crop = { ...imageEditor.initial.crop };
+    renderImageEditor();
+  }
+
+  function cancelImageEditor(silent = false) {
+    imageEditor = null;
+    imageEditorHistory = [];
+    imageEditorFuture = [];
+    imageEditorCompareOpen = false;
+    imageEditorDrag = null;
+    const panel = document.getElementById('image-editor-panel');
+    const wrap = document.getElementById('image-compare-wrap');
+    if (panel) panel.style.display = 'none';
+    if (wrap) wrap.style.display = 'none';
+    updateImageEditorButtons();
+    if (!silent) setUploadStatus('Image editing cancelled.', 'var(--text3)');
+  }
+
+  async function openImageEditor(file) {
+    const error = validateEditableImage(file);
+    if (error) throw new Error(error);
+    const sourceUrl = URL.createObjectURL(file);
+    const image = new Image();
+    const loaded = new Promise((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error('Could not read this image.'));
+    });
+    image.src = sourceUrl;
+    await loaded;
+
+    const initialWidth = Math.min(1200, image.naturalWidth);
+    const initialHeight = Math.round(initialWidth / (image.naturalWidth / image.naturalHeight));
+    const initial = {
+      width: initialWidth,
+      height: initialHeight,
+      crop: { x: 0, y: 0, width: image.naturalWidth, height: image.naturalHeight },
+      zoom: 1,
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+      offsetX: 0,
+      offsetY: 0,
+      maintainAspect: true,
+      previewDevice: 'desktop'
+    };
+
+    imageEditor = {
+      file,
+      sourceUrl,
+      image,
+      originalWidth: image.naturalWidth,
+      originalHeight: image.naturalHeight,
+      aspect: image.naturalWidth / image.naturalHeight,
+      ...initial,
+      crop: { ...initial.crop },
+      initial
+    };
+    studioImageAsset = null;
+    imageEditorHistory = [];
+    imageEditorFuture = [];
+    const panel = document.getElementById('image-editor-panel');
+    if (panel) panel.style.display = '';
+    renderImageEditor();
+    setEditorToast('Preview is live. Save Final Image when it looks right.', 'ok');
+  }
+
+  function initImageEditorCanvas() {
+    const canvas = document.getElementById('image-editor-canvas');
+    if (!canvas) return;
+    canvas.addEventListener('mousedown', event => {
+      if (!imageEditor) return;
+      pushImageEditorHistory();
+      canvas.classList.add('dragging');
+      imageEditorDrag = {
+        startX: event.clientX,
+        startY: event.clientY,
+        offsetX: imageEditor.offsetX,
+        offsetY: imageEditor.offsetY
+      };
+    });
+    window.addEventListener('mousemove', event => {
+      if (!imageEditor || !imageEditorDrag) return;
+      const scale = Math.min((canvas.width - 56) / imageEditor.width, (canvas.height - 56) / imageEditor.height, 1);
+      imageEditor.offsetX = imageEditorDrag.offsetX + (event.clientX - imageEditorDrag.startX) / Math.max(scale, 0.1);
+      imageEditor.offsetY = imageEditorDrag.offsetY + (event.clientY - imageEditorDrag.startY) / Math.max(scale, 0.1);
+      renderImageEditor();
+    });
+    window.addEventListener('mouseup', () => {
+      if (!imageEditorDrag) return;
+      imageEditorDrag = null;
+      canvas.classList.remove('dragging');
+    });
+  }
+
+  function syncEditedImageToStudio(url) {
+    if (!imageEditor || !url) return;
+    const maxWidth = studioType === 'image_only' ? 340 : 320;
+    const maxHeight = studioType === 'image_only' ? 360 : 210;
+    const scale = Math.min(maxWidth / imageEditor.width, maxHeight / imageEditor.height, 1);
+    const width = Math.max(120, Math.round(imageEditor.width * scale));
+    const height = Math.max(90, Math.round(imageEditor.height * scale));
+    const y = studioType === 'image_only' ? 12 : 10;
+    let found = false;
+    studioElements = studioElements.map(el => {
+      if (el.type !== 'image') return el;
+      found = true;
+      return {
+        ...el,
+        src: url,
+        x: Math.round((CANVAS_W - width) / 2),
+        y: el.y ?? y,
+        width,
+        height,
+        borderRadius: el.borderRadius ?? 8,
+        opacity: el.opacity ?? 1
+      };
+    });
+    if (!found) {
+      studioElements.unshift({
+        id: 'riddle-image',
+        type: 'image',
+        src: url,
+        x: Math.round((CANVAS_W - width) / 2),
+        y,
+        width,
+        height,
+        borderRadius: 8,
+        opacity: 1
+      });
+    }
+    renderCanvas();
+    renderElementList();
+    renderInspector();
+  }
+
+  async function saveImageAssetMetadata(payload) {
+    const res = await fetch(`${API}/admin/image-assets`, {
+      method: 'POST',
+      headers: adminHeaders(true),
+      body: JSON.stringify(payload)
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) throw new Error(data.error || 'Could not save image metadata.');
+    return data.asset;
+  }
+
+  async function saveEditedImage() {
+    if (!imageEditor) return;
+    const saveBtn = document.getElementById('image-editor-save');
+    try {
+      if (saveBtn) saveBtn.disabled = true;
+      setEditorToast('Uploading original image...', '');
+      const originalUpload = await uploadAdminFile(imageEditor.file, 'Uploading original image...');
+
+      const outputCanvas = document.createElement('canvas');
+      drawEditedImageToCanvas(outputCanvas);
+      const blob = await new Promise(resolve => outputCanvas.toBlob(resolve, 'image/webp', 0.92));
+      if (!blob) throw new Error('Could not create edited image.');
+      const safeBase = imageEditor.file.name.replace(/\.[^.]+$/, '').replace(/[^a-z0-9_-]+/gi, '-').replace(/^-+|-+$/g, '') || 'riddle-image';
+      const finalFile = new File([blob], `${safeBase}-edited.webp`, { type: 'image/webp' });
+
+      setEditorToast('Uploading edited image...', '');
+      const finalUpload = await uploadAdminFile(finalFile, 'Uploading edited image...');
+      const metadata = {
+        original_image_url: originalUpload.url,
+        final_image_url: finalUpload.url,
+        width: imageEditor.width,
+        height: imageEditor.height,
+        rotation: imageEditor.rotation,
+        crop: { ...imageEditor.crop },
+        orientation: imageOrientation(imageEditor.width, imageEditor.height),
+        file_size: finalFile.size,
+        uploaded_by: 'crackl-admin',
+        metadata: {
+          source_width: imageEditor.originalWidth,
+          source_height: imageEditor.originalHeight,
+          source_file_name: imageEditor.file.name,
+          source_file_size: imageEditor.file.size,
+          source_mime_type: imageEditor.file.type,
+          final_mime_type: finalFile.type,
+          zoom: imageEditor.zoom,
+          offset_x: imageEditor.offsetX,
+          offset_y: imageEditor.offsetY,
+          flip_x: imageEditor.flipX,
+          flip_y: imageEditor.flipY,
+          preview_device: imageEditor.previewDevice,
+          saved_at: new Date().toISOString()
+        }
+      };
+      const asset = await saveImageAssetMetadata(metadata);
+      studioImageAsset = { ...metadata, id: asset.id };
+      applyUploadedMedia(finalUpload.url, 'image');
+      syncEditedImageToStudio(finalUpload.url);
+      setEditorToast('Final image saved and attached to this riddle.', 'ok');
+      setUploadStatus('Edited image saved successfully.', 'var(--green)');
+    } catch (err) {
+      setEditorToast(err.message || 'Image save failed.', 'err');
+      setUploadStatus(err.message || 'Image save failed.', 'var(--red)');
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
   }
 
   function removeUpload() {
     studioMediaUrl = '';
+    studioImageAsset = null;
+    cancelImageEditor(true);
     document.getElementById('upload-zone').style.display = '';
     document.getElementById('upload-preview-wrap').style.display = 'none';
     document.getElementById('upload-status').textContent = '';
@@ -1520,17 +2957,31 @@
   }
 
   // ─── Add Single (updated for studio) ──────────────────────────────────
-  function clearForm() {
-    ['f-question','f-answer','f-options','f-hint','f-category','f-funfact','f-explanation','f-family','f-timer'].forEach(id => {
+  function clearForm(options = {}) {
+    const preserveResult = !!options.preserveResult;
+    ['f-question','f-answer','f-options','f-hint','f-category','f-funfact','f-explanation','f-family','f-timer','f-aliases','f-required','f-forbidden','f-rubric'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.value = '';
     });
     document.getElementById('f-mode').value = '';
     document.getElementById('f-diff').value = '';
+    document.getElementById('f-tier').value = '';
     document.getElementById('f-onboard').checked = false;
-    document.getElementById('single-result').textContent = '';
+    document.getElementById('f-semantic-enabled').checked = false;
+    document.getElementById('f-strictness').value = 'normal';
+    if (!preserveResult) document.getElementById('single-result').textContent = '';
     removeUpload();
     setRiddleType('text');
+  }
+
+  function csvListFromInput(id) {
+    const el = document.getElementById(id);
+    return (el?.value || '').split(',').map(s => s.trim()).filter(Boolean);
+  }
+
+  function csvListToInputValue(value) {
+    if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+    return value || '';
   }
 
   async function submitSingle() {
@@ -1538,6 +2989,7 @@
     const a = document.getElementById('f-answer').value.trim();
     const m = document.getElementById('f-mode').value;
     const d = document.getElementById('f-diff').value;
+    const tier = normalizeTier(document.getElementById('f-tier').value, d);
     const exp = document.getElementById('f-explanation').value.trim();
     const el = document.getElementById('single-result');
 
@@ -1554,12 +3006,16 @@
     const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
     const timer = parseInt(document.getElementById('f-timer').value) || null;
 
-    const layoutConfig = studioElements.length > 0 ? { canvas: { width: 375, height: 667 }, elements: studioElements.map(e => ({ ...e })) } : null;
+    const layoutConfig = studioElements.length > 0 ? {
+      canvas: { width: 375, height: 667 },
+      elements: studioElements.map(e => ({ ...e })),
+      image_editor: studioImageAsset || null
+    } : null;
 
     const payload = {
       riddles: [{
         question: q || (studioType === 'image_only' ? '[Visual Riddle]' : ''),
-        answer: a, game_mode: m, difficulty: d,
+        answer: a, game_mode: m, difficulty: d, difficulty_tier: tier,
         options: opts,
         hint: document.getElementById('f-hint').value.trim() || null,
         category: document.getElementById('f-category').value.trim() || null,
@@ -1571,6 +3027,12 @@
         riddle_type: studioType,
         media_url: studioMediaUrl || null,
         layout_config: layoutConfig,
+        semantic_check_enabled: document.getElementById('f-semantic-enabled').checked,
+        answer_strictness: document.getElementById('f-strictness').value,
+        accepted_aliases: csvListFromInput('f-aliases'),
+        required_keywords: csvListFromInput('f-required'),
+        forbidden_meanings: csvListFromInput('f-forbidden'),
+        answer_rubric: document.getElementById('f-rubric').value.trim() || null,
       }]
     };
 
@@ -1578,8 +3040,8 @@
       const res = await fetch(`${API}/admin/riddle/add`, { method: 'POST', headers: adminHeaders(true), body: JSON.stringify(payload) });
       const data = await res.json();
       if (data.success && data.added > 0) {
-        el.innerHTML = '<span style="color:var(--green)">✓ Riddle published!</span>';
-        clearForm();
+        clearForm({ preserveResult: true });
+        document.getElementById('single-result').innerHTML = '<span style="color:var(--green)">✓ Riddle published!</span>';
         loadStats();
       } else {
         const err = data.results?.[0]?.error || data.error || 'Unknown error';
@@ -1596,6 +3058,7 @@
     const diffSel = document.getElementById('f-diff');
     if (diffSel) diffSel.addEventListener('change', () => renderCanvas());
     initStudio();
+    initImageEditorCanvas();
     // Initial viewport transform — call after a tick so the DOM has rendered
     setTimeout(applyViewportTransform, 50);
   });
@@ -1643,42 +3106,111 @@
   }
 
   // ─── Manage ──────────────────────────────────────────────────────────────
+  function updateBulkSelectionUI() {
+    const count = selectedRiddleIds.size;
+    const countEl = document.getElementById('bulk-count');
+    if (countEl) countEl.textContent = `${count} selected`;
+
+    const allVisibleSelected = manageVisibleIds.length > 0 && manageVisibleIds.every(id => selectedRiddleIds.has(id));
+    const pageToggle = document.getElementById('mg-select-page');
+    if (pageToggle) pageToggle.checked = allVisibleSelected;
+
+    document.querySelectorAll('.mg-row-check').forEach(input => {
+      input.checked = selectedRiddleIds.has(input.value);
+    });
+  }
+
+  function toggleRiddleSelection(id, checked) {
+    if (checked) selectedRiddleIds.add(id);
+    else selectedRiddleIds.delete(id);
+    updateBulkSelectionUI();
+  }
+
+  function toggleSelectCurrentPage(checked) {
+    manageVisibleIds.forEach(id => {
+      if (checked) selectedRiddleIds.add(id);
+      else selectedRiddleIds.delete(id);
+    });
+    updateBulkSelectionUI();
+  }
+
+  function clearBulkSelection() {
+    selectedRiddleIds.clear();
+    updateBulkSelectionUI();
+  }
+
+  function describeBulkDeleteResult(data) {
+    const deleted = data.deleted?.length || 0;
+    const archived = data.archived?.length || 0;
+    const skipped = data.skipped?.length || 0;
+    const missing = data.notFound?.length || 0;
+    return `${deleted} deleted, ${archived} archived, ${skipped} skipped${missing ? `, ${missing} missing` : ''}.`;
+  }
+
+  async function bulkDeleteSelected(purge = false) {
+    const ids = [...selectedRiddleIds];
+    if (ids.length === 0) {
+      alert('Select at least one riddle first.');
+      return;
+    }
+
+    if (purge) {
+      const typed = prompt(`Purge ${ids.length} selected riddle(s) everywhere?\n\nThis removes linked user history, session queues, and challenge links. Type DELETE to continue.`);
+      if (typed !== 'DELETE') return;
+    } else if (!confirm(`Delete ${ids.length} selected riddle(s)?\n\nReferenced riddles will be archived safely; clean drafts will be removed.`)) {
+      return;
+    }
+
+    const result = document.getElementById('manage-result');
+    result.innerHTML = `<div class="result-banner info"><span class="spinner"></span> ${purge ? 'Purging' : 'Deleting'} ${ids.length} riddle(s)…</div>`;
+    try {
+      const res = await fetch(`${API}/admin/riddles/delete`, {
+        method: 'POST',
+        headers: adminHeaders(true),
+        body: JSON.stringify({ ids, purge })
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error || 'Bulk delete failed');
+      ids.forEach(id => selectedRiddleIds.delete(id));
+      result.innerHTML = `<div class="result-banner success">✓ ${describeBulkDeleteResult(data)}</div>`;
+      await loadManage(managePage);
+      loadStats();
+    } catch (e) {
+      result.innerHTML = `<div class="result-banner error">Bulk delete failed: ${escapeHtml(e.message || 'Network error')}</div>`;
+    }
+  }
+
   async function loadManage(page = 1) {
     managePage = page;
     const mode   = document.getElementById('mg-mode').value;
     const diff   = document.getElementById('mg-diff').value;
+    const tier   = document.getElementById('mg-tier').value;
     const active = document.getElementById('mg-active').value;
+    const review = document.getElementById('mg-review').value;
     const typeFilter = document.getElementById('mg-type').value;
     const search = document.getElementById('mg-search').value.trim();
 
     const params = new URLSearchParams({ page, limit: LIMIT });
     if (mode) params.set('mode', mode);
     if (diff) params.set('difficulty', diff);
+    if (tier) params.set('difficulty_tier', tier);
     if (active !== '') params.set('is_active', active);
+    if (review) params.set('review_status', review);
+    if (typeFilter) params.set('type', typeFilter);
+    if (search) params.set('search', search);
 
     const tbody = document.getElementById('manage-tbody');
-    tbody.innerHTML = '<tr><td colspan="7" class="empty"><span class="spinner"></span></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="empty"><span class="spinner"></span></td></tr>';
 
     try {
       const res = await fetch(`${API}/admin/riddles?${params}`, { headers: adminHeaders() });
       const data = await res.json();
       let riddles = data.riddles || [];
       manageTotal = data.total || 0;
-
-      // Client-side text search
-      if (search) {
-        const s = search.toLowerCase();
-        riddles = riddles.filter(r => r.question?.toLowerCase().includes(s) || r.answer?.toLowerCase().includes(s));
-      }
-      // Client-side type filter
-      if (typeFilter === 'image') {
-        riddles = riddles.filter(r => r.riddle_type === 'image_text' || r.riddle_type === 'image_only');
-      } else if (typeFilter === 'text') {
-        riddles = riddles.filter(r => !r.riddle_type || r.riddle_type === 'text');
-      }
+      manageVisibleIds = riddles.map(r => r.id).filter(Boolean);
 
       if (riddles.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">No riddles found.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty">No riddles found.</td></tr>';
       } else {
         tbody.innerHTML = riddles.map(r => {
           const isImage = r.riddle_type === 'image_text' || r.riddle_type === 'image_only';
@@ -1691,15 +3223,20 @@
             : '';
           return `
             <tr>
+              <td class="check-cell">
+                <input class="mg-row-check" type="checkbox" value="${escapeAttr(r.id)}" onchange="toggleRiddleSelection('${escapeAttr(r.id)}', this.checked)" ${selectedRiddleIds.has(r.id) ? 'checked' : ''} />
+              </td>
               <td><div style="display:flex;align-items:center;gap:6px">${thumb}<span class="q-text" title="${escapeAttr(r.question || '')}">${escapeHtml(r.question || '—')}</span></div></td>
               <td>${typeBadge}</td>
               <td>${modeBadge(r.game_mode)}</td>
               <td>${diffBadge(r.difficulty)}</td>
+              <td>${tierBadge(r.difficulty_tier, r.difficulty)}</td>
               <td style="color:var(--text3)">${r.times_served || 0}</td>
               <td>
                 ${r.is_active ? '<span class="badge badge-easy">Active</span>' : '<span class="badge badge-inactive">Off</span>'}
                 ${r.is_onboarding ? '<span class="badge badge-onboard" style="margin-left:4px">New</span>' : ''}
               </td>
+              <td>${reviewStatusBadge(r.review_status)}</td>
               <td>
                 <div class="actions">
                   <button class="btn-ghost btn-sm" onclick="openEdit(decodeURIComponent('${editArg(r)}'))">Edit</button>
@@ -1712,8 +3249,9 @@
       }
 
       renderPagination(manageTotal, page);
+      updateBulkSelectionUI();
     } catch {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty">Error loading riddles.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="10" class="empty">Error loading riddles.</td></tr>';
     }
   }
 
@@ -1734,7 +3272,7 @@
     try {
       const res = await fetch(`${API}/admin/riddle/${id}`, { method: 'DELETE', headers: adminHeaders() });
       const data = await res.json();
-      if (data.success) { loadManage(managePage); loadStats(); }
+      if (data.success) { selectedRiddleIds.delete(id); loadManage(managePage); loadStats(); }
       else { alert('Delete failed: ' + (data.error || 'Unknown error')); btn.disabled = false; btn.textContent = 'Del'; }
     } catch { alert('Network error'); btn.disabled = false; btn.textContent = 'Del'; }
   }
@@ -1745,8 +3283,16 @@
     document.getElementById('edit-riddle-type').value = r.riddle_type || 'text';
     document.getElementById('edit-question').value = r.question || '';
     document.getElementById('edit-answer').value = r.answer || '';
+    document.getElementById('edit-semantic-enabled').checked = r.semantic_check_enabled === true;
+    document.getElementById('edit-strictness').value = r.answer_strictness || 'normal';
+    document.getElementById('edit-aliases').value = csvListToInputValue(r.accepted_aliases);
+    document.getElementById('edit-required').value = csvListToInputValue(r.required_keywords);
+    document.getElementById('edit-forbidden').value = csvListToInputValue(r.forbidden_meanings);
+    document.getElementById('edit-rubric').value = r.answer_rubric || '';
     document.getElementById('edit-mode').value = r.game_mode || 'arena';
     document.getElementById('edit-diff').value = r.difficulty || 'Easy';
+    document.getElementById('edit-tier').value = String(normalizeTier(r.difficulty_tier, r.difficulty || 'Easy'));
+    document.getElementById('edit-review').value = r.review_status || (r.is_active === false ? 'archived' : 'approved');
     document.getElementById('edit-options').value = Array.isArray(r.options) ? r.options.join(', ') : (r.options || '');
     document.getElementById('edit-hint').value = r.hint || '';
     document.getElementById('edit-category').value = r.category || '';
@@ -1790,6 +3336,7 @@
     const optRaw = document.getElementById('edit-options').value.trim();
     const m = document.getElementById('edit-mode').value;
     const d = document.getElementById('edit-diff').value;
+    const tier = normalizeTier(document.getElementById('edit-tier').value, d);
     if (!q || !a || !exp || !m || !d) { alert('Question, Answer, Explanation, Mode, and Difficulty are all required.'); return; }
     const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
     const timer = parseInt(document.getElementById('edit-timer').value) || null;
@@ -1801,6 +3348,8 @@
       answer: a,
       game_mode: m,
       difficulty: d,
+      difficulty_tier: tier,
+      review_status: document.getElementById('edit-review').value,
       options: opts,
       hint: document.getElementById('edit-hint').value.trim() || null,
       category: document.getElementById('edit-category').value.trim() || null,
@@ -1811,6 +3360,12 @@
       is_onboarding: document.getElementById('edit-onboard').checked,
       is_active: document.getElementById('edit-active').checked,
       media_url: cleanMediaUrl || null,
+      semantic_check_enabled: document.getElementById('edit-semantic-enabled').checked,
+      answer_strictness: document.getElementById('edit-strictness').value,
+      accepted_aliases: csvListFromInput('edit-aliases'),
+      required_keywords: csvListFromInput('edit-required'),
+      forbidden_meanings: csvListFromInput('edit-forbidden'),
+      answer_rubric: document.getElementById('edit-rubric').value.trim() || null,
     };
     try {
       const res = await fetch(`${API}/admin/riddle/${id}`, { method: 'PUT', headers: adminHeaders(true), body: JSON.stringify(payload) });
@@ -1861,6 +3416,7 @@
     switchTab(1);
     document.getElementById('f-mode').value = mode;
     document.getElementById('f-diff').value = diff;
+    document.getElementById('f-tier').value = String(defaultTierForDifficulty(diff));
     document.getElementById('f-question').focus();
   }
 
@@ -1961,7 +3517,7 @@
       if (!q || !a) continue;
       const optRaw = oInputs[i].value.trim();
       const opts = optRaw ? optRaw.split(',').map(s => s.trim()).filter(Boolean) : null;
-      riddles.push({ question: q, answer: a, hint: hInputs[i].value.trim() || null, options: opts, game_mode: 'chain', difficulty: diff, family_id: familyId, is_onboarding: false });
+      riddles.push({ question: q, answer: a, hint: hInputs[i].value.trim() || null, options: opts, game_mode: 'chain', difficulty: diff, difficulty_tier: defaultTierForDifficulty(diff), family_id: familyId, is_onboarding: false });
     }
 
     if (riddles.length === 0) { el.innerHTML = '<div class="result-banner error">Add at least one riddle.</div>'; return; }

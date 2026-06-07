@@ -1,15 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import Colors from '../theme/colors';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Icons from '../components/Icons';
+import { clearAuthSession } from '../utils/authSession';
 
 const isWeb = Platform.OS === 'web';
 
 export default function SettingsScreen({ user, go }) {
   const handleSignOut = async () => {
-    await AsyncStorage.removeItem('crackl_user');
-    await AsyncStorage.removeItem('crackl_token');
+    await clearAuthSession();
     go('auth');
   };
 
@@ -91,7 +90,7 @@ export default function SettingsScreen({ user, go }) {
           </Text>
         </View>
         <Text style={{ color: Colors.textMuted, fontFamily: 'Share Tech Mono', fontSize: 12, lineHeight: 18, marginBottom: 4 }}>
-          Manage your operative profile, account access, and system identity.
+          Manage your operative profile, account access, legal rules, and system identity.
         </Text>
 
         {/* Account */}
@@ -112,6 +111,18 @@ export default function SettingsScreen({ user, go }) {
               last
             />
           )}
+        </View>
+
+        {/* Legal */}
+        <SectionTitle title="Legal & Safety" />
+        <View style={{ backgroundColor: 'rgba(15,15,26,0.5)', paddingHorizontal: 16, borderRadius: 14, borderWidth: 1, borderColor: Colors.borderDefault }}>
+          <LinkRow
+            icon={Icons.ShieldIcon}
+            label="Terms, Privacy & Fair Play"
+            desc="Gameplay rules, data use, rewards policy, and community safety"
+            dest={() => go('legal')}
+            last
+          />
         </View>
 
         {/* System */}

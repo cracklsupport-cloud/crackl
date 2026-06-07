@@ -174,8 +174,10 @@ export default function AuthThemeDefault(props) {
   const {
     step, loginId, setLoginId, email, setEmail, tag, pass, setPass, pass2, setPass2, otp, setOtp,
     showPass, remember, setRemember, loading, err, tagAvail,
+    legalAccepted, setLegalAccepted,
     switchStep, checkTag, handleAction, promptAsync, request,
     fadeAnim,
+    openLegal,
   } = props;
 
   return (
@@ -193,7 +195,7 @@ export default function AuthThemeDefault(props) {
 
           <View style={{ position: isWeb ? 'absolute' : 'relative', top: isWeb ? 48 : 24, left: isWeb ? 48 : 24, zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 16 }}>
             <View style={{ width: 52, height: 52, backgroundColor: '#0a0a0a', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, borderRadius: 6, alignItems: 'center', justifyContent: 'center', padding: 4 }}>
-              <Image source={BrainImage} style={{ width: '100%', height: '100%', resizeMode: 'contain' }} />
+              <Image source={BrainImage} resizeMode="contain" style={{ width: '100%', height: '100%' }} />
             </View>
             <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, fontWeight: 'bold', letterSpacing: 2, fontSize: 20, color: '#9ca3af' }}>
               CRACKL <Text style={{ color: '#a855f7' }}>V5.0</Text>
@@ -219,7 +221,8 @@ export default function AuthThemeDefault(props) {
             ) : (
               <Image
                 source={BrainImage}
-                style={{ width: '1000%', height: undefined, aspectRatio: 1, resizeMode: 'contain', opacity: 0.98, transform: [{ translateX: 270 }, { scale: 1.06 }] }}
+                resizeMode="contain"
+                style={{ width: '1000%', height: undefined, aspectRatio: 1, opacity: 0.98, transform: [{ translateX: 270 }, { scale: 1.06 }] }}
               />
             )}
           </View>
@@ -322,7 +325,37 @@ export default function AuthThemeDefault(props) {
                     <GlassField placeholder="•••••••••" value={pass} onChangeText={setPass} secure icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} />
                     <GlassLabel>Confirm Key</GlassLabel>
                     <GlassField placeholder="•••••••••" value={pass2} onChangeText={setPass2} secure onSubmitEditing={handleAction} icon={<Text style={{ color: '#4b5563', fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined }}>🔒</Text>} />
-                    <TouchableOpacity onPress={handleAction} disabled={loading || tagAvail === false} style={[{ marginTop: 32, borderRadius: 4, opacity: loading || tagAvail === false ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(139,92,246,0.3)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}>
+
+                    <TouchableOpacity
+                      onPress={() => setLegalAccepted(!legalAccepted)}
+                      style={[{
+                        marginTop: 18,
+                        padding: 12,
+                        borderRadius: 4,
+                        borderWidth: 1,
+                        borderColor: legalAccepted ? 'rgba(168,85,247,0.65)' : 'rgba(255,255,255,0.1)',
+                        backgroundColor: legalAccepted ? 'rgba(168,85,247,0.1)' : 'rgba(255,255,255,0.025)',
+                        flexDirection: 'row',
+                        alignItems: 'flex-start',
+                        gap: 10
+                      }, isWeb ? { cursor: 'pointer' } : {}]}
+                    >
+                      <View style={{ width: 18, height: 18, borderRadius: 3, borderWidth: 1, borderColor: legalAccepted ? '#a855f7' : '#4b5563', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                        {legalAccepted && <Icons.CheckIcon size={12} color="#a855f7" />}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: legalAccepted ? '#ddd6fe' : '#9ca3af', fontSize: 10, lineHeight: 16, textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                          I accept CRACKL Terms, Privacy, Fair Play, and Rewards rules.
+                        </Text>
+                        <TouchableOpacity onPress={(event) => { event?.stopPropagation?.(); openLegal?.(); }} disabled={!openLegal} style={{ alignSelf: 'flex-start', marginTop: 6 }}>
+                          <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#a855f7', fontSize: 9, fontWeight: 'bold', letterSpacing: 1.1, textTransform: 'uppercase' }}>
+                            Review legal command center
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity onPress={handleAction} disabled={loading || tagAvail === false || !legalAccepted} style={[{ marginTop: 24, borderRadius: 4, opacity: loading || tagAvail === false || !legalAccepted ? 0.6 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(139,92,246,0.3)', cursor: 'pointer', transition: 'all 0.3s ease' } : {}]}>
                       <LinearGradient colors={['#9333ea', '#6b21a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 4, paddingVertical: 16, alignItems: 'center', width: '100%' }}>
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>{'>_ REGISTER IDENTITY ->'}</Text>}
                       </LinearGradient>
@@ -359,6 +392,15 @@ export default function AuthThemeDefault(props) {
                         {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: isWeb ? '"Space Grotesk", sans-serif' : undefined, color: '#fff', fontWeight: 'bold', fontSize: 14, letterSpacing: 2 }}>{'>_ CONFIRM OVERRIDE ->'}</Text>}
                       </LinearGradient>
                     </TouchableOpacity>
+                  </View>
+                )}
+                {openLegal && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 24, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+                    {['Terms', 'Privacy', 'Fair Play', 'Rewards'].map((label) => (
+                      <TouchableOpacity key={label} onPress={openLegal} style={isWeb ? { cursor: 'pointer' } : undefined}>
+                        <Text style={{ fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined, color: '#6b7280', fontSize: 9, fontWeight: 'bold', letterSpacing: 1.2, textTransform: 'uppercase' }}>{label}</Text>
+                      </TouchableOpacity>
+                    ))}
                   </View>
                 )}
               </View>

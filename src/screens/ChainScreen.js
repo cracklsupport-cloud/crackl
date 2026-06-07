@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView, ActivityIndicator, Platform, 
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 import RiddleContent from '../components/RiddleContent';
 
 const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
-const grotesk = isWeb ? '"Black Ops One", sans-serif' : undefined;
+const grotesk = isWeb ? '"Space Grotesk", sans-serif' : 'Chakra Petch';
 
 function CornerBrackets() {
   const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 20 };
@@ -55,6 +55,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
   const timerRef = useRef(null);
   const timeLeftRef = useRef(0);
   const accent = Colors.emerald;
+  const totalSteps = chainData?.totalSteps || 5;
 
   useEffect(() => () => clearInterval(timerRef.current), []);
 
@@ -86,7 +87,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
     currentRiddleRef.current = null;
     clearInterval(timerRef.current);
     try {
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/chain/start`, { method:'POST', headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})}, body:JSON.stringify({ userId:user.id, city:user.city, area:user.area, xp:user.xp||0, panicMode: !!panicMode }) });
       const data = await res.json();
       if (data.success) {
@@ -136,7 +137,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
     try {
       const limit = activeRiddle?.timeLimit || 0;
       const timeTaken = panicMode ? Math.max(0, limit - timeLeftRef.current) : 0;
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/chain/answer`, { method:'POST', headers:{'Content-Type':'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {})}, body:JSON.stringify({ userId:user.id, chainId:chainData.chainId, step, riddleId:activeRiddle.id, userAnswer:final, panicMode: !!panicMode, chainToken, timeTaken }) });
       const data = await res.json(); setResult(data);
       if (data.isCorrect) {
@@ -175,7 +176,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
       </TouchableOpacity>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: accent+'12', borderWidth: 1, borderColor: accent+'30' }}>
         <Icons.LinkIcon size={14} color={accent} />
-        <Text style={{ color: accent, fontFamily: mono, fontWeight: '900', fontSize: 12, letterSpacing: 2 }}>THE CHAIN {phase==='playing'?`${step+1}/5`:''}</Text>
+        <Text style={{ color: accent, fontFamily: mono, fontWeight: '900', fontSize: 12, letterSpacing: 2 }}>THE CHAIN {phase==='playing'?`${step+1}/${totalSteps}`:''}</Text>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: Colors.gold+'10', borderWidth: 1, borderColor: Colors.gold+'30' }}>
         <Icons.IntelIcon size={14} color={Colors.gold} />
@@ -193,8 +194,8 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
         <Text style={{ color: Colors.textPrimary, fontFamily: grotesk, fontSize: 32, fontWeight: '900', marginTop: 24, textAlign: 'center', letterSpacing: 1, textTransform: 'uppercase' }}>The Chain</Text>
         <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 15, marginTop: 12, textAlign: 'center', lineHeight: 24 }}>
           {panicMode
-            ? '5 linked decryption sequences. The next node only unlocks if you crack the current one before the breach timer expires.'
-            : '5 decryption sequences linked together. Each correct node unlocks the next. Fall short, and the chain breaks. Secure all 5 nodes for a 250 credit yield.'}
+            ? 'A locked chain of decryption sequences. The next node only unlocks if you crack the current one before the breach timer expires.'
+            : 'A locked chain of decryption sequences. Each correct node unlocks the next. Fall short, and the chain breaks. Secure the full run for a 250 credit yield.'}
         </Text>
         <View style={{ flexDirection: 'row', gap: 10, marginTop: 40 }}>
           {[1,2,3,4,5].map(i => (
@@ -218,7 +219,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 40 }}>
         <Icons.TargetIcon size={80} color={Colors.gold} />
         <Text style={{ color: Colors.gold, fontFamily: grotesk, fontSize: 42, fontWeight: '900', marginTop: 24, letterSpacing: 2 }}>CHAIN SECURED</Text>
-        <Text style={{ color: Colors.textSecondary, fontFamily: mono, marginTop: 16, fontSize: 16, letterSpacing: 1 }}>ALL 5 NODES DECRYPTED SUCCESSFULLY.</Text>
+        <Text style={{ color: Colors.textSecondary, fontFamily: mono, marginTop: 16, fontSize: 16, letterSpacing: 1 }}>ALL {totalSteps} NODES DECRYPTED SUCCESSFULLY.</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 32, backgroundColor: Colors.gold+'15', paddingHorizontal: 32, paddingVertical: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.gold+'40' }}>
           <Icons.IntelIcon size={24} color={Colors.gold} />
           <Text style={{ color: Colors.gold, fontFamily: mono, fontSize: 36, fontWeight: '900' }}>+{totalCoins}</Text>
@@ -237,7 +238,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
       <ScrollView contentContainerStyle={{ maxWidth: 740, alignSelf: 'center', width: '100%', paddingHorizontal: 24, paddingTop: 20, paddingBottom: 80 }} showsVerticalScrollIndicator={false}>
         {/* Chain progress */}
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
-          {[1,2,3,4,5].map(i => <View key={i} style={[{ flex: 1, height: 6, borderRadius: 3 }, isWeb ? { backgroundColor: i<=step+1 ? accent : 'rgba(255,255,255,0.05)', transition: 'background-color 0.5s ease' } : { backgroundColor: i<=step+1 ? accent : 'rgba(255,255,255,0.05)' }]} />)}
+          {Array.from({ length: totalSteps }, (_, i) => i + 1).map(i => <View key={i} style={[{ flex: 1, height: 6, borderRadius: 3 }, isWeb ? { backgroundColor: i<=step+1 ? accent : 'rgba(255,255,255,0.05)', transition: 'background-color 0.5s ease' } : { backgroundColor: i<=step+1 ? accent : 'rgba(255,255,255,0.05)' }]} />)}
         </View>
 
         {panicMode && timeLeft > 0 && !result ? (
@@ -250,7 +251,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
         ) : null}
 
         {/* Question */}
-        <View style={[{ backgroundColor: 'rgba(10,10,12,0.8)', borderRadius: 24, padding: 28, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', marginBottom: 24, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
+        <View style={[{ backgroundColor: 'rgba(10,10,12,0.82)', borderRadius: 8, padding: 30, borderWidth: 1, borderColor: accent + '25', marginBottom: 18, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: `0 18px 60px rgba(0,0,0,0.5), 0 0 34px ${accent}0F` } : {}]}>
           <CornerBrackets />
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingBottom: 12 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -259,7 +260,11 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
             </View>
             <Text style={{ fontFamily: mono, fontSize: 11, color: 'rgba(255,255,255,0.3)', letterSpacing: 1.8 }}>LINK_{(step+1).toString().padStart(2,'0')}</Text>
           </View>
-          <RiddleContent riddle={currentRiddle} accent={accent} />
+          <RiddleContent
+            riddle={currentRiddle}
+            accent={accent}
+            questionStyle={{ fontFamily: grotesk, fontSize: 36, lineHeight: 46, fontWeight: '900' }}
+          />
         </View>
 
         {/* Options */}
@@ -269,14 +274,14 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
           return (
             <TouchableOpacity key={i} style={[{
               flexDirection: 'row', alignItems: 'center', gap: 16,
-              padding: 18, borderRadius: 12, marginBottom: 10,
+              padding: 18, borderRadius: 8, marginBottom: 10,
               backgroundColor: right?Colors.emerald+'12':wrong?Colors.rose+'12':'rgba(255,255,255,0.02)',
               borderWidth: 1.5, borderColor: right?Colors.emerald+'55':wrong?Colors.rose+'55':'rgba(255,255,255,0.07)'
             }, isWeb ? { transition: 'all 0.2s ease', cursor: 'pointer' } : {}]} onPress={() => !result && submitAnswer(opt)} disabled={!!result} activeOpacity={0.7}>
-              <View style={{ width: 36, height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.1)' }}>
-                <Text style={{ color: right||wrong?'#000':Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 15 }}>{['A','B','C','D'][i]}</Text>
+              <View style={{ width: 40, height: 40, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: right?Colors.emerald:wrong?Colors.rose:'rgba(255,255,255,0.1)' }}>
+                <Text style={{ color: right||wrong?'#000':Colors.textMuted, fontFamily: mono, fontWeight: '900', fontSize: 16 }}>{['A','B','C','D'][i]}</Text>
               </View>
-              <Text style={{ flex: 1, color: right?Colors.emerald:wrong?'#fca5a5':Colors.textPrimary, fontFamily: 'Chakra Petch', fontSize: 15, fontWeight: '600', letterSpacing: 0.3 }}>{opt}</Text>
+              <Text style={{ flex: 1, color: right?Colors.emerald:wrong?'#fca5a5':Colors.textPrimary, fontFamily: grotesk, fontSize: 18, fontWeight: '700', lineHeight: 26, letterSpacing: 0.1 }}>{opt}</Text>
             </TouchableOpacity>
           );
         }) : !result && (
@@ -285,9 +290,9 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
             <TextInput
               style={[{
                 backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? accent+'60' : 'rgba(255,255,255,0.08)',
-                borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
-                color: Colors.textPrimary, fontFamily: mono, fontSize: 18, fontWeight: '900',
-                letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+                borderRadius: 8, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 140,
+                color: Colors.textPrimary, fontFamily: mono, fontSize: 20, fontWeight: '900',
+                letterSpacing: 0.8, textTransform: 'uppercase', minHeight: 76,
               }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? `0 0 15px ${accent}20` : 'none' } : {}]}
               placeholder={nextLoading ? 'ESTABLISHING NEXT LINK...' : 'ENTER DECRYPTION KEY...'}
               placeholderTextColor={Colors.textMuted}
@@ -306,7 +311,7 @@ export default function ChainScreen({ user, go, exitToHome, update, panicMode })
               onPress={() => typed.trim() && !answering && !nextLoading && submitAnswer(typed.trim())}
               disabled={!typed.trim() || answering || nextLoading}
             >
-              {answering || nextLoading ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 12, letterSpacing: 2, textTransform: 'uppercase' }}>Execute</Text>}
+              {answering || nextLoading ? <ActivityIndicator color="#000" size="small" /> : <Text style={{ color: '#000', fontFamily: grotesk, fontWeight: '900', fontSize: 13, letterSpacing: 1.4, textTransform: 'uppercase' }}>Execute</Text>}
             </TouchableOpacity>
           </View>
         )}

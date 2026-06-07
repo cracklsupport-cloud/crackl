@@ -7,7 +7,7 @@ import Colors from '../theme/colors';
 import { useResponsive } from '../theme/breakpoints';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 
 const isWeb = Platform.OS === 'web';
 const mono    = isWeb ? '"JetBrains Mono", monospace' : undefined;
@@ -181,12 +181,12 @@ export default function MultiSetupScreen({ user, go, setRoom }) {
   const tickerAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     Animated.loop(
-      Animated.timing(tickerAnim, { toValue: -1200, duration: 22000, useNativeDriver: true })
+      Animated.timing(tickerAnim, { toValue: -1200, duration: 22000, useNativeDriver: Platform.OS !== 'web' })
     ).start();
   }, []);
 
   async function getAuthHeaders() {
-    const token = await AsyncStorage.getItem('crackl_token');
+    const token = await getAuthToken();
     return {
       'Content-Type': 'application/json',
       ...(token ? { Authorization: `Bearer ${token}` } : {})
@@ -216,7 +216,7 @@ export default function MultiSetupScreen({ user, go, setRoom }) {
       const res = await fetch(`${BACKEND}/room/create`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ hostId: user.id, hostName: user.username, ...preparedCfg }),
+        body: JSON.stringify({ hostName: user.username, ...preparedCfg }),
       });
       const data = await res.json();
       if (data.success) {
@@ -240,7 +240,7 @@ export default function MultiSetupScreen({ user, go, setRoom }) {
       const res = await fetch(`${BACKEND}/room/join`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ roomId: code.trim().toUpperCase(), userId: user.id, username: user.username }),
+        body: JSON.stringify({ roomId: code.trim().toUpperCase(), username: user.username }),
       });
       const data = await res.json();
       if (data.success) {
@@ -524,44 +524,23 @@ export default function MultiSetupScreen({ user, go, setRoom }) {
         {/* ── Divider ── */}
         <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginBottom: 20 }} />
 
-        {/* ── SQUAD SIZE + SHOWDOWN WAGER ── */}
-        <View style={{ flexDirection: isWide ? 'row' : 'column', gap: isWide ? 0 : 20, marginBottom: 28 }}>
-          <View style={{ flex: 1, paddingRight: isWide ? 24 : 0 }}>
+        {/* ── SQUAD SIZE ── */}
+        <View style={{ marginBottom: 28 }}>
+          <View>
             <SectionLabel icon={Icons.UsersIcon} label="SQUAD SIZE" accentColor={Colors.fuchsia} />
-            <View style={{ flexDirection: 'row', gap: 10 }}>
+            <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
               {[2, 3, 4, 5].map(v => (
                 <NumPill key={v} value={String(v)} active={cfg.maxPlayers === v} accentColor={Colors.fuchsia}
                   onPress={() => setCfg({ ...cfg, maxPlayers: v })} />
               ))}
             </View>
-          </View>
-
-          {isWide && <View style={{ width: 1, backgroundColor: 'rgba(255,255,255,0.06)' }} />}
-
-          <View style={{ flex: 1, paddingLeft: isWide ? 24 : 0 }}>
-            <SectionLabel icon={Icons.IntelIcon} label="SHOWDOWN WAGER" accentColor={Colors.gold} />
-            {(cfg.engagement === 'versus' && cfg.mode === 'wager') ? (
-              <View style={{ borderRadius: 12, borderWidth: 1, borderColor: Colors.gold+'35', backgroundColor: Colors.gold+'08', padding: 16 }}>
-                <Text style={{ color: Colors.gold, fontFamily: mono, fontSize: 13, fontWeight: '900', letterSpacing: 0.8 }}>
-                  {selectedWager || 0} Intel each / {projectedPot || 0} Intel projected pot
-                </Text>
-                <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, lineHeight: 18, letterSpacing: 0.4, marginTop: 8 }}>
-                  Stake is configured in the Blind Wager Buy-In panel above so it stays visible before launch.
-                </Text>
-              </View>
-            ) : cfg.engagement === 'versus' ? (
-              <View style={{ borderRadius: 12, borderWidth: 1, borderColor: Colors.borderDefault, backgroundColor: 'rgba(255,255,255,0.02)', padding: 16 }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 12, lineHeight: 18 }}>
-                  Pick `BLIND WAGER` in Operation Type to unlock the custom showdown stake.
-                </Text>
-              </View>
-            ) : (
-              <View style={{ borderRadius: 12, borderWidth: 1, borderColor: Colors.borderDefault, backgroundColor: 'rgba(255,255,255,0.02)', padding: 16 }}>
-                <Text style={{ color: Colors.textSecondary, fontFamily: mono, fontSize: 12, lineHeight: 18 }}>
-                  Allied Ops runs without wagers. The team clears the sequence together, so only the operation type and Panic rule apply here.
-                </Text>
-              </View>
-            )}
+            <Text style={{ color: Colors.textMuted, fontFamily: mono, fontSize: 11, lineHeight: 18, letterSpacing: 0.4, marginTop: 10 }}>
+              {isBlindWagerSetup
+                ? 'The buy-in panel above handles the stake. Squad size controls the projected pot.'
+                : cfg.engagement === 'coop'
+                  ? 'Allied Ops clears together. No Blind Wager, no Cold Case, no extra stake panel.'
+                  : 'Dead Heat runs head-to-head or in a small free-for-all.'}
+            </Text>
           </View>
         </View>
 
@@ -732,7 +711,7 @@ export default function MultiSetupScreen({ user, go, setRoom }) {
         }}>
           <Animated.View style={{ transform: [{ translateX: tickerAnim }], flexDirection: 'row', width: 3600 }}>
             <Text style={{ fontFamily: mono, fontSize: 10, color: 'rgba(255,255,255,0.35)', letterSpacing: 2.8 }}>
-              {'/// DEAD HEAT - FIRST OPERATIVE TO CRACK IT WINS /// ALLIED OPS - SOLVE AS A UNIT /// WAR ROOM IS LIVE /// PRIVATE SESSIONS AVAILABLE /// SELECT YOUR ENGAGEMENT TYPE AND DEPLOY /// '.repeat(6)}
+              {'/// DEAD HEAT - FIRST OPERATIVE TO CRACK IT WINS /// ALLIED OPS - SOLVE AS A UNIT /// WAR ROOM IS LIVE /// PRIVATE SESSIONS AVAILABLE /// SELECT YOUR ENGAGEMENT TYPE AND DECRYPT /// '.repeat(6)}
             </Text>
           </Animated.View>
         </View>
@@ -740,7 +719,7 @@ export default function MultiSetupScreen({ user, go, setRoom }) {
         {/* ── Session Type Tabs ── */}
         <View style={{ flexDirection: 'row', gap: isPhone ? 8 : 12, marginBottom: isPhone ? 18 : 28 }}>
           {[
-            { key: 'create', label: isPhone ? 'DEPLOY' : 'DEPLOY SESSION', icon: Icons.PlusIcon, color: Colors.purple },
+            { key: 'create', label: isPhone ? 'DECRYPT' : 'DECRYPT SESSION', icon: Icons.PlusIcon, color: Colors.purple },
             { key: 'join',   label: 'INFILTRATE',     icon: Icons.TargetIcon, color: Colors.cyan },
           ].map(({ key, label, icon: IconComp, color }) => {
             const active = tab === key;

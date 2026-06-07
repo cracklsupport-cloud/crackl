@@ -55,8 +55,10 @@ export default function AuthThemeDefault(props) {
   const {
     step, loginId, setLoginId, email, setEmail, tag, pass, setPass, pass2, setPass2, otp, setOtp,
     showPass, remember, setRemember, loading, err, tagAvail,
+    legalAccepted, setLegalAccepted,
     switchStep, checkTag, handleAction, promptAsync, request,
     fadeAnim,
+    openLegal,
   } = props;
 
   const { width: winW } = useWindowDimensions();
@@ -124,7 +126,7 @@ export default function AuthThemeDefault(props) {
           {/* Logo top-left */}
           <Animated.View style={{ zIndex: 20, flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 64, marginLeft: 64 }}>
             <View style={[{ width: 48, height: 48, backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 2, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }, isWeb ? { boxShadow: '0 0 20px rgba(0,255,208,0.1)' } : {}]}>
-              <Image source={BrainImage} style={{ width: 48 * 1.6, height: 48 * 1.6, resizeMode: 'cover' }} />
+              <Image source={BrainImage} resizeMode="cover" style={{ width: 48 * 1.6, height: 48 * 1.6 }} />
             </View>
             <View>
               <Text style={{ fontFamily: grotesk, fontWeight: '900', letterSpacing: 4, fontSize: 24, color: '#fff', textTransform: 'uppercase' }}>
@@ -175,8 +177,9 @@ export default function AuthThemeDefault(props) {
           <View pointerEvents="none" style={{ position: 'absolute', right: -60, top: '15%', bottom: '15%', justifyContent: 'center', alignItems: 'center', zIndex: 10, opacity: 0.85 }}>
             <Image
               source={BrainImage}
+              resizeMode="contain"
               style={{
-                width: 480, height: 480, resizeMode: 'contain',
+                width: 480, height: 480,
                 ...(isWeb ? { filter: 'saturate(1.8) contrast(1.3) brightness(1.1)', mixBlendMode: 'screen', maskImage: 'radial-gradient(ellipse at center, black 50%, transparent 75%)', WebkitMaskImage: 'radial-gradient(ellipse at center, black 50%, transparent 75%)' } : { opacity: 0.5, tintColor: '#00ffd0' }),
               }}
             />
@@ -202,7 +205,7 @@ export default function AuthThemeDefault(props) {
             {isMobile && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 40, alignSelf: 'center' }}>
                 <View style={{ width: 44, height: 44, backgroundColor: 'rgba(0,0,0,0.5)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 2, borderRadius: 12, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                  <Image source={BrainImage} style={{ width: 44 * 1.6, height: 44 * 1.6, resizeMode: 'cover' }} />
+                  <Image source={BrainImage} resizeMode="cover" style={{ width: 44 * 1.6, height: 44 * 1.6 }} />
                 </View>
                 <Text style={{ fontFamily: grotesk, fontWeight: '900', letterSpacing: 3, fontSize: 20, color: '#fff' }}>
                   CRACKL <Text style={{ color: 'rgba(255,255,255,0.4)', fontFamily: mono, fontSize: 12 }}>V5.0</Text>
@@ -349,10 +352,39 @@ export default function AuthThemeDefault(props) {
                   
                   <GlassLabel>Confirm Key</GlassLabel>
                   <GlassField placeholder="••••••••••••" value={pass2} onChangeText={setPass2} secure onSubmitEditing={handleAction} focusColor="#a855f7" icon={<Icons.LockIcon size={14} color="#64748b" />} />
+
+                  <TouchableOpacity
+                    onPress={() => setLegalAccepted(!legalAccepted)}
+                    style={[{
+                      marginTop: 18,
+                      padding: 12,
+                      borderRadius: 8,
+                      borderWidth: 1,
+                      borderColor: legalAccepted ? 'rgba(0,255,208,0.55)' : 'rgba(255,255,255,0.12)',
+                      backgroundColor: legalAccepted ? 'rgba(0,255,208,0.08)' : 'rgba(255,255,255,0.03)',
+                      flexDirection: 'row',
+                      alignItems: 'flex-start',
+                      gap: 10
+                    }, isWeb ? { cursor: 'pointer' } : {}]}
+                  >
+                    <View style={{ width: 18, height: 18, borderRadius: 4, borderWidth: 1, borderColor: legalAccepted ? '#00ffd0' : '#64748b', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+                      {legalAccepted && <Icons.CheckIcon size={12} color="#00ffd0" />}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontFamily: mono, color: legalAccepted ? '#d1fae5' : '#cbd5e1', fontSize: 10, lineHeight: 16, letterSpacing: 0.8, textTransform: 'uppercase' }}>
+                        I accept CRACKL Terms, Privacy, Fair Play, and Rewards rules.
+                      </Text>
+                      <TouchableOpacity onPress={(event) => { event?.stopPropagation?.(); openLegal?.(); }} disabled={!openLegal} style={{ alignSelf: 'flex-start', marginTop: 6 }}>
+                        <Text style={{ fontFamily: mono, color: '#00ffd0', fontSize: 9, letterSpacing: 1.2, textTransform: 'uppercase', fontWeight: '900' }}>
+                          Review legal command center
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </TouchableOpacity>
                   
                   <TouchableOpacity
-                    onPress={handleAction} disabled={loading || tagAvail === false}
-                    style={[{ marginTop: 32, borderRadius: 12, overflow: 'hidden', opacity: loading || tagAvail === false ? 0.5 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(168,85,247,0.3)', cursor: 'pointer' } : {}]}
+                    onPress={handleAction} disabled={loading || tagAvail === false || !legalAccepted}
+                    style={[{ marginTop: 24, borderRadius: 12, overflow: 'hidden', opacity: loading || tagAvail === false || !legalAccepted ? 0.5 : 1 }, isWeb ? { boxShadow: '0 0 20px rgba(168,85,247,0.3)', cursor: 'pointer' } : {}]}
                   >
                     <LinearGradient colors={['#9333ea', '#6b21a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ borderRadius: 12, paddingVertical: 18, alignItems: 'center', width: '100%' }}>
                       {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: grotesk, color: '#fff', fontWeight: '900', fontSize: 12, letterSpacing: 4, textTransform: 'uppercase' }}>{'>_ Register Identity'}</Text>}
@@ -413,6 +445,16 @@ export default function AuthThemeDefault(props) {
                       {loading ? <ActivityIndicator color="#fff" /> : <Text style={{ fontFamily: grotesk, color: '#fff', fontWeight: '900', fontSize: 12, letterSpacing: 4, textTransform: 'uppercase' }}>{'>_ Confirm Override'}</Text>}
                     </LinearGradient>
                   </TouchableOpacity>
+                </View>
+              )}
+
+              {openLegal && (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 12, marginTop: 28, paddingTop: 18, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.08)' }}>
+                  {['Terms', 'Privacy', 'Fair Play', 'Rewards'].map((label) => (
+                    <TouchableOpacity key={label} onPress={openLegal} style={isWeb ? { cursor: 'pointer' } : undefined}>
+                      <Text style={{ fontFamily: mono, color: '#64748b', fontSize: 9, fontWeight: '900', letterSpacing: 1.4, textTransform: 'uppercase' }}>{label}</Text>
+                    </TouchableOpacity>
+                  ))}
                 </View>
               )}
 

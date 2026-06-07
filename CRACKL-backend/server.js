@@ -2,7 +2,14 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
-const { checkTypedAnswer, model: geminiModel } = require('./gemini');
+const {
+  checkTypedAnswer,
+  checkTypedAnswerDetailed,
+  model: geminiModel,
+  ANSWER_CHECK_MODEL,
+  ANSWER_CHECK_PROVIDER,
+  cleanAnswerText
+} = require('./gemini');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const nodemailer = require('nodemailer');
@@ -19,15 +26,27 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 const app = express();
 app.set('trust proxy', 1);
+app.disable('x-powered-by');
 const allowedOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : ['http://localhost:3000', 'https://crackl.app'];
 const isLocalWebOrigin = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin || '');
 app.use(cors({ origin: (origin, callback) => {
-  if (!origin || origin === 'null' || allowedOrigins.includes(origin) || isLocalWebOrigin(origin)) {
+  const isDevNullOrigin = process.env.NODE_ENV !== 'production' && origin === 'null';
+  if (!origin || isDevNullOrigin || allowedOrigins.includes(origin) || isLocalWebOrigin(origin)) {
     callback(null, true);
   } else {
     callback(new Error('Blocked by CORS'));
   }
 }}));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
+  if (process.env.NODE_ENV === 'production') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 app.use(express.json({ limit: '2mb' }));
 
 // Route-specific rate limits. Keep gameplay responsive, but cap abuse-heavy surfaces.
@@ -68,6 +87,53 @@ const DEFAULT_DEV_ADMIN_SECRET = 'crackl-admin-2026';
 const ADMIN_SECRET = process.env.ADMIN_SECRET || (process.env.NODE_ENV === 'production' ? null : DEFAULT_DEV_ADMIN_SECRET);
 if (process.env.NODE_ENV === 'production' && !ADMIN_SECRET) throw new Error('FATAL: ADMIN_SECRET environment variable is missing.');
 const MIN_WAGER_INTEL = 10;
+const AUTH_TOKEN_TTL = process.env.AUTH_TOKEN_TTL || '30d';
+const ADMIN_AUDIT_REDACT_KEYS = new Set(['password', 'password_hash', 'newPassword', 'token', 'otp', 'secret', 'x-admin-secret', 'answer']);
+const ADMIN_OPERATOR_ROLES = ['owner', 'editor', 'support', 'auditor'];
+const ADMIN_MUTATION_ROLES = ['owner', 'editor'];
+const ADMIN_SUPPORT_ROLES = ['owner', 'editor', 'support'];
+const VALID_REVIEW_STATUSES = ['draft', 'review', 'approved', 'archived'];
+const VALID_REPORT_STATUSES = ['open', 'reviewing', 'resolved', 'dismissed'];
+const VALID_SUPPORT_STATUSES = ['open', 'in_progress', 'resolved', 'closed'];
+const VALID_SUPPORT_PRIORITIES = ['low', 'normal', 'high', 'urgent'];
+const LEGAL_POLICY_VERSION = '2026-05-29';
+
+app.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    status: 'ok',
+    service: 'crackl-backend',
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/ready', async (req, res) => {
+  const startedAt = Date.now();
+  try {
+    const { error } = await supabase
+      .from('app_settings')
+      .select('key', { count: 'exact', head: true })
+      .limit(1);
+    if (error) throw error;
+    res.json({
+      success: true,
+      status: 'ready',
+      database: 'ok',
+      databasePingMs: Date.now() - startedAt,
+      checkedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      success: false,
+      status: 'not_ready',
+      database: 'issue',
+      databasePingMs: Date.now() - startedAt,
+      checkedAt: new Date().toISOString(),
+      error: 'Database readiness check failed.'
+    });
+  }
+});
 
 let transporter;
 if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
@@ -81,7 +147,21 @@ if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
 }
 
 // Safe answer comparison — avoids false positives from overly loose substring matching
-function isAnswerCorrect(userAnswer, correctAnswer) {
+function optionIndexFromAnswerKey(value, options = []) {
+  const key = String(value || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (!key || !Array.isArray(options) || options.length === 0) return -1;
+  if (/^[a-z]$/.test(key)) {
+    const index = key.charCodeAt(0) - 97;
+    return index >= 0 && index < options.length ? index : -1;
+  }
+  if (/^[1-9]\d*$/.test(key)) {
+    const index = parseInt(key, 10) - 1;
+    return index >= 0 && index < options.length ? index : -1;
+  }
+  return -1;
+}
+
+function isAnswerCorrect(userAnswer, correctAnswer, options = []) {
   const u = (userAnswer || '').toLowerCase().trim().replace(/\s+/g, ' ');
   const c = (correctAnswer || '').toLowerCase().trim().replace(/\s+/g, ' ');
   if (!u || u === '__timeout__') return false;
@@ -89,10 +169,28 @@ function isAnswerCorrect(userAnswer, correctAnswer) {
   // Strip punctuation and compare again
   const uClean = u.replace(/[^a-z0-9 ]/g, '');
   const cClean = c.replace(/[^a-z0-9 ]/g, '');
+  if (!uClean || !cClean) return false;
   if (uClean === cClean) return true;
+
+  const correctOptionIndex = optionIndexFromAnswerKey(cClean, options);
+  if (correctOptionIndex >= 0) {
+    const correctOption = options[correctOptionIndex];
+    const normalizedCorrectOption = String(correctOption || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const cleanCorrectOption = normalizedCorrectOption.replace(/[^a-z0-9 ]/g, '');
+    const userOptionIndex = optionIndexFromAnswerKey(uClean, options);
+    return userOptionIndex === correctOptionIndex || (!!cleanCorrectOption && cleanCorrectOption === uClean);
+  }
+
+  const userOptionIndex = optionIndexFromAnswerKey(uClean, options);
+  if (userOptionIndex >= 0) {
+    const selectedOption = options[userOptionIndex];
+    const cleanSelectedOption = String(selectedOption || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/[^a-z0-9 ]/g, '');
+    if (cleanSelectedOption && cleanSelectedOption === cClean) return true;
+  }
+
   // Allow user answer to be a meaningful substring of correct answer (e.g. "einstein" ⊂ "albert einstein")
   // Require at least 3 chars to avoid single-letter false positives
-  if (u.length >= 3 && cClean.includes(uClean)) return true;
+  if (uClean.length >= 3 && cClean.includes(uClean)) return true;
   return false;
 }
 
@@ -131,8 +229,10 @@ function getDifficultyTier(xp) {
 
 function buildTierSearchOrder(tier) {
   const requested = Math.max(1, Math.min(5, parseInt(tier, 10) || 1));
-  return [requested, requested - 1, requested + 1, requested - 2, requested + 2]
-    .filter((value, index, arr) => value >= 1 && value <= 5 && arr.indexOf(value) === index);
+  return [1, 2, 3, 4, 5].sort((a, b) => {
+    const distance = Math.abs(a - requested) - Math.abs(b - requested);
+    return distance || a - b;
+  });
 }
 
 function getRankedDifficultyTier(rating) {
@@ -173,7 +273,25 @@ function getRankDelta({ isCorrect, difficulty, timeTaken }) {
 }
 
 function makeRoomId() {
-  return Math.random().toString(36).substring(2, 8).toUpperCase();
+  return crypto.randomBytes(4).toString('base64url').replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
+}
+
+function normalizeRoomCode(value) {
+  return String(value || '').trim().replace(/[^A-Z0-9]/gi, '').slice(0, 6).toUpperCase();
+}
+
+async function makeUniqueRoomId() {
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const roomId = makeRoomId();
+    if (roomId.length < 6) continue;
+    const { data } = await supabase
+      .from('multiplayer_rooms')
+      .select('id')
+      .eq('id', roomId)
+      .maybeSingle();
+    if (!data) return roomId;
+  }
+  throw new Error('Could not allocate a unique room code. Try again.');
 }
 
 async function getAdminPanicTimerSeconds() {
@@ -182,8 +300,16 @@ async function getAdminPanicTimerSeconds() {
     .select('value')
     .eq('key', 'panic_timer_seconds')
     .single();
-  const parsed = parseInt(data?.value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 30;
+  return parsePositiveSeconds(data?.value) || 30;
+}
+
+function parsePositiveSeconds(value) {
+  const parsed = parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function resolveRiddlePanicTimerSeconds(riddle = null) {
+  return parsePositiveSeconds(riddle?.panic_time) || await getAdminPanicTimerSeconds();
 }
 
 function getPanicIntelBonus({ gameMode = 'arena', rewardBasis = 0, wager = 0, bountyPrize = 0, completed = false }) {
@@ -373,6 +499,7 @@ function serializeRiddlePayload(riddle, timeLimit = null) {
     hint: normalized.hint,
     fun_fact: normalized.fun_fact,
     timeLimit,
+    panic_time: parsePositiveSeconds(normalized.panic_time),
     isCurated: true,
     riddle_type: normalized.riddle_type || 'text',
     media_url: normalized.media_url || null,
@@ -399,10 +526,165 @@ async function incrementCoinsAtomic(userId, delta) {
     if (!user) return null;
     const nextTotal = Math.max(0, (user.coins || 0) + delta);
     await supabase.from('users').update({ coins: nextTotal }).eq('id', userId);
+    await syncLeaderboardForUser(userId);
     return nextTotal;
   }
 
-  return getUserCoins(userId);
+  const updatedTotal = await getUserCoins(userId);
+  await syncLeaderboardForUser(userId);
+  return updatedTotal;
+}
+
+async function debitCoinsWithBalanceGuard(userId, amount) {
+  const debit = Math.max(0, parseInt(amount, 10) || 0);
+  if (!userId || debit <= 0) return getUserCoins(userId);
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { data: user, error: readErr } = await supabase
+      .from('users')
+      .select('coins')
+      .eq('id', userId)
+      .single();
+    if (readErr || !user) {
+      const error = new Error('User balance could not be verified.');
+      error.statusCode = 404;
+      throw error;
+    }
+
+    const currentCoins = parseInt(user.coins, 10) || 0;
+    if (currentCoins < debit) {
+      const error = new Error(`You need at least ${debit} Intel to cover this action.`);
+      error.statusCode = 400;
+      throw error;
+    }
+
+    const { data: updated, error: updateErr } = await supabase
+      .from('users')
+      .update({ coins: currentCoins - debit })
+      .eq('id', userId)
+      .eq('coins', currentCoins)
+      .select('coins')
+      .maybeSingle();
+    if (updateErr) throw updateErr;
+    if (updated) {
+      await syncLeaderboardForUser(userId);
+      return updated.coins;
+    }
+  }
+
+  const conflict = new Error('Balance changed while locking Intel. Refresh and try again.');
+  conflict.statusCode = 409;
+  throw conflict;
+}
+
+async function syncLeaderboardForUser(userId, userSnapshot = null) {
+  if (!userId) return;
+  const user = userSnapshot || (await supabase
+    .from('users')
+    .select('username, city, coins')
+    .eq('id', userId)
+    .single()).data;
+
+  if (!user) return;
+
+  await supabase.from('leaderboard').upsert({
+    user_id: userId,
+    username: user.username || 'Operative',
+    city: user.city || 'Global',
+    coins: Math.max(0, parseInt(user.coins, 10) || 0),
+    week_start: getCurrentWeekStartDate(),
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'user_id,week_start' });
+}
+
+async function attachUserLevelsToLeaderboard(rows = []) {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const userIds = [...new Set(safeRows.map(row => row.user_id).filter(Boolean))];
+  if (!userIds.length) {
+    return safeRows.map(({ user_id, ...row }) => ({ ...row, level: row.level || null }));
+  }
+
+  const { data, error } = await supabase
+    .from('users')
+    .select('id, level')
+    .in('id', userIds);
+
+  if (error) {
+    console.warn('⚠️ leaderboard level hydration failed:', error.message);
+    return safeRows.map(({ user_id, ...row }) => ({ ...row, level: row.level || null }));
+  }
+
+  const levelByUserId = new Map((data || []).map(user => [user.id, user.level]));
+  return safeRows.map(({ user_id, ...row }) => ({
+    ...row,
+    level: levelByUserId.get(user_id) || row.level || null
+  }));
+}
+
+async function incrementUserStatsAtomic({
+  userId,
+  coinsDelta = 0,
+  xpDelta = 0,
+  streak = null,
+  playedDelta = 0,
+  correctDelta = 0,
+  syncLeaderboard = true
+}) {
+  if (!userId) return null;
+
+  const normalizedCoinsDelta = parseInt(coinsDelta, 10) || 0;
+  const normalizedXpDelta = parseInt(xpDelta, 10) || 0;
+  const normalizedPlayedDelta = parseInt(playedDelta, 10) || 0;
+  const normalizedCorrectDelta = parseInt(correctDelta, 10) || 0;
+  const normalizedStreak = streak === null || streak === undefined ? null : Math.max(0, parseInt(streak, 10) || 0);
+
+  const { error: rpcErr } = await supabase.rpc('increment_user_stats', {
+    p_user_id: userId,
+    p_coins_delta: normalizedCoinsDelta,
+    p_xp_delta: normalizedXpDelta,
+    p_streak: normalizedStreak,
+    p_played_delta: normalizedPlayedDelta,
+    p_correct_delta: normalizedCorrectDelta
+  });
+
+  if (rpcErr) {
+    console.warn('⚠️ increment_user_stats fallback:', rpcErr.message);
+    const { data: user } = await supabase
+      .from('users')
+      .select('coins, xp, level, streak, total_played, total_correct, username, city')
+      .eq('id', userId)
+      .single();
+    if (!user) return null;
+
+    const nextXp = Math.max(0, (parseInt(user.xp, 10) || 0) + normalizedXpDelta);
+    const payload = {
+      coins: Math.max(0, (parseInt(user.coins, 10) || 0) + normalizedCoinsDelta),
+      xp: nextXp,
+      level: calculateLevel(nextXp),
+      total_played: Math.max(0, (parseInt(user.total_played, 10) || 0) + normalizedPlayedDelta),
+      total_correct: Math.max(0, (parseInt(user.total_correct, 10) || 0) + normalizedCorrectDelta)
+    };
+    if (normalizedStreak !== null) payload.streak = normalizedStreak;
+
+    const { data: updated } = await supabase
+      .from('users')
+      .update(payload)
+      .eq('id', userId)
+      .select('coins, xp, level, streak, total_played, total_correct, username, city')
+      .single();
+
+    if (syncLeaderboard) await syncLeaderboardForUser(userId, updated || { ...user, ...payload });
+    return updated || { ...user, ...payload };
+  }
+
+  const { data: updatedUser } = await supabase
+    .from('users')
+    .select('coins, xp, level, streak, total_played, total_correct, username, city')
+    .eq('id', userId)
+    .single();
+
+  if (syncLeaderboard) await syncLeaderboardForUser(userId, updatedUser);
+  return updatedUser || null;
 }
 
 async function getRoomPlayers(roomId) {
@@ -493,7 +775,29 @@ function findPotentialDuplicateRiddle(candidate, corpus = []) {
   return null;
 }
 
-async function fetchProtectedRiddleRecord(riddleId, fields = 'id, answer, question, options, difficulty, difficulty_tier, hint, region, category') {
+const PROTECTED_ANSWER_FIELDS = [
+  'id',
+  'answer',
+  'question',
+  'options',
+  'difficulty',
+  'difficulty_tier',
+  'hint',
+  'region',
+  'category',
+  'panic_time',
+  'explanation',
+  'fun_fact',
+  'version',
+  'semantic_check_enabled',
+  'answer_strictness',
+  'accepted_aliases',
+  'required_keywords',
+  'forbidden_meanings',
+  'answer_rubric'
+].join(', ');
+
+async function fetchProtectedRiddleRecord(riddleId, fields = PROTECTED_ANSWER_FIELDS) {
   if (!riddleId) return null;
   const { data, error } = await supabase
     .from('riddles')
@@ -531,6 +835,295 @@ function resolveAuthenticatedActorId(req, claimedUserId = null) {
   return tokenUserId || claimedUserId || null;
 }
 
+const USERNAME_PATTERN = /^[a-zA-Z0-9_]{3,32}$/;
+const EMAIL_PATTERN = /^[^\s@,()]+@[^\s@,()]+\.[^\s@,()]+$/;
+
+function normalizeUsernameInput(value, fallback = 'Operative') {
+  const clean = String(value || fallback)
+    .trim()
+    .replace(/[^a-zA-Z0-9_]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 32);
+  if (USERNAME_PATTERN.test(clean)) return clean;
+  return `${fallback}_${crypto.randomBytes(2).toString('hex')}`.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 32);
+}
+
+function isAcceptedAvatarUrl(value) {
+  if (value === null || value === '') return true;
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length > 500_000) return false;
+  if (/^https:\/\/[^\s]+$/i.test(trimmed)) return true;
+  return /^data:image\/(png|jpe?g|webp|gif);base64,[a-z0-9+/=]+$/i.test(trimmed);
+}
+
+function stripPrivateUserFields(user) {
+  if (!user || typeof user !== 'object') return user;
+  delete user.password_hash;
+  delete user.reset_token;
+  delete user.reset_token_expires;
+  delete user.verification_token;
+  return user;
+}
+
+function issueAuthToken(user) {
+  return jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: AUTH_TOKEN_TTL });
+}
+
+function hashAdminToken(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+function getClientIp(req) {
+  return (req.headers['x-forwarded-for'] || req.ip || req.socket?.remoteAddress || '')
+    .toString()
+    .split(',')[0]
+    .trim();
+}
+
+function hashClientIp(req) {
+  const ip = getClientIp(req);
+  if (!ip) return null;
+  return crypto.createHash('sha256').update(`${JWT_SECRET}:${ip}`).digest('hex');
+}
+
+function sanitizeAdminActorLabel(value, fallback = 'shared-admin-key') {
+  return String(value || fallback)
+    .trim()
+    .replace(/[^a-zA-Z0-9_.@-]/g, '_')
+    .slice(0, 80) || fallback;
+}
+
+function adminHasRole(actor, allowedRoles = []) {
+  if (!actor) return false;
+  if (actor.role === 'owner') return true;
+  return allowedRoles.includes(actor.role);
+}
+
+function requireAdminRole(allowedRoles = []) {
+  return (req, res, next) => {
+    if (!adminHasRole(req.adminActor, allowedRoles)) {
+      return res.status(403).json({
+        success: false,
+        error: `Admin role required: ${allowedRoles.join(' or ')}.`
+      });
+    }
+    next();
+  };
+}
+
+function normalizeReviewStatus(value, fallback = 'approved') {
+  const status = String(value || fallback).trim().toLowerCase();
+  return VALID_REVIEW_STATUSES.includes(status) ? status : null;
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (typeof value === 'boolean') return value;
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return fallback;
+}
+
+function isDeliverableRiddle(row) {
+  return row?.is_active === true && (row.review_status || 'approved') === 'approved';
+}
+
+function applyRiddleReviewState(payload, status, actorLabel, now = new Date().toISOString(), activeOverride = undefined) {
+  if (!status) return payload;
+  payload.review_status = status;
+
+  if (status === 'approved') {
+    payload.is_active = activeOverride === undefined ? true : !!activeOverride;
+    payload.approved_at = now;
+    payload.approved_by = actorLabel;
+    payload.archived_at = null;
+    payload.archived_by = null;
+  } else if (status === 'archived') {
+    payload.is_active = false;
+    payload.archived_at = now;
+    payload.archived_by = actorLabel;
+  } else {
+    payload.is_active = false;
+  }
+
+  return payload;
+}
+
+function cleanAdminText(value, maxLength = 2000) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function normalizeStrictness(value) {
+  const strictness = String(value || 'normal').trim().toLowerCase();
+  return ['lenient', 'normal', 'strict'].includes(strictness) ? strictness : 'normal';
+}
+
+function normalizeStringArray(value) {
+  if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean).slice(0, 20);
+  if (typeof value === 'string' && value.trim()) {
+    return value.split(',').map(item => item.trim()).filter(Boolean).slice(0, 20);
+  }
+  return [];
+}
+
+function answerHashForRiddle(userAnswer) {
+  const clean = cleanAnswerText(userAnswer || '');
+  return crypto.createHash('sha256').update(clean).digest('hex');
+}
+
+function answerPreview(value) {
+  return String(value || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+}
+
+function semanticModelCacheKey(riddle) {
+  return `${ANSWER_CHECK_PROVIDER || 'off'}:${ANSWER_CHECK_MODEL}:riddle-v${parseInt(riddle?.version, 10) || 1}`;
+}
+
+function buildSemanticOptions(riddle) {
+  return {
+    semanticEnabled: riddle?.semantic_check_enabled === true,
+    strictness: normalizeStrictness(riddle?.answer_strictness),
+    acceptedAliases: normalizeStringArray(riddle?.accepted_aliases),
+    requiredKeywords: normalizeStringArray(riddle?.required_keywords),
+    forbiddenMeanings: normalizeStringArray(riddle?.forbidden_meanings),
+    answerRubric: riddle?.answer_rubric || ''
+  };
+}
+
+async function getCachedSemanticVerdict({ riddle, answerHash, strictness, modelKey }) {
+  if (!riddle?.id || !answerHash) return null;
+  const { data, error } = await supabase
+    .from('semantic_answer_cache')
+    .select('is_correct, confidence, reason, model, created_at')
+    .eq('riddle_id', riddle.id)
+    .eq('answer_hash', answerHash)
+    .eq('strictness', strictness)
+    .eq('model', modelKey)
+    .maybeSingle();
+  if (error) {
+    if (!['42P01', '42703'].includes(error.code)) console.warn('⚠️ semantic cache read failed:', error.message);
+    return null;
+  }
+  if (!data) return null;
+  return {
+    isCorrect: data.is_correct === true,
+    confidence: Number(data.confidence) || 0,
+    source: 'cache',
+    reason: data.reason || 'Cached semantic verdict.',
+    model: data.model,
+    semanticUsed: false
+  };
+}
+
+async function saveSemanticVerdict({ riddle, answerHash, strictness, modelKey, verdict }) {
+  if (!riddle?.id || !answerHash || !verdict) return;
+  const { error } = await supabase
+    .from('semantic_answer_cache')
+    .upsert({
+      riddle_id: riddle.id,
+      answer_hash: answerHash,
+      strictness,
+      model: modelKey,
+      is_correct: verdict.isCorrect === true,
+      confidence: Math.max(0, Math.min(1, Number(verdict.confidence) || 0)),
+      reason: String(verdict.reason || '').slice(0, 500)
+    }, { onConflict: 'riddle_id,answer_hash,strictness,model' });
+  if (error && !['42P01', '42703'].includes(error.code)) {
+    console.warn('⚠️ semantic cache write failed:', error.message);
+  }
+}
+
+async function recordAnswerJudgment({ userId, riddle, mode, userAnswer, verdict, answerHash }) {
+  if (!riddle?.id || !answerHash || !verdict) return;
+  const source = ['exact', 'alias', 'heuristic', 'llm', 'cache', 'fallback', 'timeout'].includes(verdict.source)
+    ? verdict.source
+    : 'fallback';
+  const { error } = await supabase
+    .from('answer_judgments')
+    .insert({
+      user_id: userId || null,
+      riddle_id: riddle.id,
+      mode: mode || null,
+      answer_hash: answerHash,
+      answer_preview: answerPreview(userAnswer),
+      source,
+      is_correct: verdict.isCorrect === true,
+      confidence: Math.max(0, Math.min(1, Number(verdict.confidence) || 0)),
+      model: verdict.model || null,
+      reason: String(verdict.reason || '').slice(0, 500)
+    });
+  if (error && !['42P01', '42703'].includes(error.code)) {
+    console.warn('⚠️ answer judgment log failed:', error.message);
+  }
+}
+
+async function recordStandaloneAnswerJudgment({ userId, mode, userAnswer, verdict }) {
+  if (!verdict) return;
+  const answerHash = answerHashForRiddle(userAnswer);
+  if (!answerHash) return;
+  const source = ['exact', 'alias', 'heuristic', 'llm', 'cache', 'fallback', 'timeout'].includes(verdict.source)
+    ? verdict.source
+    : 'fallback';
+  const { error } = await supabase
+    .from('answer_judgments')
+    .insert({
+      user_id: userId || null,
+      riddle_id: null,
+      mode: mode || null,
+      answer_hash: answerHash,
+      answer_preview: answerPreview(userAnswer),
+      source,
+      is_correct: verdict.isCorrect === true,
+      confidence: Math.max(0, Math.min(1, Number(verdict.confidence) || 0)),
+      model: verdict.model || null,
+      reason: String(verdict.reason || '').slice(0, 500)
+    });
+  if (error && !['42P01', '42703'].includes(error.code)) {
+    console.warn('⚠️ standalone answer judgment log failed:', error.message);
+  }
+}
+
+async function judgeTypedAnswer({ userId, riddle, userAnswer, mode }) {
+  const semanticOptions = buildSemanticOptions(riddle);
+  const answerHash = answerHashForRiddle(userAnswer);
+  const modelKey = semanticModelCacheKey(riddle);
+  let verdict = null;
+
+  if (semanticOptions.semanticEnabled) {
+    verdict = await getCachedSemanticVerdict({
+      riddle,
+      answerHash,
+      strictness: semanticOptions.strictness,
+      modelKey
+    });
+  }
+
+  if (!verdict) {
+    verdict = await checkTypedAnswerDetailed(userAnswer, riddle.answer, riddle.question || '', semanticOptions);
+    if (semanticOptions.semanticEnabled && ['llm', 'heuristic', 'alias', 'exact'].includes(verdict.source)) {
+      await saveSemanticVerdict({
+        riddle,
+        answerHash,
+        strictness: semanticOptions.strictness,
+        modelKey,
+        verdict: { ...verdict, model: verdict.model || modelKey }
+      });
+    }
+  }
+
+  await recordAnswerJudgment({
+    userId,
+    riddle,
+    mode,
+    userAnswer,
+    verdict,
+    answerHash
+  });
+
+  return verdict;
+}
+
 async function assertRoomMembership(roomId, userId) {
   if (!roomId || !userId) {
     const error = new Error('Room access requires a signed-in operative.');
@@ -554,6 +1147,25 @@ async function assertRoomMembership(roomId, userId) {
 
 function getBaseDeliveryMode(requestedMode = 'arena') {
   return requestedMode === 'ranked' ? 'arena' : requestedMode;
+}
+
+function getDeliveryModeCandidates(requestedMode = 'arena') {
+  const mode = String(requestedMode || 'arena').trim() || 'arena';
+  if (mode === 'daily') return ['daily'];
+
+  const primary = getBaseDeliveryMode(mode);
+  const fallbacksByMode = {
+    arena: ['arena', 'mcq', 'type'],
+    ranked: ['arena', 'mcq', 'type'],
+    wager: ['wager', 'mcq', 'type', 'arena'],
+    gauntlet: ['gauntlet', 'mcq', 'type', 'arena'],
+    chain: ['chain', 'type', 'mcq', 'arena'],
+    mcq: ['mcq', 'arena'],
+    type: ['type', 'arena'],
+    bounty: ['bounty', 'mcq', 'type', 'arena']
+  };
+
+  return [...new Set(fallbacksByMode[mode] || [primary, 'mcq', 'type', 'arena'])];
 }
 
 function getCurrentWeekStartDate(date = new Date()) {
@@ -872,49 +1484,58 @@ async function fetchNextRiddleFromEngine({
   suppressServeLog = false,
   position = null
 }) {
-  const poolMode = modeOverride || getBaseDeliveryMode(requestedMode);
+  const modeCandidates = modeOverride ? [modeOverride] : getDeliveryModeCandidates(requestedMode);
   const tier = tierOverride ?? await resolveRequestedTier({ userId, requestedMode, xp, totalPlayed });
   const categoryExclude = await pickWithCategoryRotation(userId);
 
   let data = null;
-  const { data: rpcData, error } = await callRpcVariants('get_next_riddle', [
-    {
-      user_id: userId,
-      tier,
-      mode: poolMode,
-      session_id: sessionId || null,
-      category_exclude: categoryExclude
-    },
-    {
-      p_user_id: userId,
-      p_tier: tier,
-      p_mode: poolMode,
-      p_session_id: sessionId || null,
-      p_category_exclude: categoryExclude
+  let selectedPoolMode = modeCandidates[0];
+  let riddle = null;
+
+  for (const poolMode of modeCandidates) {
+    const { data: rpcData, error } = await callRpcVariants('get_next_riddle', [
+      {
+        user_id: userId,
+        tier,
+        mode: poolMode,
+        session_id: sessionId || null,
+        category_exclude: categoryExclude
+      },
+      {
+        p_user_id: userId,
+        p_tier: tier,
+        p_mode: poolMode,
+        p_session_id: sessionId || null,
+        p_category_exclude: categoryExclude
+      }
+    ]);
+
+    if (error) {
+      console.warn('⚠️ get_next_riddle RPC unavailable, using server RDE fallback:', error.message);
+      data = await fetchNextRiddleFallback({ userId, tier, poolMode, sessionId, categoryExclude });
+    } else {
+      data = rpcData;
     }
-  ]);
 
-  if (error) {
-    console.warn('⚠️ get_next_riddle RPC unavailable, using server RDE fallback:', error.message);
-    data = await fetchNextRiddleFallback({ userId, tier, poolMode, sessionId, categoryExclude });
-  } else {
-    data = rpcData;
-  }
-
-  const row = Array.isArray(data) ? data[0] : data;
-  let riddle = normalizeRiddleRecord(row, poolMode);
-  if (riddle?.id && !riddle?.question) {
-    riddle = await fetchSafeRiddleById(riddle.id, poolMode);
-  }
-  if (!riddle) {
-    const fallback = await fetchNextRiddleFallback({ userId, tier, poolMode, sessionId, categoryExclude });
-    riddle = normalizeRiddleRecord(fallback, poolMode);
-  }
-  if (!riddle) {
-    riddle = await getOldestSolvedRiddle(userId, tier, poolMode);
+    const row = Array.isArray(data) ? data[0] : data;
+    riddle = normalizeRiddleRecord(row, poolMode);
+    if (riddle?.id && !riddle?.question) {
+      riddle = await fetchSafeRiddleById(riddle.id, poolMode);
+    }
+    if (!riddle) {
+      const fallback = await fetchNextRiddleFallback({ userId, tier, poolMode, sessionId, categoryExclude });
+      riddle = normalizeRiddleRecord(fallback, poolMode);
+    }
+    if (!riddle) {
+      riddle = await getOldestSolvedRiddle(userId, tier, poolMode);
+    }
+    if (riddle) {
+      selectedPoolMode = poolMode;
+      break;
+    }
   }
   if (!riddle) {
-    return { riddle: null, tier, poolMode };
+    return { riddle: null, tier, poolMode: selectedPoolMode };
   }
 
   if (!suppressServeLog) {
@@ -928,7 +1549,7 @@ async function fetchNextRiddleFromEngine({
     });
   }
 
-  return { riddle, tier, poolMode };
+  return { riddle, tier, poolMode: selectedPoolMode };
 }
 
 async function fetchNextRiddleFallback({ userId, tier, poolMode, sessionId = null, categoryExclude = [] }) {
@@ -953,6 +1574,8 @@ async function fetchNextRiddleFallback({ userId, tier, poolMode, sessionId = nul
       .select('*')
       .eq('game_mode', poolMode)
       .eq('difficulty_tier', tierToTry)
+      .eq('is_active', true)
+      .eq('review_status', 'approved')
       .order('times_served', { ascending: true })
       .limit(40);
 
@@ -1015,32 +1638,36 @@ async function generateSessionQueue(sessionId, playerIds, difficultyTier, mode =
     historyResponses.flatMap((response) => (response.data || []).map((row) => row.riddle_id))
   )];
 
-  const poolMode = getBaseDeliveryMode(mode);
   const bothSeenSet = new Set(bothSeen);
   const candidateMap = new Map();
   const perTierLimit = Math.max(queueSize * 3, 20);
 
-  for (const tierToTry of buildTierSearchOrder(difficultyTier)) {
-    let query = supabase
-      .from('riddles_safe')
-      .select('*')
-      .eq('game_mode', poolMode)
-      .eq('difficulty_tier', tierToTry)
-      .order('times_served', { ascending: true })
-      .limit(perTierLimit);
+  for (const poolMode of getDeliveryModeCandidates(mode)) {
+    for (const tierToTry of buildTierSearchOrder(difficultyTier)) {
+      let query = supabase
+        .from('riddles_safe')
+        .select('*')
+        .eq('game_mode', poolMode)
+        .eq('difficulty_tier', tierToTry)
+        .eq('is_active', true)
+        .eq('review_status', 'approved')
+        .order('times_served', { ascending: true })
+        .limit(perTierLimit);
 
-    if (bothSeen.length > 0 && bothSeen.length <= 300) {
-      query = query.not('id', 'in', `(${bothSeen.join(',')})`);
+      if (bothSeen.length > 0 && bothSeen.length <= 300) {
+        query = query.not('id', 'in', `(${bothSeen.join(',')})`);
+      }
+
+      const { data: candidates, error } = await query;
+      if (error) throw error;
+
+      for (const row of candidates || []) {
+        if (bothSeenSet.has(row.id) || candidateMap.has(row.id)) continue;
+        candidateMap.set(row.id, row);
+      }
+
+      if (candidateMap.size >= queueSize) break;
     }
-
-    const { data: candidates, error } = await query;
-    if (error) throw error;
-
-    for (const row of candidates || []) {
-      if (bothSeenSet.has(row.id) || candidateMap.has(row.id)) continue;
-      candidateMap.set(row.id, row);
-    }
-
     if (candidateMap.size >= queueSize) break;
   }
 
@@ -1058,7 +1685,7 @@ async function generateSessionQueue(sessionId, playerIds, difficultyTier, mode =
 
   const queue = seededShuffle(prioritized, `${sessionId}:${difficultyTier}`)
     .slice(0, queueSize)
-    .map((row) => normalizeRiddleRecord(row, poolMode));
+    .map((row) => normalizeRiddleRecord(row, getBaseDeliveryMode(mode)));
 
   if (queue.length === 0) return [];
 
@@ -1129,6 +1756,17 @@ async function getSessionQueueSize(sessionId) {
   return count || 0;
 }
 
+async function getSessionRiddleServedAt(sessionId, riddleId) {
+  if (!sessionId || !riddleId) return null;
+  const { data } = await supabase
+    .from('session_riddle_queue')
+    .select('served_at')
+    .eq('session_id', sessionId)
+    .eq('riddle_id', riddleId)
+    .maybeSingle();
+  return data?.served_at || null;
+}
+
 async function resolveRoomModeSelection(userId, xp, roomMode = 'mcq') {
   const requestedMode = roomMode || 'mcq';
   const progress = await getUserProgressProfile(userId);
@@ -1155,11 +1793,29 @@ async function hydrateRoomRiddle(room, runtime) {
     return runtime.currentRiddle;
   }
 
+  let timeLimit = runtime.currentTimeLimit;
+  if (!timeLimit && room.timed && room.time_limit !== -1) {
+    timeLimit = room.time_limit;
+    runtime.currentTimeLimit = timeLimit;
+  }
+
+  let startedAt = runtime.roundStartedAt;
+  if (!startedAt && timeLimit) {
+    const servedAt = await getSessionRiddleServedAt(room.id, room.current_riddle_id);
+    if (servedAt) {
+      startedAt = new Date(servedAt).getTime();
+      runtime.roundStartedAt = startedAt;
+    }
+  }
+
   const snapshotted = runtime.queueSnapshot?.find((entry) => entry.id === room.current_riddle_id);
   if (snapshotted) {
-    let timeLimit = runtime.currentTimeLimit;
-    if (timeLimit && runtime.roundStartedAt) {
-      const elapsed = Math.max(0, Math.floor((Date.now() - runtime.roundStartedAt) / 1000));
+    if (!timeLimit && room.timed && room.time_limit === -1) {
+      timeLimit = await resolveRiddlePanicTimerSeconds(snapshotted);
+      runtime.currentTimeLimit = timeLimit;
+    }
+    if (timeLimit && startedAt) {
+      const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
       timeLimit = Math.max(0, timeLimit - elapsed);
     }
     runtime.currentRiddle = serializeRiddlePayload(snapshotted, timeLimit);
@@ -1174,9 +1830,13 @@ async function hydrateRoomRiddle(room, runtime) {
 
   if (!riddle) return null;
 
-  let timeLimit = runtime.currentTimeLimit;
-  if (timeLimit && runtime.roundStartedAt) {
-    const elapsed = Math.max(0, Math.floor((Date.now() - runtime.roundStartedAt) / 1000));
+  if (!timeLimit && room.timed && room.time_limit === -1) {
+    timeLimit = await resolveRiddlePanicTimerSeconds(riddle);
+    runtime.currentTimeLimit = timeLimit;
+  }
+
+  if (timeLimit && startedAt) {
+    const elapsed = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
     timeLimit = Math.max(0, timeLimit - elapsed);
   }
 
@@ -1195,11 +1855,7 @@ async function escrowRoomWagers(roomId, players, wagerAmount) {
   const staged = [];
   try {
     for (const player of players) {
-      const { data: user } = await supabase.from('users').select('coins').eq('id', player.user_id).single();
-      if (!user || (user.coins || 0) < wagerAmount) {
-        throw new Error(`${player.username} does not have ${wagerAmount} Intel to cover this showdown.`);
-      }
-      await incrementCoinsAtomic(player.user_id, -wagerAmount);
+      await debitCoinsWithBalanceGuard(player.user_id, wagerAmount);
       runtime.escrow.set(player.user_id, wagerAmount);
       staged.push(player.user_id);
     }
@@ -1216,10 +1872,18 @@ async function escrowRoomWagers(roomId, players, wagerAmount) {
   }
 }
 
-async function refundRoomWagers(roomId) {
+async function refundRoomWagers(roomId, room = null, players = null) {
   const runtime = getRoomRuntime(roomId);
   const balances = {};
-  for (const [userId, wager] of runtime.escrow.entries()) {
+
+  let entries = [...runtime.escrow.entries()];
+  if (entries.length === 0) {
+    const wagerAmount = resolveRoomWagerAmount(roomId, room);
+    const roomPlayers = players || await getRoomPlayers(roomId);
+    entries = wagerAmount > 0 ? roomPlayers.map((player) => [player.user_id, wagerAmount]) : [];
+  }
+
+  for (const [userId, wager] of entries) {
     balances[userId] = await incrementCoinsAtomic(userId, wager);
   }
   runtime.escrow.clear();
@@ -1227,11 +1891,16 @@ async function refundRoomWagers(roomId) {
   return balances;
 }
 
-function consumeRoomWagerPot(roomId) {
+async function consumeRoomWagerPot(roomId, room = null, players = null) {
   const runtime = getRoomRuntime(roomId);
   let pot = 0;
   for (const wager of runtime.escrow.values()) {
     pot += wager;
+  }
+  if (pot <= 0) {
+    const wagerAmount = resolveRoomWagerAmount(roomId, room);
+    const roomPlayers = players || await getRoomPlayers(roomId);
+    pot = wagerAmount > 0 ? wagerAmount * roomPlayers.length : 0;
   }
   runtime.escrow.clear();
   runtime.showdownComplete = true;
@@ -1334,14 +2003,96 @@ const checkMaintenance = async (req, res, next) => {
   next();
 };
 
-// Check admin secret (header-based, for admin routes)
-const checkAdmin = (req, res, next) => {
-  const secret = req.headers['x-admin-secret'];
-  if (!ADMIN_SECRET || secret !== ADMIN_SECRET) {
-    return res.status(403).json({ success: false, error: 'Unauthorized Admin Access.' });
+// Check admin secret/operator token (header-based, for admin routes)
+const checkAdmin = async (req, res, next) => {
+  try {
+    const suppliedToken = String(req.headers['x-admin-secret'] || '').trim();
+    if (!suppliedToken) {
+      return res.status(403).json({ success: false, error: 'Unauthorized Admin Access.' });
+    }
+
+    if (ADMIN_SECRET && suppliedToken === ADMIN_SECRET) {
+      req.adminActor = {
+        id: null,
+        label: sanitizeAdminActorLabel(req.headers['x-admin-actor'], 'shared-admin-key'),
+        role: 'owner',
+        source: 'master_secret'
+      };
+      return next();
+    }
+
+    const tokenHash = hashAdminToken(suppliedToken);
+    const { data: operator, error } = await supabase
+      .from('admin_operators')
+      .select('id, display_name, role, is_active')
+      .eq('token_hash', tokenHash)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) {
+      if (['42P01', '42703'].includes(error.code)) {
+        return res.status(403).json({ success: false, error: 'Admin operators are not initialized.' });
+      }
+      throw error;
+    }
+    if (!operator || !ADMIN_OPERATOR_ROLES.includes(operator.role)) {
+      return res.status(403).json({ success: false, error: 'Unauthorized Admin Access.' });
+    }
+
+    req.adminActor = {
+      id: operator.id,
+      label: sanitizeAdminActorLabel(operator.display_name, `operator-${operator.id}`),
+      role: operator.role,
+      source: 'operator_token'
+    };
+
+    supabase
+      .from('admin_operators')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', operator.id)
+      .then(({ error: updateErr }) => {
+        if (updateErr) console.warn('⚠️ admin operator last_used update failed:', updateErr.message);
+      });
+
+    return next();
+  } catch (error) {
+    console.error('❌ checkAdmin:', error.message);
+    return res.status(500).json({ success: false, error: 'Admin authorization failed.' });
   }
-  next();
 };
+
+function sanitizeAuditMetadata(value, depth = 0) {
+  if (depth > 4) return '[truncated]';
+  if (Array.isArray(value)) return value.slice(0, 50).map(item => sanitizeAuditMetadata(item, depth + 1));
+  if (!value || typeof value !== 'object') {
+    if (typeof value === 'string') return value.length > 500 ? `${value.slice(0, 500)}…` : value;
+    return value;
+  }
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => {
+    if (ADMIN_AUDIT_REDACT_KEYS.has(key)) return [key, '[redacted]'];
+    return [key, sanitizeAuditMetadata(item, depth + 1)];
+  }));
+}
+
+function getAdminActorLabel(req) {
+  return req.adminActor?.label || sanitizeAdminActorLabel(req.headers['x-admin-actor'], 'shared-admin-key');
+}
+
+async function recordAdminAudit(req, { action, entityType = null, entityId = null, metadata = {} }) {
+  try {
+    await supabase.from('admin_audit_logs').insert({
+      actor_label: getAdminActorLabel(req),
+      action,
+      entity_type: entityType,
+      entity_id: entityId ? String(entityId).slice(0, 120) : null,
+      metadata: sanitizeAuditMetadata(metadata),
+      ip_address: (req.headers['x-forwarded-for'] || req.ip || '').toString().split(',')[0].trim().slice(0, 80),
+      user_agent: String(req.headers['user-agent'] || '').slice(0, 300)
+    });
+  } catch (error) {
+    console.warn('⚠️ admin audit log failed:', error.message);
+  }
+}
 
 // Check admin via JWT + is_admin field in users table
 const checkAdminUser = async (req, res, next) => {
@@ -1410,9 +2161,78 @@ app.get('/app/status', async (req, res) => {
   }
 });
 
+app.post('/support/ticket', authenticateToken, async (req, res) => {
+  try {
+    const userId = resolveAuthenticatedActorId(req, req.body?.userId);
+    const subject = cleanAdminText(req.body?.subject, 180);
+    const message = cleanAdminText(req.body?.message, 4000);
+    const category = cleanAdminText(req.body?.category || 'general', 40).toLowerCase() || 'general';
+    const priority = VALID_SUPPORT_PRIORITIES.includes(req.body?.priority) ? req.body.priority : 'normal';
+    if (!subject || !message) {
+      return res.status(400).json({ success: false, error: 'Support tickets require a subject and message.' });
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .insert({
+        user_id: userId,
+        category,
+        subject,
+        message,
+        priority,
+        metadata: sanitizeAuditMetadata(req.body?.metadata || {})
+      })
+      .select('id, status, created_at')
+      .single();
+    if (error) throw error;
+
+    res.json({ success: true, ticket: data });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/riddle/report', authenticateToken, async (req, res) => {
+  try {
+    const userId = resolveAuthenticatedActorId(req, req.body?.userId);
+    const riddleId = String(req.body?.riddleId || '').trim();
+    const reason = cleanAdminText(req.body?.reason, 80).toLowerCase();
+    const details = cleanAdminText(req.body?.details, 2000) || null;
+    if (!riddleId || !reason) {
+      return res.status(400).json({ success: false, error: 'Riddle reports require a riddleId and reason.' });
+    }
+
+    const { data: riddle, error: riddleErr } = await supabase
+      .from('riddles_safe')
+      .select('id')
+      .eq('id', riddleId)
+      .maybeSingle();
+    if (riddleErr) throw riddleErr;
+    if (!riddle) return res.status(404).json({ success: false, error: 'Riddle not found.' });
+
+    const { data, error } = await supabase
+      .from('user_riddle_reports')
+      .insert({ user_id: userId, riddle_id: riddleId, reason, details })
+      .select('id, status, created_at')
+      .single();
+    if (error) throw error;
+    res.json({ success: true, report: data });
+  } catch (error) {
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+});
+
 // ============================
 // 👑 ADMIN ROUTES
 // ============================
+
+async function countRows(table, buildQuery = null) {
+  let query = supabase.from(table).select('id', { count: 'exact', head: true });
+  if (buildQuery) query = buildQuery(query);
+  const { count, error } = await query;
+  if (error) throw error;
+  return count || 0;
+}
 
 // Real-time overview stats
 app.get('/admin/stats', checkAdmin, async (req, res) => {
@@ -1421,7 +2241,7 @@ app.get('/admin/stats', checkAdmin, async (req, res) => {
     const yesterday24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
     const [riddlesRes, locksRes, usersRes, maintRes, panicTimerRes] = await Promise.all([
-      supabase.from('riddles').select('id, game_mode, difficulty, difficulty_tier, is_active, is_onboarding'),
+      supabase.from('riddles').select('id, game_mode, difficulty, difficulty_tier, is_active, is_onboarding, review_status'),
       supabase.from('riddle_daily_locks').select('riddle_id').eq('lock_date', today),
       supabase.from('users').select('id').gte('updated_at', yesterday24h),
       supabase.from('app_settings').select('value').eq('key', 'maintenance_mode').single(),
@@ -1438,18 +2258,18 @@ app.get('/admin/stats', checkAdmin, async (req, res) => {
     const difficulties = ['Easy', 'Medium', 'Hard'];
 
     const byMode = {};
-    modes.forEach(m => { byMode[m] = riddles.filter(r => r.game_mode === m && r.is_active).length; });
+    modes.forEach(m => { byMode[m] = riddles.filter(r => r.game_mode === m && isDeliverableRiddle(r)).length; });
 
     const byDifficulty = {};
-    difficulties.forEach(d => { byDifficulty[d] = riddles.filter(r => r.difficulty === d && r.is_active).length; });
+    difficulties.forEach(d => { byDifficulty[d] = riddles.filter(r => r.difficulty === d && isDeliverableRiddle(r)).length; });
     const byTier = {};
-    [1, 2, 3, 4, 5].forEach(t => { byTier[t] = riddles.filter(r => (parseInt(r.difficulty_tier, 10) || getDifficultyTierFromLegacyDifficulty(r.difficulty)) === t && r.is_active).length; });
+    [1, 2, 3, 4, 5].forEach(t => { byTier[t] = riddles.filter(r => (parseInt(r.difficulty_tier, 10) || getDifficultyTierFromLegacyDifficulty(r.difficulty)) === t && isDeliverableRiddle(r)).length; });
 
     // Low stock alerts: any mode+difficulty combo with < 10 active riddles
     const lowStockAlerts = [];
     modes.forEach(m => {
       difficulties.forEach(d => {
-        const count = riddles.filter(r => r.game_mode === m && r.difficulty === d && r.is_active).length;
+        const count = riddles.filter(r => r.game_mode === m && r.difficulty === d && isDeliverableRiddle(r)).length;
         if (count < 10) {
           lowStockAlerts.push({ mode: m, difficulty: d, count });
         }
@@ -1458,7 +2278,7 @@ app.get('/admin/stats', checkAdmin, async (req, res) => {
 
     res.json({
       success: true,
-      totalRiddles: riddles.filter(r => r.is_active).length,
+      totalRiddles: riddles.filter(isDeliverableRiddle).length,
       byMode,
       byDifficulty,
       byTier,
@@ -1473,7 +2293,293 @@ app.get('/admin/stats', checkAdmin, async (req, res) => {
   }
 });
 
-app.post('/admin/panic-timer', checkAdmin, async (req, res) => {
+app.get('/admin/audit-logs', checkAdmin, async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
+    let query = supabase
+      .from('admin_audit_logs')
+      .select('id, actor_label, action, entity_type, entity_id, metadata, ip_address, user_agent, created_at')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (req.query.action) query = query.eq('action', String(req.query.action).slice(0, 120));
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, logs: data || [] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/admin/operators', checkAdmin, requireAdminRole(['owner']), async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('admin_operators')
+      .select('id, display_name, role, is_active, created_by, created_at, last_used_at')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, operators: data || [] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/admin/operators', checkAdmin, requireAdminRole(['owner']), async (req, res) => {
+  try {
+    const displayName = cleanAdminText(req.body?.displayName || req.body?.display_name, 80);
+    const role = String(req.body?.role || 'viewer').trim().toLowerCase();
+    if (!displayName) return res.status(400).json({ success: false, error: 'Operator display name is required.' });
+    if (!ADMIN_OPERATOR_ROLES.includes(role)) {
+      return res.status(400).json({ success: false, error: `Invalid operator role. Use one of: ${ADMIN_OPERATOR_ROLES.join(', ')}` });
+    }
+
+    const token = `crackl_adm_${crypto.randomBytes(24).toString('base64url')}`;
+    const { data, error } = await supabase
+      .from('admin_operators')
+      .insert({
+        display_name: displayName,
+        role,
+        token_hash: hashAdminToken(token),
+        created_by: getAdminActorLabel(req)
+      })
+      .select('id, display_name, role, is_active, created_by, created_at, last_used_at')
+      .single();
+    if (error) throw error;
+
+    await recordAdminAudit(req, {
+      action: 'operator.create',
+      entityType: 'admin_operator',
+      entityId: data.id,
+      metadata: { displayName, role }
+    });
+    res.json({ success: true, operator: data, token });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/admin/operators/:id', checkAdmin, requireAdminRole(['owner']), async (req, res) => {
+  try {
+    const updates = {};
+    if (Object.prototype.hasOwnProperty.call(req.body || {}, 'is_active')) {
+      updates.is_active = normalizeBoolean(req.body.is_active, true);
+    }
+    if (req.body?.role) {
+      const role = String(req.body.role).trim().toLowerCase();
+      if (!ADMIN_OPERATOR_ROLES.includes(role)) {
+        return res.status(400).json({ success: false, error: `Invalid operator role. Use one of: ${ADMIN_OPERATOR_ROLES.join(', ')}` });
+      }
+      updates.role = role;
+    }
+    if (req.body?.displayName || req.body?.display_name) {
+      updates.display_name = cleanAdminText(req.body.displayName || req.body.display_name, 80);
+    }
+    if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, error: 'No operator changes supplied.' });
+
+    const { data, error } = await supabase
+      .from('admin_operators')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select('id, display_name, role, is_active, created_by, created_at, last_used_at')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Operator not found.' });
+
+    await recordAdminAudit(req, {
+      action: 'operator.update',
+      entityType: 'admin_operator',
+      entityId: req.params.id,
+      metadata: { fields: Object.keys(updates) }
+    });
+    res.json({ success: true, operator: data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/admin/analytics/summary', checkAdmin, async (req, res) => {
+  try {
+    const days = Math.min(90, Math.max(1, parseInt(req.query.days, 10) || 7));
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+
+    const [
+      userCount,
+      openReports,
+      openTickets,
+      totalChallenges,
+      historyRes,
+      riddlesRes
+    ] = await Promise.all([
+      countRows('users'),
+      countRows('user_riddle_reports', query => query.in('status', ['open', 'reviewing'])),
+      countRows('support_tickets', query => query.in('status', ['open', 'in_progress'])),
+      countRows('challenges'),
+      supabase
+        .from('user_riddle_history')
+        .select('mode, status, time_taken_ms, attempted_at')
+        .gte('attempted_at', since)
+        .limit(10000),
+      supabase
+        .from('riddles')
+        .select('id, game_mode, difficulty_tier, is_active, review_status')
+        .limit(20000)
+    ]);
+    if (historyRes.error) throw historyRes.error;
+    if (riddlesRes.error) throw riddlesRes.error;
+
+    const history = historyRes.data || [];
+    const riddles = riddlesRes.data || [];
+    const byMode = {};
+    const byStatus = {};
+    history.forEach(row => {
+      byMode[row.mode || 'unknown'] = (byMode[row.mode || 'unknown'] || 0) + 1;
+      byStatus[row.status || 'unknown'] = (byStatus[row.status || 'unknown'] || 0) + 1;
+    });
+    const solved = history.filter(row => row.status === 'solved').length;
+    const averageTimeMs = history.length
+      ? Math.round(history.reduce((sum, row) => sum + (parseInt(row.time_taken_ms, 10) || 0), 0) / history.length)
+      : 0;
+
+    const inventory = {
+      deliverable: riddles.filter(isDeliverableRiddle).length,
+      draft: riddles.filter(row => row.review_status === 'draft').length,
+      review: riddles.filter(row => row.review_status === 'review').length,
+      archived: riddles.filter(row => row.review_status === 'archived' || row.is_active === false).length
+    };
+
+    res.json({
+      success: true,
+      windowDays: days,
+      users: userCount,
+      challenges: totalChallenges,
+      openReports,
+      openTickets,
+      attempts: history.length,
+      solved,
+      accuracy: history.length ? Math.round((solved / history.length) * 100) : 0,
+      averageTimeMs,
+      byMode,
+      byStatus,
+      inventory
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/admin/reports', checkAdmin, requireAdminRole(ADMIN_SUPPORT_ROLES), async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 80));
+    let query = supabase
+      .from('user_riddle_reports')
+      .select('id, user_id, riddle_id, reason, details, status, created_at, resolved_at, resolved_by')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (req.query.status) query = query.eq('status', String(req.query.status).slice(0, 40));
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, reports: data || [] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/admin/reports/:id', checkAdmin, requireAdminRole(ADMIN_SUPPORT_ROLES), async (req, res) => {
+  try {
+    const status = String(req.body?.status || '').trim().toLowerCase();
+    if (!VALID_REPORT_STATUSES.includes(status)) {
+      return res.status(400).json({ success: false, error: `Invalid report status. Use one of: ${VALID_REPORT_STATUSES.join(', ')}` });
+    }
+    const updates = { status };
+    if (['resolved', 'dismissed'].includes(status)) {
+      updates.resolved_at = new Date().toISOString();
+      updates.resolved_by = getAdminActorLabel(req);
+    }
+
+    const { data, error } = await supabase
+      .from('user_riddle_reports')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select('id, user_id, riddle_id, reason, details, status, created_at, resolved_at, resolved_by')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Report not found.' });
+
+    await recordAdminAudit(req, {
+      action: 'riddle_report.update',
+      entityType: 'user_riddle_report',
+      entityId: req.params.id,
+      metadata: { status }
+    });
+    res.json({ success: true, report: data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.get('/admin/support-tickets', checkAdmin, requireAdminRole(ADMIN_SUPPORT_ROLES), async (req, res) => {
+  try {
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 80));
+    let query = supabase
+      .from('support_tickets')
+      .select('id, user_id, category, subject, message, status, priority, metadata, created_at, updated_at, resolved_at, resolved_by')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (req.query.status) query = query.eq('status', String(req.query.status).slice(0, 40));
+    const { data, error } = await query;
+    if (error) throw error;
+    res.json({ success: true, tickets: data || [] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.patch('/admin/support-tickets/:id', checkAdmin, requireAdminRole(ADMIN_SUPPORT_ROLES), async (req, res) => {
+  try {
+    const updates = { updated_at: new Date().toISOString() };
+    if (req.body?.status) {
+      const status = String(req.body.status).trim().toLowerCase();
+      if (!VALID_SUPPORT_STATUSES.includes(status)) {
+        return res.status(400).json({ success: false, error: `Invalid ticket status. Use one of: ${VALID_SUPPORT_STATUSES.join(', ')}` });
+      }
+      updates.status = status;
+      if (['resolved', 'closed'].includes(status)) {
+        updates.resolved_at = updates.updated_at;
+        updates.resolved_by = getAdminActorLabel(req);
+      }
+    }
+    if (req.body?.priority) {
+      const priority = String(req.body.priority).trim().toLowerCase();
+      if (!VALID_SUPPORT_PRIORITIES.includes(priority)) {
+        return res.status(400).json({ success: false, error: `Invalid ticket priority. Use one of: ${VALID_SUPPORT_PRIORITIES.join(', ')}` });
+      }
+      updates.priority = priority;
+    }
+    if (Object.keys(updates).length === 1) {
+      return res.status(400).json({ success: false, error: 'No support ticket changes supplied.' });
+    }
+
+    const { data, error } = await supabase
+      .from('support_tickets')
+      .update(updates)
+      .eq('id', req.params.id)
+      .select('id, user_id, category, subject, message, status, priority, metadata, created_at, updated_at, resolved_at, resolved_by')
+      .maybeSingle();
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Support ticket not found.' });
+
+    await recordAdminAudit(req, {
+      action: 'support_ticket.update',
+      entityType: 'support_ticket',
+      entityId: req.params.id,
+      metadata: { fields: Object.keys(updates).filter(key => key !== 'updated_at') }
+    });
+    res.json({ success: true, ticket: data });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/admin/panic-timer', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
   try {
     const raw = parseInt(req.body?.seconds, 10);
     if (!Number.isFinite(raw) || raw <= 0) {
@@ -1482,6 +2588,12 @@ app.post('/admin/panic-timer', checkAdmin, async (req, res) => {
     await supabase
       .from('app_settings')
       .upsert({ key: 'panic_timer_seconds', value: String(raw) }, { onConflict: 'key' });
+    await recordAdminAudit(req, {
+      action: 'panic_timer.update',
+      entityType: 'app_settings',
+      entityId: 'panic_timer_seconds',
+      metadata: { seconds: raw }
+    });
     res.json({ success: true, panicTimerSeconds: raw });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
@@ -1496,7 +2608,7 @@ app.get('/admin/pool-health', checkAdmin, async (req, res) => {
     const difficulties = ['Easy', 'Medium', 'Hard'];
 
     const [riddlesRes, locksRes] = await Promise.all([
-      supabase.from('riddles').select('id, game_mode, difficulty, difficulty_tier, is_active, is_onboarding'),
+      supabase.from('riddles').select('id, game_mode, difficulty, difficulty_tier, is_active, is_onboarding, review_status'),
       supabase.from('riddle_daily_locks').select('riddle_id').eq('lock_date', today)
     ]);
 
@@ -1509,7 +2621,7 @@ app.get('/admin/pool-health', checkAdmin, async (req, res) => {
       grid[m] = {};
       tierGrid[m] = {};
       difficulties.forEach(d => {
-        const active = riddles.filter(r => r.game_mode === m && r.difficulty === d && r.is_active);
+        const active = riddles.filter(r => r.game_mode === m && r.difficulty === d && isDeliverableRiddle(r));
         const servedToday = active.filter(r => lockedToday.has(r.id)).length;
         const remaining = active.length - servedToday;
         const onboardingCount = active.filter(r => r.is_onboarding).length;
@@ -1524,7 +2636,7 @@ app.get('/admin/pool-health', checkAdmin, async (req, res) => {
       [1, 2, 3, 4, 5].forEach(t => {
         const active = riddles.filter(r => (
           r.game_mode === m
-          && r.is_active
+          && isDeliverableRiddle(r)
           && (parseInt(r.difficulty_tier, 10) || getDifficultyTierFromLegacyDifficulty(r.difficulty)) === t
         ));
         const servedToday = active.filter(r => lockedToday.has(r.id)).length;
@@ -1545,13 +2657,19 @@ app.get('/admin/pool-health', checkAdmin, async (req, res) => {
 });
 
 // Toggle maintenance mode
-app.post('/admin/maintenance', checkAdmin, async (req, res) => {
+app.post('/admin/maintenance', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
   try {
     const { on, message } = req.body;
     await supabase.from('app_settings').upsert({ key: 'maintenance_mode', value: on ? 'true' : 'false' }, { onConflict: 'key' });
     if (message) {
       await supabase.from('app_settings').upsert({ key: 'maintenance_message', value: message }, { onConflict: 'key' });
     }
+    await recordAdminAudit(req, {
+      action: 'maintenance.update',
+      entityType: 'app_settings',
+      entityId: 'maintenance_mode',
+      metadata: { enabled: !!on, messageUpdated: !!message }
+    });
     console.log(`🔧 Maintenance mode: ${on ? 'ON' : 'OFF'}`);
     res.json({ success: true, maintenanceMode: on });
   } catch (error) {
@@ -1562,23 +2680,31 @@ app.post('/admin/maintenance', checkAdmin, async (req, res) => {
 // Get riddles — with filtering and pagination
 app.get('/admin/riddles', checkAdmin, async (req, res) => {
   try {
-    const { mode, difficulty, is_active, is_onboarding, page = 1, limit = 50 } = req.query;
+    const { mode, difficulty, difficulty_tier, is_active, is_onboarding, review_status, type, search, page = 1, limit = 50 } = req.query;
     const pageNum = Math.max(1, parseInt(page) || 1);
-    const limitNum = Math.max(1, parseInt(limit) || 50);
+    const limitNum = Math.min(1000, Math.max(1, parseInt(limit) || 50));
     const offset = (pageNum - 1) * limitNum;
 
     let query = supabase.from('riddles').select('*', { count: 'exact' }).order('created_at', { ascending: false });
 
     if (mode) query = query.eq('game_mode', mode);
     if (difficulty) query = query.eq('difficulty', difficulty);
+    if (difficulty_tier) query = query.eq('difficulty_tier', Math.max(1, Math.min(5, parseInt(difficulty_tier, 10) || 1)));
     if (is_active !== undefined) query = query.eq('is_active', is_active === 'true');
     if (is_onboarding !== undefined) query = query.eq('is_onboarding', is_onboarding === 'true');
+    if (review_status) query = query.eq('review_status', String(review_status).slice(0, 40));
+    if (type === 'image') query = query.in('riddle_type', ['image_text', 'image_only']);
+    if (type === 'text') query = query.or('riddle_type.is.null,riddle_type.eq.text');
+    if (search) {
+      const safeSearch = String(search).replace(/[%,()]/g, ' ').trim().slice(0, 120);
+      if (safeSearch) query = query.ilike('question', `%${safeSearch}%`);
+    }
 
-    query = query.range(offset, offset + parseInt(limit) - 1);
+    query = query.range(offset, offset + limitNum - 1);
 
     const { data: riddles, error, count } = await query;
     if (error) throw error;
-    res.json({ success: true, riddles, total: count, page: parseInt(page), limit: parseInt(limit) });
+    res.json({ success: true, riddles, total: count, page: pageNum, limit: limitNum });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1589,6 +2715,175 @@ const VALID_GAME_MODES = ['mcq', 'type', 'arena', 'daily', 'gauntlet', 'chain', 
 const VALID_DIFFICULTIES = ['Easy', 'Medium', 'Hard'];
 const VALID_RIDDLE_TYPES = ['text', 'image_text', 'image_only', 'audio_text', 'video_text', 'interactive'];
 const MEDIA_RIDDLE_TYPES = ['image_text', 'image_only', 'audio_text', 'video_text', 'interactive'];
+const MAX_ADMIN_BULK_DELETE = 1000;
+
+function normalizeRiddleIdList(ids) {
+  const values = Array.isArray(ids) ? ids : [ids];
+  const unique = [...new Set(values.map(id => String(id || '').trim()).filter(Boolean))];
+  return unique.filter(id => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id));
+}
+
+function incrementCount(entry, key) {
+  if (!entry || !key) return;
+  entry[key] = (entry[key] || 0) + 1;
+}
+
+async function fetchRowsOrEmpty(table, select, column, ids) {
+  if (!ids.length) return [];
+  const { data, error } = await supabase.from(table).select(select).in(column, ids);
+  if (error) {
+    // Some old local DB snapshots may not have every auxiliary table yet.
+    if (['42P01', '42703'].includes(error.code)) return [];
+    throw error;
+  }
+  return data || [];
+}
+
+async function deleteWhereInOrIgnore(table, column, ids) {
+  if (!ids.length) return;
+  const { error } = await supabase.from(table).delete().in(column, ids);
+  if (error && !['42P01', '42703'].includes(error.code)) throw error;
+}
+
+async function getRiddleDependencySummary(ids) {
+  const summary = new Map(ids.map(id => [id, {
+    history: 0,
+    queues: 0,
+    challenges: 0,
+    reports: 0,
+    rooms: 0,
+    liveRooms: 0
+  }]));
+
+  const [historyRows, queueRows, challengeRows, reportRows, roomRows] = await Promise.all([
+    fetchRowsOrEmpty('user_riddle_history', 'riddle_id', 'riddle_id', ids),
+    fetchRowsOrEmpty('session_riddle_queue', 'riddle_id', 'riddle_id', ids),
+    fetchRowsOrEmpty('challenges', 'riddle_id', 'riddle_id', ids),
+    fetchRowsOrEmpty('user_riddle_reports', 'riddle_id', 'riddle_id', ids),
+    fetchRowsOrEmpty('multiplayer_rooms', 'id,current_riddle_id,status', 'current_riddle_id', ids)
+  ]);
+
+  historyRows.forEach(row => incrementCount(summary.get(row.riddle_id), 'history'));
+  queueRows.forEach(row => incrementCount(summary.get(row.riddle_id), 'queues'));
+  challengeRows.forEach(row => incrementCount(summary.get(row.riddle_id), 'challenges'));
+  reportRows.forEach(row => incrementCount(summary.get(row.riddle_id), 'reports'));
+  roomRows.forEach(row => {
+    const entry = summary.get(row.current_riddle_id);
+    if (!entry) return;
+    entry.rooms += 1;
+    if (['active', 'playing'].includes(row.status)) entry.liveRooms += 1;
+  });
+
+  return summary;
+}
+
+function hasRiddleDependencies(summary) {
+  return (summary.history + summary.queues + summary.challenges + summary.reports + summary.rooms) > 0;
+}
+
+async function deleteRiddlesByIds(ids, { purge = false, actorLabel = null } = {}) {
+  const requestedIds = normalizeRiddleIdList(ids).slice(0, MAX_ADMIN_BULK_DELETE);
+  if (!requestedIds.length) {
+    return {
+      requested: 0,
+      found: 0,
+      deleted: [],
+      archived: [],
+      skipped: [],
+      notFound: [],
+      purged: false
+    };
+  }
+
+  const { data: existingRows, error: existingErr } = await supabase
+    .from('riddles')
+    .select('id, question')
+    .in('id', requestedIds);
+  if (existingErr) throw existingErr;
+
+  const existingIds = (existingRows || []).map(row => row.id);
+  const existingSet = new Set(existingIds);
+  const notFound = requestedIds.filter(id => !existingSet.has(id));
+  const dependencies = await getRiddleDependencySummary(existingIds);
+
+  if (purge) {
+    const blockedLive = existingIds.filter(id => (dependencies.get(id)?.liveRooms || 0) > 0);
+    const purgeIds = existingIds.filter(id => !blockedLive.includes(id));
+
+    await deleteWhereInOrIgnore('user_riddle_history', 'riddle_id', purgeIds);
+    await deleteWhereInOrIgnore('session_riddle_queue', 'riddle_id', purgeIds);
+    await deleteWhereInOrIgnore('riddle_daily_locks', 'riddle_id', purgeIds);
+    await deleteWhereInOrIgnore('solved_riddles', 'riddle_id', purgeIds);
+    await deleteWhereInOrIgnore('challenges', 'riddle_id', purgeIds);
+    await deleteWhereInOrIgnore('user_riddle_reports', 'riddle_id', purgeIds);
+
+    if (purgeIds.length) {
+      const { error: roomErr } = await supabase
+        .from('multiplayer_rooms')
+        .update({ current_riddle_id: null })
+        .in('current_riddle_id', purgeIds)
+        .not('status', 'in', '(active,playing)');
+      if (roomErr && !['42P01', '42703'].includes(roomErr.code)) throw roomErr;
+    }
+
+    if (purgeIds.length) {
+      const { error: deleteErr } = await supabase.from('riddles').delete().in('id', purgeIds);
+      if (deleteErr) throw deleteErr;
+    }
+
+    return {
+      requested: requestedIds.length,
+      found: existingIds.length,
+      deleted: purgeIds,
+      archived: [],
+      skipped: blockedLive.map(id => ({
+        id,
+        reason: 'Riddle is currently attached to an active/playing room. End the room first, then purge.'
+      })),
+      notFound,
+      purged: true
+    };
+  }
+
+  const cleanIds = [];
+  const archiveIds = [];
+  existingIds.forEach(id => {
+    const summary = dependencies.get(id) || {};
+    if (hasRiddleDependencies(summary)) archiveIds.push(id);
+    else cleanIds.push(id);
+  });
+
+  await deleteWhereInOrIgnore('riddle_daily_locks', 'riddle_id', cleanIds);
+  await deleteWhereInOrIgnore('solved_riddles', 'riddle_id', cleanIds);
+
+  if (cleanIds.length) {
+    const { error: deleteErr } = await supabase.from('riddles').delete().in('id', cleanIds);
+    if (deleteErr) throw deleteErr;
+  }
+  if (archiveIds.length) {
+    const now = new Date().toISOString();
+    const { error: archiveErr } = await supabase
+      .from('riddles')
+      .update({
+        is_active: false,
+        review_status: 'archived',
+        archived_at: now,
+        archived_by: actorLabel || 'admin'
+      })
+      .in('id', archiveIds);
+    if (archiveErr) throw archiveErr;
+  }
+
+  return {
+    requested: requestedIds.length,
+    found: existingIds.length,
+    deleted: cleanIds,
+    archived: archiveIds,
+    skipped: [],
+    notFound,
+    purged: false
+  };
+}
 
 function parseAdminJsonField(value, fieldName) {
   if (value == null || value === '') return { value: null };
@@ -1600,21 +2895,141 @@ function parseAdminJsonField(value, fieldName) {
   }
 }
 
+function getAllowedMediaOrigins() {
+  const origins = new Set(
+    String(process.env.ALLOWED_MEDIA_ORIGINS || '')
+      .split(',')
+      .map(origin => origin.trim().replace(/\/$/, ''))
+      .filter(Boolean)
+  );
+
+  try {
+    if (process.env.SUPABASE_URL) origins.add(new URL(process.env.SUPABASE_URL).origin);
+  } catch {}
+
+  if (process.env.NODE_ENV !== 'production') {
+    origins.add('http://localhost:3000');
+    origins.add('http://127.0.0.1:3000');
+  }
+
+  return origins;
+}
+
 function normalizeStoredMediaUrl(value) {
   const raw = String(value || '').trim();
   if (!raw) return null;
   try {
     const parsed = new URL(raw);
-    return ['http:', 'https:'].includes(parsed.protocol) ? raw : null;
+    if (!['http:', 'https:'].includes(parsed.protocol)) return null;
+    const allowedOrigins = getAllowedMediaOrigins();
+    if (allowedOrigins.size && !allowedOrigins.has(parsed.origin)) return null;
+    return parsed.toString();
   } catch {
     return null;
   }
 }
 
-app.post('/admin/riddle/add', checkAdmin, async (req, res) => {
+function getRiddleMediaStoragePath(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  try {
+    const parsed = new URL(raw);
+    const marker = '/storage/v1/object/public/riddle-media/';
+    const markerIndex = parsed.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+    return decodeURIComponent(parsed.pathname.slice(markerIndex + marker.length)).replace(/^\/+/, '');
+  } catch {
+    return null;
+  }
+}
+
+async function listRiddleMediaObjects(prefix = 'uploads') {
+  const objects = [];
+  const pageSize = 100;
+  for (let offset = 0; offset < 5000; offset += pageSize) {
+    const { data, error } = await supabase.storage
+      .from('riddle-media')
+      .list(prefix, { limit: pageSize, offset, sortBy: { column: 'name', order: 'asc' } });
+    if (error) throw error;
+    const page = data || [];
+    page
+      .filter(item => item?.name && item.id !== null)
+      .forEach(item => objects.push({
+        ...item,
+        path: `${prefix.replace(/\/$/, '')}/${item.name}`
+      }));
+    if (page.length < pageSize) break;
+  }
+  return objects;
+}
+
+async function getOrphanRiddleMedia() {
+  const [{ data: mediaRows, error: mediaErr }, objects] = await Promise.all([
+    supabase.from('riddles').select('media_url').not('media_url', 'is', null),
+    listRiddleMediaObjects('uploads')
+  ]);
+  if (mediaErr) throw mediaErr;
+  const referenced = new Set((mediaRows || []).map(row => getRiddleMediaStoragePath(row.media_url)).filter(Boolean));
+  const orphans = objects.filter(object => !referenced.has(object.path));
+  return {
+    totalObjects: objects.length,
+    referencedCount: referenced.size,
+    orphanCount: orphans.length,
+    orphans
+  };
+}
+
+app.get('/admin/storage/orphans', checkAdmin, async (req, res) => {
+  try {
+    const report = await getOrphanRiddleMedia();
+    res.json({
+      success: true,
+      totalObjects: report.totalObjects,
+      referencedCount: report.referencedCount,
+      orphanCount: report.orphanCount,
+      orphans: report.orphans.slice(0, 500).map(object => ({
+        name: object.name,
+        path: object.path,
+        updated_at: object.updated_at,
+        created_at: object.created_at,
+        size: object.metadata?.size || null,
+        mimetype: object.metadata?.mimetype || object.metadata?.contentType || null
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/admin/storage/orphans/delete', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
+  try {
+    if (req.body?.confirm !== 'DELETE') {
+      return res.status(400).json({ success: false, error: 'Type DELETE to confirm orphan media cleanup.' });
+    }
+    const limit = Math.min(500, Math.max(1, parseInt(req.body?.limit, 10) || 100));
+    const report = await getOrphanRiddleMedia();
+    const toDelete = report.orphans.slice(0, limit).map(object => object.path);
+    if (toDelete.length) {
+      const { error } = await supabase.storage.from('riddle-media').remove(toDelete);
+      if (error) throw error;
+    }
+    await recordAdminAudit(req, {
+      action: 'storage.orphans.delete',
+      entityType: 'storage',
+      entityId: 'riddle-media',
+      metadata: { deletedCount: toDelete.length, totalOrphans: report.orphanCount, paths: toDelete }
+    });
+    res.json({ success: true, deletedCount: toDelete.length, totalOrphans: report.orphanCount, deleted: toDelete });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/admin/riddle/add', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
   try {
     const { riddles } = req.body;
     const riddlesArray = Array.isArray(riddles) ? riddles : [riddles];
+    const actorLabel = getAdminActorLabel(req);
     const { data: existingRiddles } = await supabase
       .from('riddles')
       .select('id, question, answer, game_mode');
@@ -1643,6 +3058,14 @@ app.post('/admin/riddle/add', checkAdmin, async (req, res) => {
         results.push({ index: i, success: false, error: `Invalid riddle_type "${riddleType}". Must be one of: ${VALID_RIDDLE_TYPES.join(', ')}` });
         continue;
       }
+      const reviewStatus = normalizeReviewStatus(r.review_status ?? (r.is_active === false ? 'archived' : 'approved'), 'approved');
+      if (!reviewStatus) {
+        results.push({ index: i, success: false, error: `Invalid review_status "${r.review_status}". Must be one of: ${VALID_REVIEW_STATUSES.join(', ')}` });
+        continue;
+      }
+      const activeOverride = Object.prototype.hasOwnProperty.call(r, 'is_active')
+        ? normalizeBoolean(r.is_active, true)
+        : undefined;
       if (MEDIA_RIDDLE_TYPES.includes(riddleType) && !r.media_url) {
         results.push({ index: i, success: false, error: `${riddleType} riddles require a media_url from the admin uploader.` });
         continue;
@@ -1673,6 +3096,9 @@ app.post('/admin/riddle/add', checkAdmin, async (req, res) => {
         continue;
       }
       const difficultyTier = Math.max(1, Math.min(5, parseInt(r.difficulty_tier, 10) || getDifficultyTierFromLegacyDifficulty(r.difficulty)));
+      const semanticEnabled = Object.prototype.hasOwnProperty.call(r, 'semantic_check_enabled')
+        ? normalizeBoolean(r.semantic_check_enabled, false)
+        : false;
       const candidatePayload = {
         question: r.question || (riddleType === 'image_only' ? '[Visual Riddle]' : '[Interactive Riddle]'),
         answer: r.answer,
@@ -1686,14 +3112,22 @@ app.post('/admin/riddle/add', checkAdmin, async (req, res) => {
         fun_fact: r.fun_fact || null,
         explanation: r.explanation || null,
         family_id: r.family_id || null,
+        parent_riddle_id: r.parent_riddle_id || null,
         panic_time: r.panic_time || null,
         is_onboarding: r.is_onboarding === true,
-        is_active: true,
+        version: 1,
         times_served: 0,
         riddle_type: riddleType,
         media_url: mediaUrl,
         layout_config: layoutConfig || null,
+        semantic_check_enabled: semanticEnabled,
+        answer_strictness: normalizeStrictness(r.answer_strictness),
+        accepted_aliases: normalizeStringArray(r.accepted_aliases || r.acceptedAliases),
+        required_keywords: normalizeStringArray(r.required_keywords || r.requiredKeywords),
+        forbidden_meanings: normalizeStringArray(r.forbidden_meanings || r.forbiddenMeanings),
+        answer_rubric: cleanAdminText(r.answer_rubric || r.answerRubric, 1500) || null,
       };
+      applyRiddleReviewState(candidatePayload, reviewStatus, actorLabel, new Date().toISOString(), activeOverride);
       const duplicate = findPotentialDuplicateRiddle(candidatePayload, duplicateCorpus);
       if (duplicate) {
         results.push({
@@ -1728,6 +3162,16 @@ app.post('/admin/riddle/add', checkAdmin, async (req, res) => {
     const added = results.filter(r => r.success).length;
     const failed = results.filter(r => !r.success).length;
 
+    await recordAdminAudit(req, {
+      action: 'riddles.add',
+      entityType: 'riddle',
+      metadata: {
+        requested: riddlesArray.length,
+        added,
+        failed,
+        insertedIds: results.filter(r => r.success).map(r => r.id)
+      }
+    });
     console.log(`👑 Admin uploaded riddles: ${added} added, ${failed} failed`);
     res.json({ success: true, added, failed, results });
   } catch (error) {
@@ -1736,18 +3180,22 @@ app.post('/admin/riddle/add', checkAdmin, async (req, res) => {
 });
 
 // Update a riddle
-app.put('/admin/riddle/:id', checkAdmin, async (req, res) => {
+app.put('/admin/riddle/:id', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
   try {
     const { id } = req.params;
     const allowedFields = new Set([
       'question', 'answer', 'game_mode', 'difficulty', 'difficulty_tier', 'region',
       'options', 'hint', 'category', 'fun_fact', 'explanation', 'family_id',
-      'panic_time', 'is_onboarding', 'is_active', 'riddle_type', 'media_url', 'layout_config'
+      'parent_riddle_id', 'panic_time', 'is_onboarding', 'is_active', 'review_status',
+      'riddle_type', 'media_url', 'layout_config', 'semantic_check_enabled',
+      'answer_strictness', 'accepted_aliases', 'required_keywords', 'forbidden_meanings',
+      'answer_rubric'
     ]);
     const updates = {};
     Object.entries(req.body || {}).forEach(([key, value]) => {
       if (allowedFields.has(key)) updates[key] = value;
     });
+    if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, error: 'No riddle changes supplied.' });
     if (updates.game_mode && !VALID_GAME_MODES.includes(updates.game_mode)) {
       return res.status(400).json({ success: false, error: `Invalid game_mode "${updates.game_mode}".` });
     }
@@ -1765,37 +3213,148 @@ app.put('/admin/riddle/:id', checkAdmin, async (req, res) => {
     if (updates.difficulty_tier != null) {
       updates.difficulty_tier = Math.max(1, Math.min(5, parseInt(updates.difficulty_tier, 10) || 1));
     }
+    if (Object.prototype.hasOwnProperty.call(updates, 'is_active')) {
+      updates.is_active = normalizeBoolean(updates.is_active, true);
+    }
+    if (updates.review_status != null) {
+      const reviewStatus = normalizeReviewStatus(updates.review_status, null);
+      if (!reviewStatus) {
+        return res.status(400).json({ success: false, error: `Invalid review_status "${updates.review_status}".` });
+      }
+      updates.review_status = reviewStatus;
+    }
     if (updates.options != null && !Array.isArray(updates.options)) {
       return res.status(400).json({ success: false, error: 'options must be an array when provided.' });
     }
     if (updates.layout_config != null && (typeof updates.layout_config !== 'object' || Array.isArray(updates.layout_config))) {
       return res.status(400).json({ success: false, error: 'layout_config must be an object when provided.' });
     }
+    if (Object.prototype.hasOwnProperty.call(updates, 'semantic_check_enabled')) {
+      updates.semantic_check_enabled = normalizeBoolean(updates.semantic_check_enabled, true);
+    }
+    if (updates.answer_strictness != null) {
+      updates.answer_strictness = normalizeStrictness(updates.answer_strictness);
+    }
+    ['accepted_aliases', 'required_keywords', 'forbidden_meanings'].forEach((field) => {
+      if (Object.prototype.hasOwnProperty.call(updates, field)) {
+        updates[field] = normalizeStringArray(updates[field]);
+      }
+    });
+    if (Object.prototype.hasOwnProperty.call(updates, 'answer_rubric')) {
+      updates.answer_rubric = cleanAdminText(updates.answer_rubric, 1500) || null;
+    }
+    if (updates.parent_riddle_id === '') updates.parent_riddle_id = null;
+
+    const { data: current, error: currentErr } = await supabase
+      .from('riddles')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (currentErr) throw currentErr;
+    if (!current) return res.status(404).json({ success: false, error: 'Riddle not found.' });
+
+    const actorLabel = getAdminActorLabel(req);
+    if (updates.review_status) {
+      const activeOverride = Object.prototype.hasOwnProperty.call(updates, 'is_active') ? updates.is_active : undefined;
+      applyRiddleReviewState(updates, updates.review_status, actorLabel, new Date().toISOString(), activeOverride);
+    } else if (updates.is_active === true && current.review_status && current.review_status !== 'approved') {
+      applyRiddleReviewState(updates, 'approved', actorLabel, new Date().toISOString(), true);
+    }
+    updates.version = (parseInt(current.version, 10) || 1) + 1;
+
+    const { error: versionErr } = await supabase
+      .from('riddle_versions')
+      .insert({
+        riddle_id: id,
+        version: parseInt(current.version, 10) || 1,
+        snapshot: current,
+        changed_by: actorLabel,
+        change_reason: cleanAdminText(req.body?.change_reason, 300) || null
+      });
+    if (versionErr && !['42P01', '42703'].includes(versionErr.code)) throw versionErr;
+
     const { data, error } = await supabase.from('riddles').update(updates).eq('id', id).select().single();
     if (error) throw error;
+    await recordAdminAudit(req, {
+      action: 'riddle.update',
+      entityType: 'riddle',
+      entityId: id,
+      metadata: { fields: Object.keys(updates) }
+    });
     res.json({ success: true, riddle: data });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Delete a riddle — clean up FK-dependent tables first
-app.delete('/admin/riddle/:id', checkAdmin, async (req, res) => {
+// Bulk delete riddles.
+// Safe mode archives referenced riddles; purge mode removes dependent history/queues/challenges
+// and refuses to touch riddles currently attached to active gameplay rooms.
+app.post('/admin/riddles/delete', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
   try {
-    const { id } = req.params;
-    // Remove from dependent tables before deleting the riddle (FK constraints)
-    await supabase.from('riddle_daily_locks').delete().eq('riddle_id', id);
-    await supabase.from('solved_riddles').delete().eq('riddle_id', id);
-    const { error } = await supabase.from('riddles').delete().eq('id', id);
-    if (error) throw error;
-    res.json({ success: true, message: `Deleted riddle ${id}` });
+    const { ids, purge = false } = req.body || {};
+    const requestedIds = normalizeRiddleIdList(ids);
+    if (!requestedIds.length) {
+      return res.status(400).json({ success: false, error: 'Select at least one valid riddle id.' });
+    }
+    if (requestedIds.length > MAX_ADMIN_BULK_DELETE) {
+      return res.status(400).json({ success: false, error: `Bulk delete is capped at ${MAX_ADMIN_BULK_DELETE} riddles per request.` });
+    }
+
+    const result = await deleteRiddlesByIds(requestedIds, { purge: !!purge, actorLabel: getAdminActorLabel(req) });
+    const action = result.purged ? 'purged' : 'processed';
+    await recordAdminAudit(req, {
+      action: result.purged ? 'riddles.purge' : 'riddles.delete',
+      entityType: 'riddle',
+      metadata: {
+        requested: result.requested,
+        found: result.found,
+        deleted: result.deleted.length,
+        archived: result.archived.length,
+        skipped: result.skipped.length,
+        ids: requestedIds
+      }
+    });
+    console.log(`🗑️ Admin bulk riddle delete: ${action} ${result.deleted.length}, archived ${result.archived.length}, skipped ${result.skipped.length}`);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete a riddle — archive if it has ever touched live user/session/challenge data.
+app.delete('/admin/riddle/:id', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
+  try {
+    const result = await deleteRiddlesByIds([req.params.id], { purge: req.query.purge === 'true', actorLabel: getAdminActorLabel(req) });
+    const archived = result.archived.length > 0;
+    const deleted = result.deleted.length > 0;
+    const skipped = result.skipped.length > 0;
+    if (!deleted && !archived && !skipped) return res.status(404).json({ success: false, error: 'Riddle not found.' });
+    await recordAdminAudit(req, {
+      action: req.query.purge === 'true' ? 'riddle.purge' : 'riddle.delete',
+      entityType: 'riddle',
+      entityId: req.params.id,
+      metadata: { deleted, archived, skipped }
+    });
+    res.json({
+      success: true,
+      archived,
+      deleted,
+      skipped,
+      message: skipped
+        ? result.skipped[0].reason
+        : archived
+          ? `Riddle ${req.params.id} was archived instead of deleted because it has live history, session, or challenge references.`
+          : `Deleted riddle ${req.params.id}`,
+      ...result
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
 });
 
 // Upload media for riddles — saves to Supabase Storage
-app.post('/admin/upload', checkAdmin, upload.single('file'), async (req, res) => {
+app.post('/admin/upload', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file uploaded' });
 
@@ -1815,7 +3374,7 @@ app.post('/admin/upload', checkAdmin, upload.single('file'), async (req, res) =>
     const contentType = req.file.mimetype === 'application/octet-stream' && interactiveByExt
       ? (ext === '.html' || ext === '.htm' ? 'text/html' : ext === '.json' ? 'application/json' : ext === '.js' ? 'text/javascript' : 'text/plain')
       : req.file.mimetype;
-    const fileName = `riddle_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+    const fileName = `riddle_${Date.now()}_${crypto.randomBytes(6).toString('hex')}${ext}`;
     const filePath = `uploads/${fileName}`;
 
     const { data, error } = await supabase.storage
@@ -1840,9 +3399,86 @@ app.post('/admin/upload', checkAdmin, upload.single('file'), async (req, res) =>
           : 'interactive';
 
     console.log(`📸 Media uploaded: ${fileName}`);
+    await recordAdminAudit(req, {
+      action: 'media.upload',
+      entityType: 'storage',
+      entityId: filePath,
+      metadata: {
+        mediaKind,
+        mimeType: contentType,
+        size: req.file.size,
+        originalExt: ext
+      }
+    });
     res.json({ success: true, url: urlData.publicUrl, path: filePath, mediaKind, mimeType: contentType });
   } catch (error) {
     console.error('❌ /admin/upload:', error.message);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+app.post('/admin/image-assets', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES), async (req, res) => {
+  try {
+    const body = req.body || {};
+    const originalImageUrl = normalizeStoredMediaUrl(body.original_image_url || body.originalImageUrl);
+    const finalImageUrl = normalizeStoredMediaUrl(body.final_image_url || body.finalImageUrl);
+    const rawWidth = parseInt(body.width, 10);
+    const rawHeight = parseInt(body.height, 10);
+    const width = Math.max(1, Math.min(8192, rawWidth || 0));
+    const height = Math.max(1, Math.min(8192, rawHeight || 0));
+    const rotation = Number.isFinite(Number(body.rotation)) ? Number(body.rotation) : 0;
+    const orientation = ['portrait', 'landscape', 'square'].includes(body.orientation) ? body.orientation : (
+      width === height ? 'square' : width > height ? 'landscape' : 'portrait'
+    );
+    const fileSize = Math.max(0, parseInt(body.file_size || body.fileSize, 10) || 0);
+    const crop = body.crop && typeof body.crop === 'object' && !Array.isArray(body.crop) ? body.crop : {};
+    const metadata = body.metadata && typeof body.metadata === 'object' && !Array.isArray(body.metadata) ? body.metadata : {};
+
+    if (!originalImageUrl || !finalImageUrl) {
+      return res.status(400).json({ success: false, error: 'original_image_url and final_image_url must be valid admin media URLs.' });
+    }
+    if (!Number.isFinite(rawWidth) || !Number.isFinite(rawHeight) || rawWidth <= 0 || rawHeight <= 0) {
+      return res.status(400).json({ success: false, error: 'Edited image width and height are required.' });
+    }
+
+    const payload = {
+      original_image_url: originalImageUrl,
+      final_image_url: finalImageUrl,
+      width,
+      height,
+      rotation,
+      crop,
+      orientation,
+      file_size: fileSize,
+      uploaded_by: cleanAdminText(body.uploaded_by || getAdminActorLabel(req), 120),
+      metadata,
+      updated_at: new Date().toISOString()
+    };
+
+    const { data, error } = await supabase
+      .from('admin_image_assets')
+      .insert(payload)
+      .select('*')
+      .single();
+    if (error) throw error;
+
+    await recordAdminAudit(req, {
+      action: 'image_asset.create',
+      entityType: 'image_asset',
+      entityId: data.id,
+      metadata: {
+        width,
+        height,
+        orientation,
+        finalImageUrl,
+        originalImageUrl,
+        fileSize
+      }
+    });
+
+    res.json({ success: true, asset: data });
+  } catch (error) {
+    console.error('❌ /admin/image-assets:', error.message);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -1863,7 +3499,7 @@ async function buildRiddleDelivery({ userId, xp, totalPlayed, requestedMode = 'a
     return { success: false, tier, error: 'Pool exhausted — new riddles coming soon' };
   }
 
-  const timeLimit = panicMode ? await getAdminPanicTimerSeconds() : null;
+  const timeLimit = panicMode ? await resolveRiddlePanicTimerSeconds(riddle) : null;
   return {
     success: true,
     tier,
@@ -1894,7 +3530,7 @@ async function buildDailyDelivery({ userId, xp = 0, panicMode = false }) {
     if (existingDaily?.riddle_id && existingDaily.status === 'served') {
       const resumeRiddle = await fetchSafeRiddleById(existingDaily.riddle_id, 'daily');
       if (resumeRiddle) {
-        const timeLimit = panicMode ? await getAdminPanicTimerSeconds() : null;
+        const timeLimit = panicMode ? await resolveRiddlePanicTimerSeconds(resumeRiddle) : null;
         return {
           success: true,
           resumed: true,
@@ -2028,8 +3664,9 @@ app.post('/riddle', authenticateToken, checkMaintenance, async (req, res) => {
 // ============================
 app.post('/answer', authenticateToken, async (req, res) => {
   try {
-    const actorId = resolveAuthenticatedActorId(req, req.body.userId);
-    const { riddleId, userAnswer, timeTaken, mode, gameMode, panicMode } = req.body;
+    const body = req.body || {};
+    const actorId = resolveAuthenticatedActorId(req, body.userId);
+    const { riddleId, userAnswer, timeTaken, mode, gameMode, panicMode } = body;
     const userId = actorId;
     if (!userId || !riddleId) {
       return res.status(400).json({ success: false, error: 'Missing required payload parameters: userId, riddleId' });
@@ -2038,20 +3675,24 @@ app.post('/answer', authenticateToken, async (req, res) => {
     const servedHistory = await resolveServedRiddleGuard({ userId, riddleId, mode: effectiveGameMode });
     console.log(`\n📝 Answer | riddleId: ${riddleId} | mode: ${effectiveGameMode}`);
 
-    const riddle = await fetchProtectedRiddleRecord(riddleId, 'id, answer, difficulty, difficulty_tier, question, explanation, fun_fact');
+    const riddle = await fetchProtectedRiddleRecord(riddleId, PROTECTED_ANSWER_FIELDS);
     if (!riddle) throw new Error('Riddle not found');
     const timing = await resolvePanicSubmissionState({
       panicMode: !!panicMode,
       userId,
       riddleId,
-      clientTimeTaken: timeTaken
+      clientTimeTaken: timeTaken,
+      limitSeconds: panicMode ? await resolveRiddlePanicTimerSeconds(riddle) : null
     });
 
     let isCorrect = false;
-    if (mode === 'type') {
-      isCorrect = await checkTypedAnswer(userAnswer, riddle.answer, riddle.question || '');
+    let answerJudgment = null;
+    const usesTypedInput = mode === 'type' || effectiveGameMode === 'type' || !Array.isArray(riddle.options) || riddle.options.length < 2;
+    if (usesTypedInput) {
+      answerJudgment = await judgeTypedAnswer({ userId, riddle, userAnswer, mode: effectiveGameMode });
+      isCorrect = answerJudgment.isCorrect === true;
     } else {
-      isCorrect = isAnswerCorrect(userAnswer, riddle.answer);
+      isCorrect = isAnswerCorrect(userAnswer, riddle.answer, riddle.options);
     }
     if (timing.isLate || userAnswer === '__timeout__') {
       isCorrect = false;
@@ -2197,10 +3838,6 @@ app.post('/answer', authenticateToken, async (req, res) => {
       console.log('⚠️ User update failed (non-fatal):', userUpdateErr.message);
     }
 
-    try {
-      await supabase.from('solved_riddles').insert({ user_id: userId, riddle_id: riddleId, was_correct: isCorrect });
-    } catch {}
-
     res.json({
       success: true,
       isCorrect,
@@ -2217,7 +3854,12 @@ app.post('/answer', authenticateToken, async (req, res) => {
       newLevel,
       leveledUp,
       streakBonus,
-      ranked
+      ranked,
+      answerJudgment: answerJudgment ? {
+        source: answerJudgment.source,
+        confidence: answerJudgment.confidence,
+        semanticUsed: !!answerJudgment.semanticUsed
+      } : null
     });
 
   } catch (error) {
@@ -2232,8 +3874,11 @@ app.post('/answer', authenticateToken, async (req, res) => {
 
 app.post('/auth/check-username', async (req, res) => {
   try {
-    const { username } = req.body;
+    const username = String(req.body.username || '').trim();
     if (!username) return res.json({ success: false, error: 'Username required' });
+    if (!USERNAME_PATTERN.test(username)) {
+      return res.json({ success: true, available: false, error: 'Use 3-32 letters, numbers, and underscores only.' });
+    }
     const { data } = await supabase.from('users').select('id').ilike('username', username).maybeSingle();
     res.json({ success: true, available: !data });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
@@ -2241,13 +3886,26 @@ app.post('/auth/check-username', async (req, res) => {
 
 app.post('/auth/signup', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const username = String(req.body.username || '').trim();
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const { password, legalAccepted } = req.body;
     if (!username || !email || !password) return res.status(400).json({ success: false, error: 'All fields required' });
+    if (legalAccepted !== true) return res.status(400).json({ success: false, error: 'Accept the Terms, Privacy, Fair Play, and Rewards rules to create an account.' });
+    if (!USERNAME_PATTERN.test(username)) return res.status(400).json({ success: false, error: 'Username can use 3-32 letters, numbers, and underscores only.' });
+    if (!EMAIL_PATTERN.test(email)) return res.status(400).json({ success: false, error: 'Valid email required' });
+    if (String(password).length < 8 || String(password).length > 128) return res.status(400).json({ success: false, error: 'Password must be 8-128 characters.' });
 
-    const { data: existingUser } = await supabase.from('users').select('id').or(`email.eq.${email},username.ilike.${username}`).maybeSingle();
-    if (existingUser) return res.status(400).json({ success: false, error: 'Email or Username already in use' });
+    const [existingEmail, existingUsername] = await Promise.all([
+      supabase.from('users').select('id').eq('email', email).maybeSingle(),
+      supabase.from('users').select('id').ilike('username', username).maybeSingle()
+    ]);
+    if (existingEmail.error) throw existingEmail.error;
+    if (existingUsername.error) throw existingUsername.error;
+    if (existingEmail.data || existingUsername.data) {
+      return res.status(400).json({ success: false, error: 'Email or Username already in use' });
+    }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(String(password), 10);
 
     const { data, error } = await supabase.from('users')
       .insert({ username, email, password_hash: passwordHash, is_verified: true, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0, city: 'Global', area: 'Arena', is_admin: false })
@@ -2255,9 +3913,31 @@ app.post('/auth/signup', async (req, res) => {
 
     if (error || !data) throw new Error(error ? error.message : 'Database error: no data returned from signup insert');
 
-    const token = jwt.sign({ id: data.id, username: data.username }, JWT_SECRET, { expiresIn: '30d' });
+    const { error: legalError } = await supabase.from('legal_acceptances').insert({
+      user_id: data.id,
+      policy_version: LEGAL_POLICY_VERSION,
+      terms_version: LEGAL_POLICY_VERSION,
+      privacy_version: LEGAL_POLICY_VERSION,
+      fair_play_version: LEGAL_POLICY_VERSION,
+      rewards_version: LEGAL_POLICY_VERSION,
+      source: 'signup',
+      ip_hash: hashClientIp(req),
+      user_agent: String(req.headers['user-agent'] || '').slice(0, 500),
+      metadata: {
+        route: '/auth/signup',
+        accepted_client_version: String(req.body.legalVersion || LEGAL_POLICY_VERSION).slice(0, 40)
+      }
+    });
+
+    if (legalError) {
+      console.error('Legal acceptance insert failed during signup:', legalError.message);
+      await supabase.from('users').delete().eq('id', data.id);
+      throw new Error('Could not record legal acceptance. Please try again.');
+    }
+
+    const token = issueAuthToken(data);
     console.log(`👤 New User Signed Up: ${data.username}`);
-    res.json({ success: true, user: data, token });
+    res.json({ success: true, user: stripPrivateUserFields(data), token });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
@@ -2282,20 +3962,25 @@ app.post('/auth/verify-email', async (req, res) => {
 
     if (error || !data) throw new Error(error ? error.message : 'Database error: verify user not found');
 
-    const token = jwt.sign({ id: data.id, username: data.username }, JWT_SECRET, { expiresIn: '30d' });
+    const token = issueAuthToken(data);
     res.json({ success: true, user: data, token });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
 app.post('/auth/login', async (req, res) => {
   try {
-    const { loginId, password } = req.body;
+    const loginId = String(req.body.loginId || '').trim();
+    const { password } = req.body;
     if (!loginId || !password) return res.status(400).json({ success: false, error: 'All fields required' });
 
-    const { data: user, error } = await supabase.from('users')
-      .select('*')
-      .or(`email.eq.${loginId},username.ilike.${loginId}`)
-      .maybeSingle();
+    const loginIsEmail = loginId.includes('@');
+    if (loginId.length > 254 || (loginIsEmail && !EMAIL_PATTERN.test(loginId)) || (!loginIsEmail && !USERNAME_PATTERN.test(loginId))) {
+      return res.status(401).json({ success: false, error: 'Invalid credentials' });
+    }
+
+    const { data: user, error } = loginIsEmail
+      ? await supabase.from('users').select('*').eq('email', loginId.toLowerCase()).maybeSingle()
+      : await supabase.from('users').select('*').ilike('username', loginId).maybeSingle();
 
     // Block non-admin logins during maintenance
     if (user && !user.is_admin) {
@@ -2306,22 +3991,18 @@ app.post('/auth/login', async (req, res) => {
     }
 
     if (error || !user) {
-      console.log(`🔒 Login FAILED | loginId: "${loginId}" | DB error: ${error?.message || 'User not found'}`);
+      console.log(`🔒 Login FAILED | ${error?.message || 'User not found'}`);
       return res.status(401).json({ success: false, error: 'Invalid credentials' });
     }
     if (!user.password_hash) return res.status(401).json({ success: false, error: 'Legacy account. Please use Sign Up or reset password.' });
 
     const validPassword = await bcrypt.compare(password, user.password_hash);
-    if (!validPassword) return res.status(401).json({ success: false, error: 'Wrong password' });
+    if (!validPassword) return res.status(401).json({ success: false, error: 'Invalid credentials' });
 
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
+    const token = issueAuthToken(user);
     console.log(`🔑 User Logged In: ${user.username}`);
 
-    delete user.password_hash;
-    delete user.reset_token;
-    delete user.verification_token;
-
-    res.json({ success: true, user, token });
+    res.json({ success: true, user: stripPrivateUserFields(user), token });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
@@ -2342,7 +4023,7 @@ app.post('/auth/oauth', async (req, res) => {
       if (!payload || !payload.email) {
         return res.status(400).json({ success: false, error: 'Invalid Google token' });
       }
-      email = payload.email;
+      email = String(payload.email).trim().toLowerCase();
       name = payload.name || email.split('@')[0];
     } else if (provider === 'apple') {
       // Apple tokens: decode and verify issuer + audience claims
@@ -2356,7 +4037,7 @@ app.post('/auth/oauth', async (req, res) => {
       if (process.env.APPLE_CLIENT_ID && decoded.payload.aud !== process.env.APPLE_CLIENT_ID) {
         return res.status(400).json({ success: false, error: 'Invalid Apple token audience' });
       }
-      email = decoded.payload.email;
+      email = String(decoded.payload.email).trim().toLowerCase();
       name = decoded.payload.name || email.split('@')[0];
     } else {
       return res.status(400).json({ success: false, error: 'Unsupported OAuth provider' });
@@ -2367,7 +4048,7 @@ app.post('/auth/oauth', async (req, res) => {
     if (!user) {
       const { data: newUser, error: insertErr } = await supabase.from('users')
         .insert({
-          username: name + Math.floor(Math.random() * 9999),
+          username: `${normalizeUsernameInput(name, 'operative').slice(0, 22)}_${crypto.randomBytes(3).toString('hex')}`,
           email, is_verified: true,
           coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0,
           city: 'Global', area: 'Arena', is_admin: false
@@ -2380,12 +4061,9 @@ app.post('/auth/oauth', async (req, res) => {
       console.log(`🔑 OAuth Login: ${user.username} (${provider})`);
     }
 
-    const token = jwt.sign({ id: user.id, username: user.username }, JWT_SECRET, { expiresIn: '30d' });
-    delete user.password_hash;
-    delete user.reset_token;
-    delete user.verification_token;
+    const token = issueAuthToken(user);
 
-    res.json({ success: true, user, token });
+    res.json({ success: true, user: stripPrivateUserFields(user), token });
   } catch (error) {
     console.error('❌ /auth/oauth:', error);
     res.status(500).json({ success: false, error: error.message });
@@ -2394,17 +4072,18 @@ app.post('/auth/oauth', async (req, res) => {
 
 app.post('/auth/forgot-password', async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ success: false, error: 'Email required' });
+    const email = String(req.body.email || '').trim().toLowerCase();
+    if (!email || !EMAIL_PATTERN.test(email)) return res.status(400).json({ success: false, error: 'Valid email required' });
 
     const { data: user } = await supabase.from('users').select('id, username').eq('email', email).maybeSingle();
     if (!user) return res.json({ success: true, message: 'If that email exists, an OTP was sent.' });
 
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const tokenExpires = new Date(Date.now() + 3600000).toISOString();
+    const otp = crypto.randomInt(100000, 1000000).toString();
+    const tokenExpires = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+    const otpHash = await bcrypt.hash(otp, 10);
 
-    await supabase.from('users').update({ reset_token: otp, reset_token_expires: tokenExpires }).eq('id', user.id);
-    console.log(`📧 Password Reset OTP for ${email}: ${otp}`);
+    await supabase.from('users').update({ reset_token: otpHash, reset_token_expires: tokenExpires }).eq('id', user.id);
+    console.log(`📧 Password reset requested for user ${user.id}`);
 
     try {
       if (!transporter || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
@@ -2427,20 +4106,31 @@ app.post('/auth/forgot-password', async (req, res) => {
 
 app.post('/auth/reset-password', async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const email = String(req.body.email || '').trim().toLowerCase();
+    const otp = String(req.body.otp || '').trim();
+    const { newPassword } = req.body;
     if (!email || !otp || !newPassword) return res.status(400).json({ success: false, error: 'Email, OTP, and new password required' });
+    if (!EMAIL_PATTERN.test(email) || !/^\d{6}$/.test(otp)) {
+      return res.status(400).json({ success: false, error: 'Invalid or expired OTP code' });
+    }
+    if (String(newPassword).length < 8 || String(newPassword).length > 128) {
+      return res.status(400).json({ success: false, error: 'Password must be 8-128 characters.' });
+    }
 
     const { data: user } = await supabase.from('users')
-      .select('id, reset_token_expires')
+      .select('id, reset_token, reset_token_expires')
       .eq('email', email)
-      .eq('reset_token', otp)
       .maybeSingle();
 
     if (!user || new Date() > new Date(user.reset_token_expires)) {
       return res.status(400).json({ success: false, error: 'Invalid or expired OTP code' });
     }
+    const tokenMatches = String(user.reset_token || '').startsWith('$2')
+      ? await bcrypt.compare(otp, user.reset_token)
+      : user.reset_token === otp;
+    if (!tokenMatches) return res.status(400).json({ success: false, error: 'Invalid or expired OTP code' });
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await bcrypt.hash(String(newPassword), 10);
     await supabase.from('users').update({ password_hash: passwordHash, reset_token: null, reset_token_expires: null }).eq('id', user.id);
 
     res.json({ success: true, message: 'Password reset successful. You can now log in.' });
@@ -2451,14 +4141,30 @@ app.post('/auth/reset-password', async (req, res) => {
 // 👤 USER ROUTES
 // ============================
 
-app.post('/user/create', async (req, res) => {
+app.post('/user/create', authenticateToken, async (req, res) => {
   try {
-    const { id, username, city, area } = req.body;
+    const id = resolveAuthenticatedActorId(req, req.body.id);
+    const { city, area } = req.body;
+    const username = normalizeUsernameInput(req.body.username || req.user?.username || 'Operative');
+    const fallbackEmail = `${id}@crackl.local`;
+    const email = String(req.body.email || req.user?.email || fallbackEmail).trim().toLowerCase().slice(0, 254) || fallbackEmail;
+    if (!id) return res.status(400).json({ success: false, error: 'User ID required' });
+
+    const { data: existing, error: existingError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) {
+      return res.json({ success: true, user: stripPrivateUserFields(existing), existing: true });
+    }
+
     const { data, error } = await supabase.from('users')
-      .upsert({ id, username, city, area, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0 }, { onConflict: 'id', ignoreDuplicates: true })
+      .insert({ id, email, username, city, area, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0 })
       .select().single();
     if (error) throw error;
-    res.json({ success: true, user: data });
+    res.json({ success: true, user: stripPrivateUserFields(data) });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
@@ -2472,19 +4178,19 @@ app.post('/user/update', authenticateToken, async (req, res) => {
     const { username, avatar_url } = req.body;
     if (!userId) return res.status(400).json({ success: false, error: 'User ID required' });
 
-    let updates = {};
+    const updates = {};
     if (username !== undefined) {
       const cleanUsername = String(username).trim();
-      if (cleanUsername.length < 3 || cleanUsername.length > 32) {
-        return res.status(400).json({ success: false, error: 'Username must be 3-32 characters.' });
+      if (!USERNAME_PATTERN.test(cleanUsername)) {
+        return res.status(400).json({ success: false, error: 'Username can use 3-32 letters, numbers, and underscores only.' });
       }
       updates.username = cleanUsername;
     }
     if (avatar_url !== undefined) {
-      if (typeof avatar_url === 'string' && avatar_url.length > 500_000) {
-        return res.status(400).json({ success: false, error: 'Avatar too large (max ~375KB)' });
+      if (!isAcceptedAvatarUrl(avatar_url)) {
+        return res.status(400).json({ success: false, error: 'Avatar must be HTTPS or a PNG/JPEG/WebP/GIF data image under 500KB.' });
       }
-      updates.avatar_url = avatar_url;
+      updates.avatar_url = typeof avatar_url === 'string' && avatar_url.trim() ? avatar_url.trim() : null;
     }
 
     if (Object.keys(updates).length === 0) return res.json({ success: true });
@@ -2496,8 +4202,7 @@ app.post('/user/update', authenticateToken, async (req, res) => {
       await supabase.from('leaderboard').update({ username: updates.username }).eq('user_id', userId);
     }
 
-    delete data.password_hash;
-    res.json({ success: true, user: data });
+    res.json({ success: true, user: stripPrivateUserFields(data) });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
@@ -2505,12 +4210,12 @@ app.get('/leaderboard/:city', async (req, res) => {
   try {
     const { data } = await supabase
       .from('leaderboard')
-      .select('username, coins, city')
+      .select('user_id, username, coins, city')
       .eq('city', req.params.city)
       .eq('week_start', getCurrentWeekStartDate())
       .order('coins', { ascending: false })
       .limit(20);
-    res.json({ success: true, leaderboard: data || [] });
+    res.json({ success: true, leaderboard: await attachUserLevelsToLeaderboard(data || []) });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
@@ -2518,11 +4223,11 @@ app.get('/leaderboard/global/top', async (req, res) => {
   try {
     const { data } = await supabase
       .from('leaderboard')
-      .select('username, coins, city')
+      .select('user_id, username, coins, city')
       .eq('week_start', getCurrentWeekStartDate())
       .order('coins', { ascending: false })
       .limit(20);
-    res.json({ success: true, leaderboard: data || [] });
+    res.json({ success: true, leaderboard: await attachUserLevelsToLeaderboard(data || []) });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
@@ -2586,8 +4291,8 @@ app.post('/api/sessions/:id/generate-queue', authenticateToken, async (req, res)
     }
 
     const difficultyTier = Math.max(1, Math.min(5, parseInt(difficulty, 10) || 1));
-	    const queue = await generateSessionQueue(sessionId, playerIds, difficultyTier, mode || 'arena');
-	    res.json({ success: true, queue_size: queue.length });
+    const queue = await generateSessionQueue(sessionId, playerIds, difficultyTier, mode || 'arena');
+    res.json({ success: true, queue_size: queue.length });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2595,7 +4300,7 @@ app.post('/api/sessions/:id/generate-queue', authenticateToken, async (req, res)
 
 app.post('/room/create', authenticateToken, async (req, res) => {
   try {
-    const hostId = resolveAuthenticatedActorId(req, req.body.hostId);
+    const hostId = req.user.id;
     const { engagement, mode, timed, maxPlayers, wagerAmount } = req.body;
     const hostName = req.user?.username || req.body.hostName || 'Operative';
     const normalizedEngagement = engagement === 'coop' ? 'coop' : 'versus';
@@ -2616,7 +4321,7 @@ app.post('/room/create', authenticateToken, async (req, res) => {
         return res.status(400).json({ success: false, error: `You need at least ${normalizedWager} Intel to open this wagered showdown.` });
       }
     }
-    const roomId = makeRoomId();
+    const roomId = await makeUniqueRoomId();
     const isPanic = timed === 'panic';
     const finalTimed = isPanic;
     const finalTimeLimit = isPanic ? -1 : null;
@@ -2629,6 +4334,7 @@ app.post('/room/create', authenticateToken, async (req, res) => {
       mode: normalizedMode,
       timed: finalTimed,
       time_limit: finalTimeLimit,
+      panic_mode: isPanic,
       max_players: maxPlayers || 4
     });
     if (roomInsertErr) throw roomInsertErr;
@@ -2644,8 +4350,8 @@ app.post('/room/create', authenticateToken, async (req, res) => {
 
 app.post('/room/join', authenticateToken, async (req, res) => {
   try {
-    const { roomId } = req.body;
-    const userId = resolveAuthenticatedActorId(req, req.body.userId);
+    const roomId = normalizeRoomCode(req.body.roomId);
+    const userId = req.user.id;
     const username = req.user?.username || req.body.username || 'Operative';
     if (!roomId || !userId) return res.status(400).json({ success: false, error: 'Missing roomId or userId' });
     const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
@@ -2681,33 +4387,53 @@ app.post('/room/join', authenticateToken, async (req, res) => {
 
 app.get('/room/:roomId', authenticateToken, async (req, res) => {
   try {
-    const actorId = resolveAuthenticatedActorId(req, req.query.userId);
-    await assertRoomMembership(req.params.roomId, actorId);
-    const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', req.params.roomId).single();
-    const runtime = getRoomRuntime(req.params.roomId);
-    const players = await getRoomPlayers(req.params.roomId);
+    const roomId = normalizeRoomCode(req.params.roomId);
+    const actorId = req.user.id;
+    await assertRoomMembership(roomId, actorId);
+    const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
+    const runtime = getRoomRuntime(roomId);
+    const players = await getRoomPlayers(roomId);
     const currentRiddle = await hydrateRoomRiddle(room, runtime);
-    const currentUserCoins = actorId ? await getUserCoins(actorId) : null;
-    const wagerAmount = resolveRoomWagerAmount(req.params.roomId, room);
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('id, username, email, coins, streak, level, xp, is_admin, total_played, total_correct, city, area, avatar_url')
+      .eq('id', actorId)
+      .single();
+    const wagerAmount = resolveRoomWagerAmount(roomId, room);
     res.json({
       success: true,
       room: { ...room, wager_amount: wagerAmount },
       players,
       currentRiddle,
       roundSummary: runtime.roundSummary,
-      currentUserCoins
+      currentUser,
+      currentUserId: actorId,
+      isHost: room.host_id === actorId,
+      currentUserCoins: currentUser?.coins ?? null
     });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });
 
 app.post('/room/start', authenticateToken, checkMaintenance, async (req, res) => {
+  let runtimeForStart = null;
   try {
-    const { roomId, xp } = req.body;
-    const hostId = resolveAuthenticatedActorId(req, req.body.hostId);
+    const roomId = normalizeRoomCode(req.body.roomId);
+    const { xp } = req.body;
+    const hostId = req.user.id;
     await assertRoomMembership(roomId, hostId);
     const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
     if (room.host_id !== hostId) return res.json({ success: false, error: 'Only host can start' });
+    if (room.status !== 'waiting') {
+      return res.json({ success: false, error: 'This room has already launched. Rejoin from the active room screen.' });
+    }
+    runtimeForStart = getRoomRuntime(roomId);
+    if (runtimeForStart.launching) {
+      return res.json({ success: false, error: 'This room is already launching. Hold tight.' });
+    }
+    runtimeForStart.launching = true;
     const runtime = clearRoomRuntimeRound(roomId);
+    runtime.launching = true;
+    runtimeForStart = runtime;
     const roomPlayers = await getRoomPlayers(roomId);
     if (roomPlayers.length < 2) {
       return res.json({ success: false, error: 'At least two operatives are required to launch the room.' });
@@ -2738,7 +4464,7 @@ app.post('/room/start', authenticateToken, checkMaintenance, async (req, res) =>
     const firstQueued = queue[0];
     if (!firstQueued) {
       if (runtime.wagerAmount > 0 && runtime.escrow.size > 0) {
-        await refundRoomWagers(roomId);
+        await refundRoomWagers(roomId, room, roomPlayers);
       }
       return res.json({ success: false, error: 'No riddles available right now. Admin needs to add more.' });
     }
@@ -2761,7 +4487,7 @@ app.post('/room/start', authenticateToken, checkMaintenance, async (req, res) =>
 
     let finalTimeLimit = null;
     if (room.timed) {
-      finalTimeLimit = room.time_limit === -1 ? await getAdminPanicTimerSeconds() : room.time_limit;
+      finalTimeLimit = room.time_limit === -1 ? await resolveRiddlePanicTimerSeconds(firstQueued) : room.time_limit;
     }
 
     runtime.currentTimeLimit = finalTimeLimit;
@@ -2776,20 +4502,26 @@ app.post('/room/start', authenticateToken, checkMaintenance, async (req, res) =>
       wagerAmount: runtime.wagerAmount || 0,
       currentUserCoins: await getUserCoins(hostId)
     });
-  } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
+    runtime.launching = false;
+  } catch (error) {
+    if (runtimeForStart) runtimeForStart.launching = false;
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
 });
 
 app.post('/room/answer', authenticateToken, async (req, res) => {
   try {
-    const { roomId, userAnswer, timeTaken } = req.body;
-    const userId = resolveAuthenticatedActorId(req, req.body.userId);
+    const roomId = normalizeRoomCode(req.body.roomId);
+    const { userAnswer, timeTaken } = req.body;
+    const userId = req.user.id;
     if (!roomId || !userId) {
       return res.status(400).json({ success: false, error: 'Missing roomId or userId' });
     }
     await assertRoomMembership(roomId, userId);
     const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
     const runtime = getRoomRuntime(roomId);
-    const riddle = await fetchProtectedRiddleRecord(room.current_riddle_id, 'id, answer, question, options, difficulty, difficulty_tier');
+    const roomWagerAmount = resolveRoomWagerAmount(roomId, room);
+    const riddle = await fetchProtectedRiddleRecord(room.current_riddle_id, PROTECTED_ANSWER_FIELDS);
     if (!riddle) return res.json({ success: false, error: 'The active riddle could not be found.' });
 
     let players = await getRoomPlayers(roomId);
@@ -2798,10 +4530,22 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
       return res.status(403).json({ success: false, error: 'This room is restricted to joined operatives only.' });
     }
 
-    if (room.status === 'revealed' && runtime.roundSummary) {
+    if (room.status === 'revealed') {
+      if (!runtime.roundSummary && runtime.resolving) {
+        return res.json({
+          success: true,
+          isCorrect: false,
+          players,
+          resolved: false,
+          pending: true,
+          newTotal: await getUserCoins(userId)
+        });
+      }
+      const storedSummary = runtime.roundSummary || buildStoredRoundSummary({ room, players, riddle, runtime });
+      runtime.roundSummary = storedSummary;
       return res.json({
         success: true,
-        ...runtime.roundSummary,
+        ...storedSummary,
         resolved: true,
         players,
         newTotal: await getUserCoins(userId)
@@ -2822,18 +4566,34 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
       });
     }
 
-    const limit = runtime.currentTimeLimit || (room.timed ? (room.time_limit === -1 ? await getAdminPanicTimerSeconds() : room.time_limit) : null);
-    const roundAge = runtime.roundStartedAt ? Math.max(0, Math.floor((Date.now() - runtime.roundStartedAt) / 1000)) : 0;
+    const limit = runtime.currentTimeLimit || (room.timed ? (room.time_limit === -1 ? await resolveRiddlePanicTimerSeconds(riddle) : room.time_limit) : null);
+    let roundStartedAt = runtime.roundStartedAt;
+    if (!roundStartedAt && limit) {
+      const servedAt = await getSessionRiddleServedAt(roomId, room.current_riddle_id);
+      if (servedAt) {
+        roundStartedAt = new Date(servedAt).getTime();
+        runtime.roundStartedAt = roundStartedAt;
+        runtime.currentTimeLimit = limit;
+      }
+    }
+    const roundAge = roundStartedAt ? Math.max(0, Math.floor((Date.now() - roundStartedAt) / 1000)) : 0;
     const submittedTime = Math.max(parseInt(timeTaken, 10) || 0, roundAge);
     const isLate = !!limit && room.timed && submittedTime >= limit;
     const usesTypedInput = room.mode === 'type' || !Array.isArray(riddle.options) || riddle.options.length === 0;
-    const answeredCorrectly = usesTypedInput
-      ? await checkTypedAnswer(userAnswer, riddle.answer, riddle.question || '')
-      : isAnswerCorrect(userAnswer, riddle.answer);
+    let answeredCorrectly = false;
+    if (!isLate && userAnswer !== '__timeout__') {
+      if (usesTypedInput) {
+        const judgment = await judgeTypedAnswer({ userId, riddle, userAnswer, mode: room.mode || 'room' });
+        answeredCorrectly = judgment.isCorrect === true;
+      } else {
+        answeredCorrectly = isAnswerCorrect(userAnswer, riddle.answer, riddle.options);
+      }
+    }
     const isCorrect = !isLate && answeredCorrectly;
     const rewardDifficulty = getRewardDifficultyLabel(riddle);
     const baseCoins = rewardDifficulty === 'Easy' ? 10 : rewardDifficulty === 'Medium' ? 25 : 50;
     const baseCoinsEarned = isCorrect ? Math.round(baseCoins * (room.mode === 'type' ? 1.5 : 1)) : 0;
+    const xpGain = isCorrect ? (rewardDifficulty === 'Easy' ? 5 : rewardDifficulty === 'Medium' ? 15 : 30) : 2;
     const panicRoom = room.timed && room.time_limit === -1;
     const panicBonus = isCorrect && panicRoom ? getPanicIntelBonus({ gameMode: 'multiplayer', rewardBasis: baseCoinsEarned }) : 0;
     const coinsEarned = baseCoinsEarned + panicBonus;
@@ -2859,18 +4619,31 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
       });
     }
 
-    await updateRiddleHistory({
-      userId,
-      riddleId: room.current_riddle_id,
-      mode: room.mode || 'arena',
-      status: isCorrect ? 'solved' : ((isLate || userAnswer === '__timeout__') ? 'timed_out' : 'failed'),
-      timeTakenMs: Number.isFinite(submittedTime) ? submittedTime * 1000 : null,
-      sessionId: roomId
-    });
+    if (!isCorrect) {
+      await updateRiddleHistory({
+        userId,
+        riddleId: room.current_riddle_id,
+        mode: room.mode || 'arena',
+        status: (isLate || userAnswer === '__timeout__') ? 'timed_out' : 'failed',
+        timeTakenMs: Number.isFinite(submittedTime) ? submittedTime * 1000 : null,
+        sessionId: roomId
+      });
+    }
+    if (!isCorrect && room.engagement !== 'coop') {
+      await incrementUserStatsAtomic({
+        userId,
+        coinsDelta: 0,
+        xpDelta: xpGain,
+        streak: null,
+        playedDelta: 1,
+        correctDelta: isCorrect ? 1 : 0
+      });
+    }
 
     let answerRevealLock = false;
     if (isCorrect) {
       answerRevealLock = await tryRevealRoom(roomId);
+      if (answerRevealLock) runtime.resolving = true;
       if (!answerRevealLock) {
         if (room.engagement !== 'coop') {
           const { error: rollbackErr } = await supabase
@@ -2889,13 +4662,21 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
           });
         }
         players = await getRoomPlayers(roomId);
-        const storedSummary = buildStoredRoundSummary({ room, players, riddle, runtime });
-        runtime.roundSummary = runtime.roundSummary || storedSummary;
+        if (runtime.roundSummary) {
+          return res.json({
+            success: true,
+            isCorrect: false,
+            ...runtime.roundSummary,
+            resolved: true,
+            players,
+            newTotal: await getUserCoins(userId)
+          });
+        }
         return res.json({
           success: true,
           isCorrect: false,
-          ...runtime.roundSummary,
-          resolved: true,
+          resolved: false,
+          pending: true,
           players,
           newTotal: await getUserCoins(userId)
         });
@@ -2918,6 +4699,22 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
         resolved = true;
         teamWin = true;
         for (const player of players) {
+          await updateRiddleHistory({
+            userId: player.user_id,
+            riddleId: room.current_riddle_id,
+            mode: room.mode || 'arena',
+            status: 'solved',
+            timeTakenMs: Number.isFinite(submittedTime) ? submittedTime * 1000 : null,
+            sessionId: roomId
+          });
+          await incrementUserStatsAtomic({
+            userId: player.user_id,
+            coinsDelta: 0,
+            xpDelta: xpGain,
+            streak: null,
+            playedDelta: 1,
+            correctDelta: 1
+          });
           const latestCoins = await incrementCoinsAtomic(player.user_id, coinsEarned);
           const { error: coopPlayerErr } = await supabase.from('room_players')
             .update({ answered: true, is_correct: true, coins_earned: coinsEarned })
@@ -2955,6 +4752,16 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
           });
         }
         resolved = true;
+        await Promise.all(players.map((player) =>
+          incrementUserStatsAtomic({
+            userId: player.user_id,
+            coinsDelta: 0,
+            xpDelta: 2,
+            streak: null,
+            playedDelta: 1,
+            correctDelta: 0
+          })
+        ));
         summary = {
           correctAnswer: riddle.answer,
           coinsEarned: 0,
@@ -2967,7 +4774,23 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
     } else {
       if (isCorrect) {
         resolved = true;
-        wagerPot = runtime.wagerAmount > 0 ? consumeRoomWagerPot(roomId) : 0;
+        await updateRiddleHistory({
+          userId,
+          riddleId: room.current_riddle_id,
+          mode: room.mode || 'arena',
+          status: 'solved',
+          timeTakenMs: Number.isFinite(submittedTime) ? submittedTime * 1000 : null,
+          sessionId: roomId
+        });
+        await incrementUserStatsAtomic({
+          userId,
+          coinsDelta: 0,
+          xpDelta: xpGain,
+          streak: null,
+          playedDelta: 1,
+          correctDelta: 1
+        });
+        wagerPot = roomWagerAmount > 0 ? await consumeRoomWagerPot(roomId, room, players) : 0;
         newTotal = await incrementCoinsAtomic(userId, coinsEarned + wagerPot);
         const { error: versusPlayerErr } = await supabase.from('room_players')
           .update({ coins_earned: coinsEarned + wagerPot })
@@ -2984,7 +4807,7 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
           winnerId: userId,
           winnerName,
           wagerPot,
-          showdownComplete: runtime.wagerAmount > 0
+          showdownComplete: roomWagerAmount > 0
         };
       } else if (everyoneAnswered) {
         const finalRevealLock = await tryRevealRoom(roomId);
@@ -3002,8 +4825,8 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
           });
         }
         resolved = true;
-        if (runtime.wagerAmount > 0) {
-          const balances = await refundRoomWagers(roomId);
+        if (roomWagerAmount > 0) {
+          const balances = await refundRoomWagers(roomId, room, players);
           refunded = true;
           newTotal = balances[userId] ?? newTotal;
         }
@@ -3014,13 +4837,14 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
           resolved: true,
           noWinner: true,
           refunded,
-          showdownComplete: runtime.wagerAmount > 0
+          showdownComplete: roomWagerAmount > 0
         };
       }
     }
 
     if (summary) {
       runtime.roundSummary = summary;
+      runtime.resolving = false;
     }
 
     players = await getRoomPlayers(roomId);
@@ -3051,16 +4875,18 @@ app.post('/room/answer', authenticateToken, async (req, res) => {
 
 app.post('/room/giveup', authenticateToken, async (req, res) => {
   try {
-    const { roomId } = req.body;
-    const hostId = resolveAuthenticatedActorId(req, req.body.hostId);
+    const roomId = normalizeRoomCode(req.body.roomId);
+    const hostId = req.user.id;
     await assertRoomMembership(roomId, hostId);
     const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
     if (room.host_id !== hostId) return res.json({ success: false, error: 'Only host can give up' });
     const runtime = getRoomRuntime(roomId);
     const riddle = await fetchProtectedRiddleRecord(room.current_riddle_id, 'id, answer');
+    const roomWagerAmount = resolveRoomWagerAmount(roomId, room);
     let refunded = false;
-    if (runtime.wagerAmount > 0 && runtime.escrow.size > 0) {
-      await refundRoomWagers(roomId);
+    if (roomWagerAmount > 0) {
+      const players = await getRoomPlayers(roomId);
+      await refundRoomWagers(roomId, room, players);
       refunded = true;
     }
     runtime.roundSummary = {
@@ -3068,7 +4894,7 @@ app.post('/room/giveup', authenticateToken, async (req, res) => {
       gaveUp: true,
       resolved: true,
       refunded,
-      showdownComplete: runtime.wagerAmount > 0
+      showdownComplete: roomWagerAmount > 0
     };
     const { error: giveupRevealErr } = await supabase.from('multiplayer_rooms').update({ status: 'revealed' }).eq('id', roomId);
     if (giveupRevealErr) throw giveupRevealErr;
@@ -3078,8 +4904,9 @@ app.post('/room/giveup', authenticateToken, async (req, res) => {
 
 app.post('/room/next', authenticateToken, checkMaintenance, async (req, res) => {
   try {
-    const { roomId, xp } = req.body;
-    const hostId = resolveAuthenticatedActorId(req, req.body.hostId);
+    const roomId = normalizeRoomCode(req.body.roomId);
+    const { xp } = req.body;
+    const hostId = req.user.id;
     await assertRoomMembership(roomId, hostId);
     const { data: room } = await supabase.from('multiplayer_rooms').select('*').eq('id', roomId).single();
     if (room.host_id !== hostId) return res.json({ success: false, error: 'Only host can continue' });
@@ -3119,7 +4946,7 @@ app.post('/room/next', authenticateToken, checkMaintenance, async (req, res) => 
 
     let finalTimeLimit = null;
     if (room.timed) {
-      finalTimeLimit = room.time_limit === -1 ? await getAdminPanicTimerSeconds() : room.time_limit;
+      finalTimeLimit = room.time_limit === -1 ? await resolveRiddlePanicTimerSeconds(nextQueued.riddle) : room.time_limit;
     }
 
     runtime.currentTimeLimit = finalTimeLimit;
@@ -3214,37 +5041,57 @@ app.post('/chain/start', authenticateToken, checkMaintenance, async (req, res) =
     if (!userId) {
       return res.status(400).json({ success: false, error: 'Missing userId' });
     }
-    const chainId = 'chain_' + Date.now();
+    const chainId = `chain_${crypto.randomUUID()}`;
     const riddles = [];
     const progress = await getUserProgressProfile(userId);
     const userXp = Number.isFinite(parseInt(xp, 10)) ? parseInt(xp, 10) : progress.xp;
     const tierSequence = [1, 1, 3, 3, 5];
-    for (let i = 0; i < 5; i++) {
+    const minChainSteps = 3;
+    for (let i = 0; i < tierSequence.length; i++) {
       const { riddle } = await fetchNextRiddleFromEngine({
         userId,
         xp: userXp + (i * 100),
         totalPlayed: progress.totalPlayed + i,
         requestedMode: 'chain',
-        tierOverride: tierSequence[i]
+        sessionId: chainId,
+        tierOverride: tierSequence[i],
+        suppressServeLog: true,
+        position: i + 1
       });
       if (!riddle) {
-        return res.json({ success: false, error: `Not enough chain riddles available (got ${i}/5). Admin needs to add more Chain riddles.` });
+        break;
       }
+      await supabase.from('session_riddle_queue').upsert({
+        session_id: chainId,
+        riddle_id: riddle.id,
+        position: i + 1
+      }, { onConflict: 'session_id,riddle_id' });
       riddles.push(riddle);
+    }
+    if (riddles.length < minChainSteps) {
+      await supabase.from('session_riddle_queue').delete().eq('session_id', chainId);
+      return res.json({ success: false, error: `Not enough chain riddles available (got ${riddles.length}/${minChainSteps}). Admin needs to add more Chain riddles.` });
     }
 
     await supabase.from('chain_progress').upsert({ user_id: userId, chain_id: chainId, step: 0, completed: false }, { onConflict: 'user_id,chain_id' });
+    await markRiddleServed({
+      userId,
+      riddle: riddles[0],
+      mode: 'chain',
+      sessionId: chainId,
+      xpAtTime: userXp,
+      position: 1
+    });
 
     console.log(`🔗 Chain Started | ${userId} | ${chainId}`);
-    const timeLimit = panicMode ? await getAdminPanicTimerSeconds() : null;
-    const serializedRiddles = riddles.map((entry) => serializeRiddlePayload(entry, timeLimit));
+    const timeLimit = panicMode ? await resolveRiddlePanicTimerSeconds(riddles[0]) : null;
     const queueIds = riddles.map(r => r.id);
     res.json({
       success: true,
       chainId,
-      totalSteps: 5,
+      totalSteps: riddles.length,
       currentStep: 0,
-      riddle: serializedRiddles[0],
+      riddle: serializeRiddlePayload(riddles[0], timeLimit),
       chainToken: issueChainToken({ userId, chainId, queueIds, step: 0, panicMode: !!panicMode, limitSeconds: timeLimit })
     });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
@@ -3274,7 +5121,7 @@ app.post('/chain/answer', authenticateToken, async (req, res) => {
     if (!progress || progress.completed || parseInt(progress.step, 10) !== parseInt(step, 10)) {
       return res.status(409).json({ success: false, error: 'This chain link has already moved on.' });
     }
-    const riddle = await fetchProtectedRiddleRecord(riddleId, 'id, answer, difficulty, difficulty_tier, question, options');
+    const riddle = await fetchProtectedRiddleRecord(riddleId, PROTECTED_ANSWER_FIELDS);
     if (!riddle) return res.status(404).json({ success: false, error: 'Riddle not found' });
     const timing = await resolvePanicSubmissionState({
       panicMode: !!chainState.panicMode || !!panicMode,
@@ -3285,9 +5132,15 @@ app.post('/chain/answer', authenticateToken, async (req, res) => {
       limitSeconds: chainState.limitSeconds
     });
     const usesTypedInput = !Array.isArray(riddle.options) || riddle.options.length === 0;
-    let isCorrect = usesTypedInput
-      ? await checkTypedAnswer(userAnswer, riddle.answer, riddle.question || '')
-      : isAnswerCorrect(userAnswer, riddle.answer);
+    let isCorrect = false;
+    if (userAnswer !== '__timeout__' && !timing.isLate) {
+      if (usesTypedInput) {
+        const judgment = await judgeTypedAnswer({ userId, riddle, userAnswer, mode: 'chain' });
+        isCorrect = judgment.isCorrect === true;
+      } else {
+        isCorrect = isAnswerCorrect(userAnswer, riddle.answer, riddle.options);
+      }
+    }
     if (timing.isLate || userAnswer === '__timeout__') {
       isCorrect = false;
     }
@@ -3337,29 +5190,14 @@ app.post('/chain/answer', authenticateToken, async (req, res) => {
       return res.status(409).json({ success: false, error: 'This chain link has already moved on.' });
     }
 
-    // Atomic coin + xp update via RPC — no race conditions
-    const { error: rpcErr } = await supabase.rpc('increment_user_stats', {
-      p_user_id: userId,
-      p_coins_delta: coinsEarned,
-      p_xp_delta: xpGain,
-      p_streak: null,   // don't touch streak in chain mode
-      p_played_delta: 1,
-      p_correct_delta: 1
+    await incrementUserStatsAtomic({
+      userId,
+      coinsDelta: coinsEarned,
+      xpDelta: xpGain,
+      streak: null,
+      playedDelta: 1,
+      correctDelta: 1
     });
-    if (rpcErr) {
-      // Fallback: use increment_coins RPC if increment_user_stats is not yet deployed
-      console.warn('⚠️ chain/answer increment_user_stats fallback:', rpcErr.message);
-      const { error: coinErr } = await supabase.rpc('increment_coins', { p_user_id: userId, p_coins_delta: coinsEarned });
-      if (coinErr) {
-        // Final fallback: direct update with optimistic lock
-        const { data: u2 } = await supabase.from('users').select('coins, xp').eq('id', userId).single();
-        if (u2) {
-          await supabase.from('users')
-            .update({ coins: (u2.coins || 0) + coinsEarned, xp: (u2.xp || 0) + xpGain })
-            .eq('id', userId);
-        }
-      }
-    }
 
     const { data: finalUser } = await supabase
       .from('users')
@@ -3368,7 +5206,18 @@ app.post('/chain/answer', authenticateToken, async (req, res) => {
       .single();
 
     const nextRiddle = completed ? null : await fetchSafeRiddleById(queueIds[nextStep], 'chain');
-    const nextPayload = nextRiddle ? serializeRiddlePayload(nextRiddle, chainState.limitSeconds || null) : null;
+    if (nextRiddle) {
+      await markRiddleServed({
+        userId,
+        riddle: nextRiddle,
+        mode: 'chain',
+        sessionId: chainId,
+        xpAtTime: finalUser?.xp || null,
+        position: nextStep + 1
+      });
+    }
+    const nextTimeLimit = nextRiddle && chainState.panicMode ? await resolveRiddlePanicTimerSeconds(nextRiddle) : null;
+    const nextPayload = nextRiddle ? serializeRiddlePayload(nextRiddle, nextTimeLimit) : null;
     res.json({
       success: true,
       isCorrect: true,
@@ -3388,7 +5237,7 @@ app.post('/chain/answer', authenticateToken, async (req, res) => {
         queueIds,
         step: nextStep,
         panicMode: !!chainState.panicMode,
-        limitSeconds: chainState.limitSeconds || null
+        limitSeconds: nextTimeLimit
       }) : null
     });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
@@ -3420,25 +5269,14 @@ app.post('/wager/start', authenticateToken, checkMaintenance, async (req, res) =
     });
     if (!riddle) return res.json({ success: false, error: 'No wager sequence available right now.' });
 
-	    const { error: rpcErr } = await supabase.rpc('increment_coins', { p_user_id: userId, p_coins_delta: -wager });
-	    if (rpcErr) {
-	      const fallbackTotal = Math.max(0, (user.coins || 0) - wager);
-	      await supabase.from('users').update({ coins: fallbackTotal }).eq('id', userId);
-	      console.warn('⚠️ wager/start RPC fallback executed');
-	    }
-
-	    const { data: finalUser } = await supabase.from('users').select('coins').eq('id', userId).single();
-	    if (finalUser && finalUser.coins < 0) {
-	      await supabase.rpc('increment_coins', { p_user_id: userId, p_coins_delta: wager }).catch(() => {});
-	      return res.json({ success: false, error: 'Wager overlap detected. Try again after your balance refreshes.' });
-	    }
-	    const timeLimit = panicMode ? await getAdminPanicTimerSeconds() : null;
+	    const lockedBalance = await debitCoinsWithBalanceGuard(userId, wager);
+	    const timeLimit = panicMode ? await resolveRiddlePanicTimerSeconds(riddle) : null;
 
 	    res.json({
 	      success: true,
 	      wager,
 	      wagerToken: issueWagerToken({ userId, riddleId: riddle.id, wager, panicMode: !!panicMode, limitSeconds: timeLimit }),
-	      newTotal: finalUser ? finalUser.coins : Math.max(0, (user.coins || 0) - wager),
+	      newTotal: lockedBalance,
 	      riddle: serializeRiddlePayload(riddle, timeLimit)
 	    });
 	  } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
@@ -3452,12 +5290,12 @@ app.post('/wager/settle', authenticateToken, checkMaintenance, async (req, res) 
     if (tokenState.userId !== userId) return res.status(403).json({ success: false, error: 'Wager token does not belong to this operative.' });
 
     const riddleId = tokenState.riddleId;
-    const wager = Math.abs(parseInt(tokenState.wager, 10) || 0);
+    const wager = parseInt(tokenState.wager, 10) || 0;
     if (!userId || !riddleId || wager <= 0) return res.status(400).json({ success: false, error: 'Invalid wager settlement.' });
     await resolveServedRiddleGuard({ userId, riddleId, mode: 'wager' });
 
     // Server-side answer re-verification — never trust client-sent isCorrect
-    const riddle = await fetchProtectedRiddleRecord(riddleId, 'id, answer, question, options');
+    const riddle = await fetchProtectedRiddleRecord(riddleId, PROTECTED_ANSWER_FIELDS);
     if (!riddle) return res.status(404).json({ success: false, error: 'Riddle not found for settlement' });
     const timing = await resolvePanicSubmissionState({
       panicMode: !!tokenState.panicMode,
@@ -3468,9 +5306,15 @@ app.post('/wager/settle', authenticateToken, checkMaintenance, async (req, res) 
       limitSeconds: tokenState.limitSeconds
     });
     const usesTypedInput = !Array.isArray(riddle.options) || riddle.options.length < 2;
-    let isCorrect = usesTypedInput
-      ? await checkTypedAnswer(userAnswer, riddle.answer, riddle.question || '')
-      : isAnswerCorrect(userAnswer, riddle.answer);
+    let isCorrect = false;
+    if (userAnswer !== '__timeout__' && !timing.isLate) {
+      if (usesTypedInput) {
+        const judgment = await judgeTypedAnswer({ userId, riddle, userAnswer, mode: 'wager' });
+        isCorrect = judgment.isCorrect === true;
+      } else {
+        isCorrect = isAnswerCorrect(userAnswer, riddle.answer, riddle.options);
+      }
+    }
     if (timing.isLate || userAnswer === '__timeout__') {
       isCorrect = false;
     }
@@ -3483,48 +5327,49 @@ app.post('/wager/settle', authenticateToken, checkMaintenance, async (req, res) 
       timeTakenMs: timing.elapsedSeconds ? timing.elapsedSeconds * 1000 : null
     });
 
-    const { data: user } = await supabase.from('users').select('coins').eq('id', userId).single();
+    const { data: user } = await supabase
+      .from('users')
+      .select('coins, xp, level, total_played, total_correct')
+      .eq('id', userId)
+      .single();
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
 
     const panicBonus = isCorrect && tokenState.panicMode ? getPanicIntelBonus({ gameMode: 'wager', wager }) : 0;
-    const delta = isCorrect ? (wager * 2) + panicBonus : 0;
+    const payout = isCorrect ? (wager * 2) + panicBonus : 0;
+    const netDelta = isCorrect ? wager + panicBonus : -wager;
     const xpGain = isCorrect ? 15 : 2;
 
     // ATOMIC update
-    const { error: rpcErr } = await supabase.rpc('increment_coins', { p_user_id: userId, p_coins_delta: delta });
+    const { error: rpcErr } = await supabase.rpc('increment_coins', { p_user_id: userId, p_coins_delta: payout });
     if (rpcErr) {
        // Fallback
-       const newCoins = Math.max(0, (user.coins || 0) + delta);
+       const newCoins = Math.max(0, (user.coins || 0) + payout);
        await supabase.from('users').update({ coins: newCoins }).eq('id', userId);
        console.warn('⚠️ wager/settle RPC fallback executed');
     }
 
-    const { error: statsErr } = await supabase.rpc('increment_user_stats', {
-      p_user_id: userId,
-      p_coins_delta: 0,
-      p_xp_delta: xpGain,
-      p_streak: null,
-      p_played_delta: 1,
-      p_correct_delta: isCorrect ? 1 : 0
+    await incrementUserStatsAtomic({
+      userId,
+      coinsDelta: 0,
+      xpDelta: xpGain,
+      streak: null,
+      playedDelta: 1,
+      correctDelta: isCorrect ? 1 : 0
     });
-    if (statsErr) {
-      console.warn('⚠️ wager/settle stats fallback:', statsErr.message);
-      const fallbackXp = (parseInt(user.xp, 10) || 0) + xpGain;
-      await supabase.from('users')
-        .update({ xp: fallbackXp, level: calculateLevel(fallbackXp), total_played: (user.total_played || 0) + 1, total_correct: (user.total_correct || 0) + (isCorrect ? 1 : 0) })
-        .eq('id', userId);
-    }
 
     const { data: finalUser } = await supabase.from('users').select('coins, xp, level, streak').eq('id', userId).single();
     const newCoins = finalUser ? finalUser.coins : 0;
 
-	    console.log(`🎰 Wager | ${userId} | ${isCorrect ? 'WIN' : 'LOSE'} | ${delta > 0 ? '+' : ''}${delta} coins`);
+	    console.log(`🎰 Wager | ${userId} | ${isCorrect ? 'WIN' : 'LOSE'} | payout ${payout > 0 ? '+' : ''}${payout} coins`);
 	    res.json({
 	      success: true,
 	      isCorrect,
 	      correctAnswer: riddle.answer,
-	      delta,
-	      coinsChange: 0,
+	      stake: wager,
+	      payout,
+	      delta: payout,
+	      netDelta,
+	      coinsChange: netDelta,
 	      newTotal: newCoins,
 	      finalTotal: newCoins,
 	      panicBonus,
@@ -3566,8 +5411,14 @@ The correct answer is: "${riddle.answer}"
 Generate ONE cryptic, poetic, mysterious hint. DO NOT reveal the answer directly.
 Be like a prophecy — metaphorical, mystical. Max 2 sentences. Make it feel powerful and rare.`;
 
-    const result = await geminiModel.generateContent(prompt);
-    const oracleHint = result.response.text().trim();
+    let oracleHint;
+    try {
+      const result = await geminiModel.generateContent(prompt);
+      oracleHint = result.response.text().trim();
+    } catch {
+      await incrementCoinsAtomic(userId, 150);
+      return res.status(502).json({ success: false, error: 'Oracle signal failed. Intel refunded.' });
+    }
 
     await recordHintUsage({
       userId,
@@ -3586,6 +5437,9 @@ Be like a prophecy — metaphorical, mystical. Max 2 sentences. Make it feel pow
 app.post('/lifeline/time-freeze', authenticateToken, async (req, res) => {
   try {
     const userId = resolveAuthenticatedActorId(req, req.body.userId);
+    const { riddleId } = req.body;
+    if (!riddleId) return res.status(400).json({ success: false, error: 'Time Freeze requires an active riddle.' });
+    await resolveServedRiddleGuard({ userId, riddleId });
     const { data: user } = await supabase.from('users').select('coins').eq('id', userId).single();
     if (!user || user.coins < 100) return res.json({ success: false, error: 'Need 100 coins for Time Freeze!' });
     
@@ -3635,8 +5489,14 @@ Generate ONE short, cryptic clue that nudges toward the answer without revealing
 Be detective-themed — like a confidential tip from an informant. Max 1-2 sentences.
 Each hint should be progressively more helpful. Hint #2 is vaguer, hint #3 is slightly more direct.`;
 
-    const result = await geminiModel.generateContent(prompt);
-    const paidHint = result.response.text().trim();
+    let paidHint;
+    try {
+      const result = await geminiModel.generateContent(prompt);
+      paidHint = result.response.text().trim();
+    } catch {
+      await incrementCoinsAtomic(userId, 12);
+      return res.status(502).json({ success: false, error: 'Hint signal failed. Intel refunded.' });
+    }
 
     await recordHintUsage({
       userId,
@@ -3667,6 +5527,21 @@ app.get('/bounty/current', softAuth, checkMaintenance, async (req, res) => {
 
     if (!bounty) {
       return res.json({ success: false, noBounty: true, error: 'No active bounty right now. Admin needs to add a bounty riddle.' });
+    }
+    if (req.user?.id) {
+      const { data: priorAttempt } = await supabase
+        .from('bounty_attempts')
+        .select('status')
+        .eq('bounty_id', bounty.id)
+        .eq('user_id', req.user.id)
+        .maybeSingle();
+      if (priorAttempt) {
+        return res.json({
+          success: false,
+          alreadyAttempted: true,
+          error: 'You have already spent your attempt on this bounty. Wait for a fresh contract.'
+        });
+      }
     }
 
     const timeLimit = panicMode ? await getAdminPanicTimerSeconds() : null;
@@ -3704,9 +5579,58 @@ app.post('/bounty/attempt', authenticateToken, async (req, res) => {
       startedAtMs: bountyState?.startedAt,
       limitSeconds: bountyState?.limitSeconds
     });
-    const isCorrect = !timing.isLate && userAnswer !== '__timeout__' && await checkTypedAnswer(userAnswer, bounty.answer, bounty.question || '');
+    const bountyVerdict = (!timing.isLate && userAnswer !== '__timeout__')
+      ? await checkTypedAnswerDetailed(userAnswer, bounty.answer, bounty.question || '', {
+          semanticEnabled: false,
+          strictness: 'normal'
+        })
+      : { isCorrect: false, confidence: 1, source: 'timeout', reason: 'Bounty attempt timed out.', semanticUsed: false };
+    const isCorrect = bountyVerdict.isCorrect === true;
+    await recordStandaloneAnswerJudgment({ userId, mode: 'bounty', userAnswer, verdict: bountyVerdict });
+    const attemptStatus = isCorrect ? 'solved' : ((timing.isLate || userAnswer === '__timeout__') ? 'timed_out' : 'failed');
+    const attemptTimeMs = timing.elapsedSeconds ? timing.elapsedSeconds * 1000 : null;
+    const { data: attemptLock, error: attemptLockErr } = await supabase
+      .from('bounty_attempts')
+      .insert({
+        bounty_id: bountyId,
+        user_id: userId,
+        status: 'served',
+        time_taken_ms: attemptTimeMs
+      })
+      .select('id')
+      .maybeSingle();
 
-    if (!isCorrect) return res.json({ success: true, isCorrect: false, message: 'Incorrect! Keep trying...' });
+    if (attemptLockErr) {
+      if (attemptLockErr.code === '23505') {
+        return res.status(409).json({ success: false, alreadyAttempted: true, error: 'This bounty attempt is already spent. Wait for a fresh contract.' });
+      }
+      throw attemptLockErr;
+    }
+
+    if (!isCorrect) {
+      await supabase
+        .from('bounty_attempts')
+        .update({ status: attemptStatus, attempted_at: new Date().toISOString(), time_taken_ms: attemptTimeMs })
+        .eq('id', attemptLock.id);
+      const stats = await incrementUserStatsAtomic({
+        userId,
+        coinsDelta: 0,
+        xpDelta: 2,
+        streak: null,
+        playedDelta: 1,
+        correctDelta: 0
+      });
+      return res.json({
+        success: true,
+        isCorrect: false,
+        timedOut: timing.isLate || userAnswer === '__timeout__',
+        newTotal: stats?.coins,
+        newXp: stats?.xp,
+        newLevel: stats?.level,
+        streakCount: stats?.streak,
+        message: 'Contract failed. This bounty attempt is spent.'
+      });
+    }
 
     // Atomically lock the bounty logic
     const { data: claimed, error: clErr } = await supabase.from('bounty_board')
@@ -3715,20 +5639,30 @@ app.post('/bounty/attempt', authenticateToken, async (req, res) => {
       .eq('active', true)
       .select().single();
       
-    if (!claimed || clErr) return res.json({ success: false, error: 'Very close! The bounty was literally just solved by someone else!' });
+    if (!claimed || clErr) {
+      await supabase
+        .from('bounty_attempts')
+        .update({ status: 'failed', attempted_at: new Date().toISOString(), time_taken_ms: attemptTimeMs })
+        .eq('id', attemptLock.id);
+      return res.json({ success: false, error: 'Very close! The bounty was literally just solved by someone else!' });
+    }
 
     const panicBonus = panicMode ? getPanicIntelBonus({ gameMode: 'bounty', bountyPrize: bounty.prize_coins }) : 0;
     const totalPrize = bounty.prize_coins + panicBonus;
 
-    // Atomic coin award
-    const { error: rpcErr } = await supabase.rpc('increment_coins', { p_user_id: userId, p_coins_delta: totalPrize });
-    if (rpcErr) {
-      // Fallback if RPC not deployed
-      const { data: u } = await supabase.from('users').select('coins').eq('id', userId).single();
-      if (u) await supabase.from('users').update({ coins: (u.coins || 0) + totalPrize }).eq('id', userId);
-    }
+    await supabase
+      .from('bounty_attempts')
+      .update({ status: 'solved', attempted_at: new Date().toISOString(), time_taken_ms: attemptTimeMs })
+      .eq('id', attemptLock.id);
+    const updatedUser = await incrementUserStatsAtomic({
+      userId,
+      coinsDelta: totalPrize,
+      xpDelta: 50,
+      streak: null,
+      playedDelta: 1,
+      correctDelta: 1
+    });
 
-    const { data: updatedUser } = await supabase.from('users').select('coins').eq('id', userId).single();
     console.log(`🏆 BOUNTY SOLVED! ${username} wins ${totalPrize} coins!`);
     res.json({
       success: true,
@@ -3736,6 +5670,9 @@ app.post('/bounty/attempt', authenticateToken, async (req, res) => {
       prize: totalPrize,
       panicBonus,
       newTotal: updatedUser?.coins,
+      newXp: updatedUser?.xp,
+      newLevel: updatedUser?.level,
+      streakCount: updatedUser?.streak,
       message: `🎉 LEGENDARY! You cracked the Bounty and won ${totalPrize} coins!`
     });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
@@ -3799,24 +5736,18 @@ app.post('/challenge/create', authenticateToken, async (req, res) => {
 
     // Ensure the challenger actually has the wager amount and escrow atomically
     if (wagerAmount > 0) {
-      const { data: user } = await supabase.from('users').select('coins').eq('id', actorId).single();
-      if (!user || user.coins < wagerAmount) return res.json({ success: false, error: 'Insufficient Intel for this wager.' });
-
-      // Atomic escrow via RPC
-      const { error: rpcErr } = await supabase.rpc('increment_coins', { p_user_id: actorId, p_coins_delta: -wagerAmount });
-      if (rpcErr) {
-        // Fallback
-        await supabase.from('users').update({ coins: user.coins - wagerAmount }).eq('id', actorId);
-      }
+      await debitCoinsWithBalanceGuard(actorId, wagerAmount);
     }
 
     const { data: riddleExists, error: riddleErr } = await supabase
       .from('riddles_safe')
       .select('id')
       .eq('id', riddleId)
+      .eq('is_active', true)
+      .eq('review_status', 'approved')
       .maybeSingle();
     if (riddleErr || !riddleExists) {
-      if (wagerAmount > 0) await supabase.rpc('increment_coins', { p_user_id: actorId, p_coins_delta: wagerAmount }).catch(() => {});
+      if (wagerAmount > 0) await incrementCoinsAtomic(actorId, wagerAmount);
       return res.status(404).json({ success: false, error: 'Challenge riddle is unavailable.' });
     }
 
@@ -3827,7 +5758,7 @@ app.post('/challenge/create', authenticateToken, async (req, res) => {
       .eq('riddle_id', riddleId)
       .maybeSingle();
     if (!solveHistory || solveHistory.status !== 'solved') {
-      if (wagerAmount > 0) await supabase.rpc('increment_coins', { p_user_id: actorId, p_coins_delta: wagerAmount }).catch(() => {});
+      if (wagerAmount > 0) await incrementCoinsAtomic(actorId, wagerAmount);
       return res.status(403).json({ success: false, error: 'Only solved nodes can be challenged.' });
     }
 
@@ -3846,7 +5777,7 @@ app.post('/challenge/create', authenticateToken, async (req, res) => {
 
 	    if (error) {
 	      if (wagerAmount > 0) { // Refund on error — atomic
-	        await supabase.rpc('increment_coins', { p_user_id: actorId, p_coins_delta: wagerAmount }).catch(() => {});
+	        await incrementCoinsAtomic(actorId, wagerAmount);
 	      }
 	      return res.status(500).json({ success: false, error: 'Failed to record challenge in Data Core.' });
 	    }
@@ -3870,6 +5801,8 @@ app.post('/challenge/fetch', softAuth, async (req, res) => {
     const { data: riddle, error: rErr } = await supabase.from('riddles_safe')
       .select('id, question, options, category, difficulty, difficulty_tier, region, hint, fun_fact, riddle_type, media_url, layout_config')
       .eq('id', challenge.riddle_id)
+      .eq('is_active', true)
+      .eq('review_status', 'approved')
       .single();
 
     if (rErr || !riddle) return res.json({ success: false, error: 'Target node data missing.' });
@@ -3915,13 +5848,20 @@ app.post('/challenge/resolve', authenticateToken, async (req, res) => {
     if (activeChallenge.challenger_id && activeChallenge.challenger_id === actorId) {
       return res.status(403).json({ success: false, error: 'You cannot resolve your own challenge.' });
     }
+    await resolveServedRiddleGuard({ userId: actorId, riddleId: activeChallenge.riddle_id, mode: 'wager' });
 
-    const riddle = await fetchProtectedRiddleRecord(activeChallenge.riddle_id, 'id, answer, question, options');
+    const riddle = await fetchProtectedRiddleRecord(activeChallenge.riddle_id, PROTECTED_ANSWER_FIELDS);
     if (!riddle) return res.status(404).json({ success: false, error: 'Challenge riddle not found.' });
     const usesTypedInput = !Array.isArray(riddle.options) || riddle.options.length < 2;
-    const isVerifiedCorrect = usesTypedInput
-      ? await checkTypedAnswer(userAnswer, riddle.answer, riddle.question || '')
-      : isAnswerCorrect(userAnswer, riddle.answer);
+    let isVerifiedCorrect = false;
+    if (userAnswer !== '__timeout__') {
+      if (usesTypedInput) {
+        const judgment = await judgeTypedAnswer({ userId: actorId, riddle, userAnswer, mode: 'challenge' });
+        isVerifiedCorrect = judgment.isCorrect === true;
+      } else {
+        isVerifiedCorrect = isAnswerCorrect(userAnswer, riddle.answer, riddle.options);
+      }
+    }
     
     // Lock the challenge securely
     const { data: challenge, error: cErr } = await supabase.from('challenges')
@@ -3936,21 +5876,47 @@ app.post('/challenge/resolve', authenticateToken, async (req, res) => {
     const defenderSeconds = normalizeDefenderSeconds(timeTaken);
     const defenderWon = isVerifiedCorrect && defenderSeconds <= Math.max(1, targetSeconds);
 
-    // Distribute Wager Pool — atomic coin updates
+    await claimRiddleResolutionOnce({
+      userId: actorId,
+      riddleId: challenge.riddle_id,
+      mode: 'wager',
+      status: defenderWon ? 'solved' : 'failed',
+      timeTakenMs: Number.isFinite(defenderSeconds) && defenderSeconds < Number.MAX_SAFE_INTEGER ? defenderSeconds * 1000 : null
+    });
+    const defenderStats = await incrementUserStatsAtomic({
+      userId: actorId,
+      coinsDelta: 0,
+      xpDelta: defenderWon ? 15 : 2,
+      streak: null,
+      playedDelta: 1,
+      correctDelta: defenderWon ? 1 : 0
+    });
+
+    // Distribute the escrowed challenge stake. Only the challenger escrows here,
+    // so paying 2x would mint Intel out of thin air.
+    let prizeAwarded = 0;
+    let winnerId = null;
+    let defenderTotal = defenderStats?.coins ?? null;
     if (challenge.wager_amount > 0) {
-      const prizePool = challenge.wager_amount * 2;
-      const winnerId = defenderWon ? actorId : challenge.challenger_id;
-      const { error: rpcErr } = await supabase.rpc('increment_coins', { p_user_id: winnerId, p_coins_delta: prizePool });
-      if (rpcErr) {
-        // Fallback
-        const { data: winner } = await supabase.from('users').select('coins').eq('id', winnerId).single();
-        if (winner) await supabase.from('users').update({ coins: winner.coins + prizePool }).eq('id', winnerId);
+      prizeAwarded = challenge.wager_amount;
+      winnerId = defenderWon ? actorId : challenge.challenger_id;
+      await incrementCoinsAtomic(winnerId, prizeAwarded);
+      if (winnerId === actorId) {
+        defenderTotal = await getUserCoins(actorId);
       }
     }
 
     res.json({ 
       success: true, 
+      isCorrect: defenderWon,
       defenderWon, 
+      correctAnswer: riddle.answer,
+      prizeAwarded,
+      winnerId,
+      newTotal: defenderTotal ?? await getUserCoins(actorId),
+      newXp: defenderStats?.xp,
+      newLevel: defenderStats?.level,
+      streakCount: defenderStats?.streak,
       message: defenderWon ? 'BREACH SUCCESSFUL. YOU BEAT THE CLOCK.' : 'SYSTEM LOCKED. CHALLENGER HOLDS THE LINE.' 
     });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }

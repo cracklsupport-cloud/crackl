@@ -2,11 +2,24 @@
  * CRACKL — Backend API helpers
  */
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from './authSession';
 
 const isWeb = Platform.OS === 'web';
 const configuredBackend = process.env.EXPO_PUBLIC_BACKEND_URL;
-export const BACKEND = configuredBackend || (isWeb ? 'http://localhost:3000' : 'http://10.0.2.2:3000');
+
+function resolveBackendUrl() {
+  if (configuredBackend) return configuredBackend.replace(/\/$/, '');
+
+  if (isWeb && typeof window !== 'undefined') {
+    const { protocol, hostname } = window.location;
+    const localHost = hostname === 'localhost' || hostname === '127.0.0.1';
+    return localHost ? 'http://localhost:3000' : `${protocol}//${hostname}`;
+  }
+
+  return 'http://10.0.2.2:3000';
+}
+
+export const BACKEND = resolveBackendUrl();
 
 export async function apiFetch(path, options = {}) {
   const { headers, ...rest } = options;
@@ -37,7 +50,7 @@ export async function apiGet(path, token) {
 
 // Auto-attach stored auth token — use for any authenticated request
 export async function authFetch(path, options = {}) {
-  const token = await AsyncStorage.getItem('crackl_token');
+  const token = await getAuthToken();
   return fetch(`${BACKEND}${path}`, {
     ...options,
     headers: {

@@ -16,6 +16,12 @@ function formatIntel(value) {
   return Number(value || 0).toLocaleString('en-US');
 }
 
+function getSystemTone(status) {
+  if (status === 'online') return '#00ffd0';
+  if (status === 'degraded') return '#f59e0b';
+  return '#ff4d6d';
+}
+
 /* ── Corner Brackets ── */
 function CornerBrackets() {
   const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 10 };
@@ -96,12 +102,19 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
   const [heroHover, setHeroHover] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [topOperatives, setTopOperatives] = useState([]);
+  const [systemLink, setSystemLink] = useState({
+    apiStatus: 'checking',
+    dbStatus: 'checking',
+    pingMs: null,
+    dbPingMs: null,
+    probes: []
+  });
   const tickerAnim = useRef(new Animated.Value(0)).current;
   const spinAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.loop(Animated.timing(tickerAnim, { toValue: -1000, duration: 20000, useNativeDriver: true })).start();
-    Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 4000, useNativeDriver: true })).start();
+    Animated.loop(Animated.timing(tickerAnim, { toValue: -1000, duration: 20000, useNativeDriver: !isWeb })).start();
+    Animated.loop(Animated.timing(spinAnim, { toValue: 1, duration: 4000, useNativeDriver: !isWeb })).start();
   }, []);
 
   useEffect(() => {
@@ -124,6 +137,49 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
     return () => { alive = false; };
   }, [user?.coins, user?.username]);
 
+  useEffect(() => {
+    let alive = true;
+    let intervalId;
+
+    const probeBackend = async () => {
+      const startedAt = Date.now();
+      try {
+        const res = await fetch(`${BACKEND}/ready`, { cache: 'no-store' });
+        const payload = await res.json();
+        const latency = Date.now() - startedAt;
+        const ok = res.ok && payload?.success === true;
+        if (!alive) return;
+        setSystemLink((prev) => {
+          const probes = [...prev.probes, ok].slice(-12);
+          return {
+            apiStatus: ok ? 'online' : 'degraded',
+            dbStatus: payload?.database === 'ok' ? 'ready' : 'issue',
+            pingMs: latency,
+            dbPingMs: Number.isFinite(payload?.databasePingMs) ? payload.databasePingMs : null,
+            probes
+          };
+        });
+      } catch {
+        if (!alive) return;
+        setSystemLink((prev) => ({
+          apiStatus: 'offline',
+          dbStatus: 'offline',
+          pingMs: null,
+          dbPingMs: null,
+          probes: [...prev.probes, false].slice(-12)
+        }));
+      }
+    };
+
+    probeBackend();
+    intervalId = setInterval(probeBackend, 15000);
+
+    return () => {
+      alive = false;
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, []);
+
   const spin = spinAnim.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
 
   /* ── Real user data ── */
@@ -138,8 +194,8 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
   const gameArenas = [
     { icon: Icons.ActivityIcon, iconColor: '#22d3ee', title: 'Standard Queue', subtitle: 'Vanilla neural beatdowns. No training wheels.', action: 'Decrypt', onPress: () => play('mcq') },
     { icon: Icons.ZapIcon, iconColor: '#fbbf24', title: 'Brain Blast', subtitle: "Fry your cortex in record time. Don't blink.", action: 'Decrypt', onPress: () => play('type') },
-    { icon: Icons.CrosshairIcon, iconColor: '#818cf8', title: 'ECLIPSE LEVEL', subtitle: 'Beat the shit out of your Brain', action: 'Deploy', onPress: () => play('ranked') },
-    { icon: Icons.UsersIcon, iconColor: '#14b8a6', title: 'War Room', subtitle: 'Drag your friends to hell and ruin their egos.', action: 'Deploy', onPress: () => multi() },
+    { icon: Icons.CrosshairIcon, iconColor: '#818cf8', title: 'ECLIPSE LEVEL', subtitle: 'Beat the shit out of your Brain', action: 'Decrypt', onPress: () => play('ranked') },
+    { icon: Icons.UsersIcon, iconColor: '#14b8a6', title: 'War Room', subtitle: 'Drag your friends to hell and ruin their egos.', action: 'Decrypt', onPress: () => multi() },
   ];
 
   const specialArenas = [
@@ -155,6 +211,23 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
     score: formatIntel(user?.coins),
     color: '#fbbf24'
   }];
+  const systemTone = getSystemTone(systemLink.apiStatus);
+  const failedProbes = systemLink.probes.filter((ok) => !ok).length;
+  const dropRate = systemLink.probes.length ? ((failedProbes / systemLink.probes.length) * 100).toFixed(0) : '--';
+  const pingLabel = systemLink.pingMs === null ? '--' : Math.max(1, Math.round(systemLink.pingMs));
+  const dbPingLabel = systemLink.dbPingMs === null ? '--' : Math.max(1, Math.round(systemLink.dbPingMs));
+  const statusLabel = systemLink.apiStatus === 'online'
+    ? 'API_ONLINE'
+    : systemLink.apiStatus === 'degraded'
+      ? 'API_WARN'
+      : systemLink.apiStatus === 'offline'
+        ? 'API_DOWN'
+        : 'CHECKING';
+  const dbLabel = systemLink.dbStatus === 'ready'
+    ? 'READY'
+    : systemLink.dbStatus === 'checking'
+      ? 'CHECK'
+      : 'ISSUE';
 
   /* ── Background stripes ── */
   const stripeStyle = isWeb ? {
@@ -191,7 +264,7 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
               <View style={{ alignItems: 'center', marginTop: 32, zIndex: 10 }}>
                 {/* Brain Logo as Avatar */}
                 <View style={[{ width: 112, height: 112, borderRadius: 56, borderWidth: 4, borderColor: '#050505', marginBottom: 16, overflow: 'hidden', backgroundColor: '#0a0a0c' }, panicMode && isWeb ? { boxShadow: '0 0 0 2px #ff2a2a' } : isWeb ? { boxShadow: '0 0 0 2px rgba(255,255,255,0.1)' } : {}]}>
-                  <Image source={user?.avatar_url ? { uri: user.avatar_url } : BrainImage} style={{ width: '100%', height: '100%', resizeMode: 'cover', ...(isWeb ? { mixBlendMode: 'luminosity' } : {}) }} />
+                  <Image source={user?.avatar_url ? { uri: user.avatar_url } : BrainImage} resizeMode="cover" style={{ width: '100%', height: '100%', ...(isWeb ? { mixBlendMode: 'luminosity' } : {}) }} />
                 </View>
                 <Text style={{ fontFamily: grotesk, fontSize: 24, fontWeight: '900', color: '#fff', letterSpacing: -0.5 }}>{user?.username || 'Player'}</Text>
               </View>
@@ -284,7 +357,7 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
             activeOpacity={0.9}
           >
             <View style={{ position: 'absolute', inset: 0, zIndex: 0 }}>
-              <Image source={{ uri: 'https://images.unsplash.com/photo-1673380704968-1b47dd77c555?w=1080&q=80' }} style={{ width: '100%', height: '100%', resizeMode: 'cover', ...(isWeb ? { filter: heroHover ? 'grayscale(0%)' : 'grayscale(100%)', mixBlendMode: 'screen', opacity: 0.4, transform: heroHover ? 'scale(1.05)' : 'scale(1)', transition: 'all 1s ease' } : { opacity: 0.2 }) }} />
+              <Image source={{ uri: 'https://images.unsplash.com/photo-1673380704968-1b47dd77c555?w=1080&q=80' }} resizeMode="cover" style={{ width: '100%', height: '100%', ...(isWeb ? { filter: heroHover ? 'grayscale(0%)' : 'grayscale(100%)', mixBlendMode: 'screen', opacity: 0.4, transform: heroHover ? 'scale(1.05)' : 'scale(1)', transition: 'all 1s ease' } : { opacity: 0.2 }) }} />
               <LinearGradient colors={[panicMode ? 'rgba(26,0,0,1)' : 'rgba(5,5,5,1)', panicMode ? 'rgba(26,0,0,0.8)' : 'rgba(5,5,5,0.8)', 'transparent']} style={{ position: 'absolute', inset: 0 }} />
             </View>
             <CornerBrackets />
@@ -362,7 +435,7 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
             </View>
           </View>
 
-          {/* ── SYSTEM RES (Footer) ── */}
+          {/* ── SYSTEM HEALTH (Footer) ── */}
           <View style={[{
             width: '100%', borderRadius: isPhone ? 16 : 24, padding: isPhone ? 16 : 24,
             backgroundColor: 'rgba(10,10,12,0.8)', borderWidth: 1, borderColor: panicMode ? 'rgba(255,42,42,0.4)' : 'rgba(255,255,255,0.1)',
@@ -372,26 +445,30 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
 
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', zIndex: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: isPhone ? 8 : 12 }}>
-                <Icons.CpuIcon size={14} color="rgba(255,255,255,0.4)" />
-                <Text style={{ fontFamily: mono, fontSize: isPhone ? 10 : 12, color: 'rgba(255,255,255,0.4)', letterSpacing: 2, textTransform: 'uppercase' }}>System Res</Text>
+                <Icons.CpuIcon size={14} color={systemTone} />
+                <Text style={{ fontFamily: mono, fontSize: isPhone ? 10 : 12, color: 'rgba(255,255,255,0.55)', letterSpacing: 2, textTransform: 'uppercase' }}>System Health</Text>
               </View>
-              <View style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' }}>
-                <Text style={{ fontFamily: mono, fontSize: 10, color: '#fff' }}>NODE_ACTIVE</Text>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 4, backgroundColor: `${systemTone}14`, borderRadius: 4, borderWidth: 1, borderColor: `${systemTone}55` }}>
+                <Text style={{ fontFamily: mono, fontSize: 10, color: systemTone }}>{statusLabel}</Text>
               </View>
             </View>
 
             <View style={{ flexDirection: 'row', gap: isPhone ? 10 : 16, marginTop: isPhone ? 16 : 24, zIndex: 10 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontFamily: mono, fontSize: isPhone ? 9 : 10, color: '#64748b', marginBottom: 4 }}>PING</Text>
-                <Text style={{ fontFamily: grotesk, fontSize: isPhone ? 18 : 24, fontWeight: '900', color: '#fff' }}>12<Text style={{ fontSize: isPhone ? 11 : 14, color: '#64748b', fontWeight: '500' }}>ms</Text></Text>
+                <Text style={{ fontFamily: mono, fontSize: isPhone ? 9 : 10, color: '#64748b', marginBottom: 4 }}>API PING</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: isPhone ? 18 : 24, fontWeight: '900', color: '#fff' }}>{pingLabel}<Text style={{ fontSize: isPhone ? 11 : 14, color: '#64748b', fontWeight: '500' }}>ms</Text></Text>
               </View>
               <View style={{ flex: 1, borderLeftWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingLeft: isPhone ? 10 : 16 }}>
-                <Text style={{ fontFamily: mono, fontSize: isPhone ? 9 : 10, color: '#64748b', marginBottom: 4 }}>LOSS</Text>
-                <Text style={{ fontFamily: grotesk, fontSize: isPhone ? 18 : 24, fontWeight: '900', color: '#fff' }}>0.0<Text style={{ fontSize: isPhone ? 11 : 14, color: '#64748b', fontWeight: '500' }}>%</Text></Text>
+                <Text style={{ fontFamily: mono, fontSize: isPhone ? 9 : 10, color: '#64748b', marginBottom: 4 }}>FAIL RATE</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: isPhone ? 18 : 24, fontWeight: '900', color: '#fff' }}>{dropRate}<Text style={{ fontSize: isPhone ? 11 : 14, color: '#64748b', fontWeight: '500' }}>%</Text></Text>
+                <Text style={{ fontFamily: mono, fontSize: isPhone ? 7 : 8, color: '#64748b', marginTop: 2 }}>last 12 probes</Text>
               </View>
               <View style={{ flex: 1, borderLeftWidth: 1, borderColor: 'rgba(255,255,255,0.1)', paddingLeft: isPhone ? 10 : 16 }}>
-                <Text style={{ fontFamily: mono, fontSize: isPhone ? 9 : 10, color: '#64748b', marginBottom: 4 }}>SERVER</Text>
-                <Text style={{ fontFamily: grotesk, fontSize: isPhone ? 18 : 24, fontWeight: '900', color: '#fff' }}>EU_W<Text style={{ fontSize: isPhone ? 11 : 14, color: '#64748b', fontWeight: '500' }}>[04]</Text></Text>
+                <Text style={{ fontFamily: mono, fontSize: isPhone ? 9 : 10, color: '#64748b', marginBottom: 4 }}>DB QUERY</Text>
+                <Text style={{ fontFamily: grotesk, fontSize: isPhone ? 18 : 24, fontWeight: '900', color: dbLabel === 'READY' ? '#fff' : '#f59e0b' }}>
+                  {dbPingLabel}<Text style={{ fontSize: isPhone ? 11 : 14, color: '#64748b', fontWeight: '500' }}>ms</Text>
+                </Text>
+                <Text style={{ fontFamily: mono, fontSize: isPhone ? 7 : 8, color: dbLabel === 'READY' ? '#64748b' : '#f59e0b', marginTop: 2 }}>{dbLabel}</Text>
               </View>
             </View>
           </View>
@@ -422,7 +499,7 @@ export default function DashboardPage({ user, play, multi, go, panicMode, setPan
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={{ fontFamily: mono, fontSize: 14, color: themeAccent, fontWeight: '900' }}>{op.score}</Text>
-                      <Text style={{ fontFamily: mono, fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: 1 }}>CR</Text>
+                      <Text style={{ fontFamily: mono, fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: 1 }}>INTEL</Text>
                     </View>
                   </View>
                 ))}

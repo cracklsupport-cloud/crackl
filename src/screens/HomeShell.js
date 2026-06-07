@@ -1,7 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, Platform, Image, Animated } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Audio } from 'expo-av';
+import { useAudioPlayer } from 'expo-audio';
 import Colors from '../theme/colors';
 import { useResponsive } from '../theme/breakpoints';
 import { usePanicSync } from '../components/PanicModeOrchestrator';
@@ -12,6 +11,7 @@ import LeaderboardPage from './LeaderboardPage';
 import WalletPage from './WalletPage';
 import ProfilePage from './ProfilePage';
 import CaseFilesPage from './CaseFilesPage';
+import { clearAuthSession } from '../utils/authSession';
 
 const NeuralBg = require('../../assets/ChatGPT Image Apr 2, 2026, 11_00_53 AM.png');
 const PanicBg = require('../../assets/panic.png');
@@ -20,6 +20,7 @@ const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
 const grotesk = isWeb ? '"Space Grotesk", sans-serif' : undefined;
 const display = isWeb ? '"Black Ops One", sans-serif' : undefined;
+const RADIO_BARS = [5, 9, 12, 7, 10];
 
 function CrosshairIcon({ style }) {
   if (!isWeb) return null;
@@ -51,12 +52,18 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
   const [isRadioActive, setIsRadioActive] = useState(false);
   const [showPanicInfo, setShowPanicInfo] = useState(false);
   const panicHoverTimer = useRef(null);
-  const [sound, setSound] = useState(null);
   const radioAnim = useRef(new Animated.Value(0)).current;
+  const radioSource = panicMode
+    ? 'https://stream.nightride.fm/darksynth.m4a'
+    : 'https://stream.nightride.fm/nightride.m4a';
+  const radioPlayer = useAudioPlayer(radioSource, { updateInterval: 1000, keepAudioSessionActive: true });
 
   useEffect(() => {
-    return sound ? () => { sound.unloadAsync(); } : undefined;
-  }, [sound]);
+    try {
+      if (isRadioActive) radioPlayer.play();
+      else radioPlayer.pause();
+    } catch {}
+  }, [radioPlayer, isRadioActive]);
 
   useEffect(() => {
     if (isRadioActive) {
@@ -70,24 +77,12 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
     }
   }, [isRadioActive]);
 
-  const toggleRadio = async () => {
-    if (isRadioActive && sound) {
-      await sound.pauseAsync();
-      setIsRadioActive(false);
-    } else {
-      if (!sound) {
-        try {
-          const streamUrl = panicMode ? "https://stream.nightride.fm/darksynth.m4a" : "https://stream.nightride.fm/nightride.m4a";
-          const { sound: s } = await Audio.Sound.createAsync({ uri: streamUrl });
-          setSound(s);
-          await s.playAsync();
-          setIsRadioActive(true);
-        } catch (e) { console.log('Audio error:', e); }
-      } else {
-        await sound.playAsync();
-        setIsRadioActive(true);
-      }
-    }
+  const toggleRadio = () => {
+    try {
+      if (isRadioActive) radioPlayer.pause();
+      else radioPlayer.play();
+      setIsRadioActive(v => !v);
+    } catch {}
   };
 
   const [mousePos, setMousePos] = useState({ x: -9999, y: -9999 });
@@ -99,8 +94,7 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
   }, []);
 
   async function logout() {
-    await AsyncStorage.removeItem('crackl_user');
-    await AsyncStorage.removeItem('crackl_token');
+    await clearAuthSession();
     go('auth');
   }
 
@@ -124,7 +118,8 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
       {/* Full-page background — swaps on panic mode */}
       <Image
         source={panicMode ? PanicBg : NeuralBg}
-        style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', resizeMode: 'cover', opacity: panicMode ? 0.2 : 0.45, zIndex: 0 }, isWeb ? { objectFit: 'cover', imageRendering: 'auto' } : {}]}
+        resizeMode="cover"
+        style={[{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, width: '100%', height: '100%', opacity: panicMode ? 0.2 : 0.45, zIndex: 0 }, isWeb ? { objectFit: 'cover', imageRendering: 'auto' } : {}]}
       />
 
       {isWeb && (
@@ -168,7 +163,7 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <TouchableOpacity onPress={() => go('home')} style={[{ flexDirection: 'row', alignItems: 'center', gap: isPhone ? 8 : 12 }, isWeb ? { cursor: 'pointer' } : {}]}>
               <View style={[{ width: isPhone ? 36 : 48, height: isPhone ? 36 : 48, borderRadius: isPhone ? 10 : 14, backgroundColor: 'rgba(0,0,0,0.5)', borderWidth: 2, borderColor: panicMode ? 'rgba(255,42,42,0.4)' : 'rgba(0,255,208,0.3)', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }, isWeb ? { boxShadow: `0 0 20px rgba(0,255,208,0.1)` } : {}]}>
-                <Image source={require('../../assets/brain_logo.png')} style={{ width: (isPhone ? 36 : 48) * 1.6, height: (isPhone ? 36 : 48) * 1.6, resizeMode: 'cover' }} />
+                <Image source={require('../../assets/brain_logo.png')} resizeMode="cover" style={{ width: (isPhone ? 36 : 48) * 1.6, height: (isPhone ? 36 : 48) * 1.6 }} />
               </View>
               <View>
                 <Text style={{ fontFamily: isWeb ? '"Orbitron", "Space Grotesk", sans-serif' : undefined, fontWeight: '700', fontSize: isPhone ? 18 : 24, color: '#fff', letterSpacing: isPhone ? 0.8 : 1.2, lineHeight: isPhone ? 18 : 24, textTransform: 'uppercase' }}>CRACKL</Text>
@@ -197,8 +192,8 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
               <View style={{ position: 'absolute', inset: 0, backgroundColor: isRadioActive ? themeAccent : 'transparent', opacity: 0.05 }} />
               {isRadioActive ? <Icons.ZapIcon size={14} color={themeAccent} /> : <Icons.EyeOffIcon size={14} color="#64748b" />}
               <View style={{ flexDirection: 'row', alignItems: 'flex-end', height: 12, gap: 2 }}>
-                {[1, 2, 3, 4, 5].map(i => (
-                  <Animated.View key={i} style={{ width: 3, height: isRadioActive ? radioAnim.interpolate({ inputRange: [0, 1], outputRange: [Math.random() * 8 + 3, 12] }) : 3, backgroundColor: isRadioActive ? themeAccent : 'rgba(255,255,255,0.2)', borderRadius: 1 }} />
+                {RADIO_BARS.map((height, i) => (
+                  <Animated.View key={i} style={{ width: 3, height: isRadioActive ? radioAnim.interpolate({ inputRange: [0, 1], outputRange: [height, 12] }) : 3, backgroundColor: isRadioActive ? themeAccent : 'rgba(255,255,255,0.2)', borderRadius: 1 }} />
                 ))}
               </View>
               {!isMobileNav && (
@@ -219,7 +214,7 @@ export default function HomeShell({ user: propUser, active, go, update, play, mu
             {!isMobileNav && (
               <TouchableOpacity onPress={() => go('profile')} style={[{ width: 34, height: 34, borderRadius: 17, backgroundColor: '#1e293b', borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }, isWeb ? { cursor: 'pointer' } : {}]}>
                 {user?.avatar_url ? (
-                  <Image source={{ uri: user.avatar_url }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
+                  <Image source={{ uri: user.avatar_url }} resizeMode="cover" style={{ width: '100%', height: '100%' }} />
                 ) : (
                   <Icons.UserIcon size={14} color="#94a3b8" />
                 )}

@@ -4,7 +4,12 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.js",
+    "check": "node --check server.js && node --check scripts/smoke-core.js",
+    "audit:prod": "npm audit --omit=dev",
+    "smoke:core": "node scripts/smoke-core.js",
+    "test": "npm run smoke:core",
+    "verify": "npm run check && npm run audit:prod && npm test"
   },
   "keywords": [],
   "author": "",

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, ScrollView, Animated, Platform, TouchableOpacity, ActivityIndicator } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../theme/colors';
 import Icons from '../components/Icons';
 import { BACKEND } from '../utils/api';
+import { getAuthToken } from '../utils/authSession';
 
 export default function BrainProfileScreen({ user, go }) {
   const [report, setReport] = useState(null);
@@ -20,7 +20,7 @@ export default function BrainProfileScreen({ user, go }) {
     (async () => {
       if (!user?.id) { setLoading(false); setError('No user data'); return; }
       try {
-        const token = await AsyncStorage.getItem('crackl_token');
+        const token = await getAuthToken();
         const res = await fetch(`${BACKEND}/profile/brain-report/${user.id}`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {}
         });

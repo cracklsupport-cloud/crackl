@@ -24,8 +24,8 @@ export default function BrainCard3D() {
     useEffect(() => {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(floatAnim, { toValue: -20, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-          Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true })
+          Animated.timing(floatAnim, { toValue: -20, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(floatAnim, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: Platform.OS !== 'web' })
         ])
       ).start();
     }, []);

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Animated, Easing, Dimensions, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Colors from '../theme/colors';
 import { useResponsive } from '../theme/breakpoints';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
 import RiddleContent from '../components/RiddleContent';
 import ChallengeShareButton from '../components/ChallengeShareButton';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 
 const CASE_FILES_KEY = 'crackl_case_files';
 
@@ -65,11 +66,11 @@ function SmokeWisp({ delay, startX }) {
     Animated.loop(Animated.sequence([
       Animated.delay(delay),
       Animated.parallel([
-        Animated.timing(op, { toValue: 0.15, duration: 800, useNativeDriver: true }),
-        Animated.timing(ty, { toValue: -H * 0.5, duration: 4000, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(op, { toValue: 0.15, duration: 800, useNativeDriver: Platform.OS !== 'web' }),
+        Animated.timing(ty, { toValue: -H * 0.5, duration: 4000, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web' }),
       ]),
-      Animated.timing(op, { toValue: 0, duration: 1200, useNativeDriver: true }),
-      Animated.timing(ty, { toValue: 0, duration: 0, useNativeDriver: true }),
+      Animated.timing(op, { toValue: 0, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(ty, { toValue: 0, duration: 0, useNativeDriver: Platform.OS !== 'web' }),
     ])).start();
   }, []);
   return (
@@ -88,8 +89,8 @@ function FloatingCoin({ amount, color }) {
   const op = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     Animated.parallel([
-      Animated.timing(ty, { toValue: -60, duration: 1200, useNativeDriver: true }),
-      Animated.timing(op, { toValue: 0, duration: 1200, delay: 400, useNativeDriver: true }),
+      Animated.timing(ty, { toValue: -60, duration: 1200, useNativeDriver: Platform.OS !== 'web' }),
+      Animated.timing(op, { toValue: 0, duration: 1200, delay: 400, useNativeDriver: Platform.OS !== 'web' }),
     ]).start();
   }, []);
   return (
@@ -156,6 +157,11 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
   const [hintCount, setHintCount]   = useState(0);
   const [paidHints, setPaidHints]   = useState([]);
   const [hintLoading, setHintLoading] = useState(false);
+  const [oracleHint, setOracleHint] = useState('');
+  const [oracleLoading, setOracleLoading] = useState(false);
+  const [freezeLoading, setFreezeLoading] = useState(false);
+  const [freezeUsed, setFreezeUsed] = useState(false);
+  const [lifelineMsg, setLifelineMsg] = useState('');
   const [showCoinFloat, setShowCoinFloat] = useState(false);
   const [exhausted, setExhausted]   = useState(false);
   const [maintenance, setMaintenance] = useState(false);
@@ -185,13 +191,14 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
     submitLock.current = false;
     setLoading(true); setRiddle(null); riddleRef.current = null; setSelected(null); setResult(null);
     setHintUsed(false); setHintCount(0); setPaidHints([]); setHintLoading(false);
+    setOracleHint(''); setOracleLoading(false); setFreezeLoading(false); setFreezeUsed(false); setLifelineMsg('');
     setTyped(''); typedRef.current = '';
     setExhausted(false); setMaintenance(false); setLoadError(''); setShowForfeit(false);
     resAnim.setValue(0.88);
     clearInterval(timerRef.current);
     try {
       const isWager = mode === 'wager' && wagerId;
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const params = new URLSearchParams({ mode, panicMode: panicMode ? 'true' : 'false' });
 	      const res = isWager
 	        ? await fetch(`${BACKEND}/challenge/fetch`, {
@@ -249,24 +256,24 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
 
   function startTick(n) {
     clearInterval(timerRef.current);
-    const tickMs = 1000; // 1 real second per displayed second
-    let t = n;
-    timeLeftRef.current = t;
+    const tickMs = 1000;
+    timeLeftRef.current = n;
+    setTimeLeft(n);
     
     // Capture the current riddle ID to prevent stale interval submissions
     const currentRiddleId = riddleRef.current?.id;
     
     timerRef.current = setInterval(() => {
-      t--;
-      setTimeLeft(t);
-      timeLeftRef.current = t;
-      if (t <= 10 && t > 0) {
+      const next = Math.max(0, timeLeftRef.current - 1);
+      setTimeLeft(next);
+      timeLeftRef.current = next;
+      if (next <= 10 && next > 0) {
         Animated.sequence([
-          Animated.timing(timerPulse, { toValue: 1.2, duration: 120, useNativeDriver: true }),
-          Animated.timing(timerPulse, { toValue: 1, duration: 120, useNativeDriver: true }),
+          Animated.timing(timerPulse, { toValue: 1.2, duration: 120, useNativeDriver: Platform.OS !== 'web' }),
+          Animated.timing(timerPulse, { toValue: 1, duration: 120, useNativeDriver: Platform.OS !== 'web' }),
         ]).start();
       }
-      if (t <= 0) { 
+      if (next <= 0) {
         clearInterval(timerRef.current); 
         // Only submit if this timer belongs to the currently active riddle
         if (!currentRiddleId || riddleRef.current?.id === currentRiddleId) {
@@ -281,7 +288,7 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
     setHintLoading(true);
     try {
       const nextNum = hintCount + 1;
-      const token = await AsyncStorage.getItem('crackl_token');
+      const token = await getAuthToken();
       const res = await fetch(`${BACKEND}/lifeline/hint`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ userId: user.id, riddleId: riddle.id, riddleQuestion: riddle.question, hintNumber: nextNum })
@@ -290,10 +297,63 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
       if (data.success) {
         setPaidHints(prev => [...prev, data.hint]);
         setHintCount(nextNum);
+        setLifelineMsg('Paid hint received.');
         update({ ...user, coins: data.newTotal });
+      } else {
+        setLifelineMsg(data.error || 'Hint unavailable.');
       }
-    } catch {}
+    } catch { setLifelineMsg('Network error while requesting hint.'); }
     setHintLoading(false);
+  }
+
+  async function useOracle() {
+    if (!riddle || result || oracleLoading || oracleHint) return;
+    setOracleLoading(true);
+    setLifelineMsg('');
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${BACKEND}/lifeline/oracle`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ userId: user.id, riddleId: riddle.id, riddleQuestion: riddle.question })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setOracleHint(data.oracleHint || 'The Oracle went silent.');
+        setLifelineMsg('Oracle signal received.');
+        update({ ...user, coins: data.newTotal });
+      } else {
+        setLifelineMsg(data.error || 'Oracle unavailable.');
+      }
+    } catch { setLifelineMsg('Network error while contacting Oracle.'); }
+    setOracleLoading(false);
+  }
+
+  async function useTimeFreeze() {
+    if (!riddle || result || !panicMode || freezeLoading || freezeUsed) return;
+    setFreezeLoading(true);
+    setLifelineMsg('');
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${BACKEND}/lifeline/time-freeze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ userId: user.id, riddleId: riddle.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+        const extra = Math.max(1, parseInt(data.frozenSeconds, 10) || 10);
+        const nextTime = timeLeftRef.current + extra;
+        timeLeftRef.current = nextTime;
+        setTimeLeft(nextTime);
+        setFreezeUsed(true);
+        setLifelineMsg(`Time Freeze armed. +${extra}s`);
+        update({ ...user, coins: data.newTotal });
+      } else {
+        setLifelineMsg(data.error || 'Time Freeze unavailable.');
+      }
+    } catch { setLifelineMsg('Network error while activating Time Freeze.'); }
+    setFreezeLoading(false);
   }
 
   const correctQuips = [
@@ -327,28 +387,34 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
         ? Math.max(1, Math.ceil((Date.now() - startedAtRef.current) / 1000))
         : Math.max(1, (activeRiddle.timeLimit || 30) - timeLeftRef.current);
       const actTime = panicMode ? ((activeRiddle.timeLimit || 30) - timeLeftRef.current) : 0;
-      const token = await AsyncStorage.getItem('crackl_token');
-      const res = await fetch(`${BACKEND}/answer`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({
-          userId: user.id || 'guest', riddleId: activeRiddle.id, userAnswer: final,
-          timeTaken: actTime, mode: effectiveMode, gameMode: mode, panicMode: !!panicMode
-        })
-      });
-      const data = await res.json();
-
-      if (data.success && mode === 'wager' && wagerId) {
-	        const cr = await fetch(`${BACKEND}/challenge/resolve`, {
-	          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-	          body: JSON.stringify({
-	            challengeId: wagerId,
-	            defenderId: user.id || null,
-	            timeTaken: elapsedForChallenge,
-	            userAnswer: final
-	          })
-	        });
+      const token = await getAuthToken();
+      let data;
+      if (mode === 'wager' && wagerId) {
+        const cr = await fetch(`${BACKEND}/challenge/resolve`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            challengeId: wagerId,
+            defenderId: user.id || null,
+            timeTaken: elapsedForChallenge,
+            userAnswer: final
+          })
+        });
         const cData = await cr.json();
-        data.challengeResult = cData;
+        data = {
+          ...cData,
+          challengeResult: cData,
+          coinsChange: cData.defenderWon ? (cData.prizeAwarded || 0) : 0,
+          xpGained: cData.defenderWon ? 15 : 2
+        };
+      } else {
+        const res = await fetch(`${BACKEND}/answer`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            userId: user.id || 'guest', riddleId: activeRiddle.id, userAnswer: final,
+            timeTaken: actTime, mode: effectiveMode, gameMode: mode, panicMode: !!panicMode
+          })
+        });
+        data = await res.json();
       }
       if (data.success) {
         setResult({ ...data, challengeTimeSeconds: elapsedForChallenge });
@@ -385,17 +451,19 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
           await AsyncStorage.setItem(CASE_FILES_KEY, JSON.stringify(existing));
         } catch {}
         if (data.isCorrect) {
-          Animated.spring(resAnim, { toValue: 1, tension: 46, friction: 7, useNativeDriver: true }).start();
+          Animated.spring(resAnim, { toValue: 1, tension: 46, friction: 7, useNativeDriver: Platform.OS !== 'web' }).start();
         } else {
           Animated.sequence([
-            Animated.timing(shakeAnim, { toValue: 10, duration: 60, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: true }),
-            Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: true }),
+            Animated.timing(shakeAnim, { toValue: 10, duration: 60, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(shakeAnim, { toValue: -10, duration: 60, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(shakeAnim, { toValue: 8, duration: 60, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(shakeAnim, { toValue: -8, duration: 60, useNativeDriver: Platform.OS !== 'web' }),
+            Animated.timing(shakeAnim, { toValue: 0, duration: 60, useNativeDriver: Platform.OS !== 'web' }),
           ]).start();
-          Animated.spring(resAnim, { toValue: 1, tension: 46, friction: 7, useNativeDriver: true }).start();
+          Animated.spring(resAnim, { toValue: 1, tension: 46, friction: 7, useNativeDriver: Platform.OS !== 'web' }).start();
         }
+      } else {
+        setLoadError(data.error || data.message || 'Answer could not be saved. Try again.');
       }
     } catch { setLoadError('Network error. Your answer may not have been saved.'); }
     setSubmitting(false);
@@ -438,9 +506,15 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
     if (loadError) {
       return (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
-          <Text style={{ color: '#f43f5e', fontFamily: grotesk, fontSize: 18, fontWeight: '900', textAlign: 'center', marginBottom: 12 }}>SIGNAL LOST</Text>
-          <Text style={{ color: '#64748b', fontFamily: mono, fontSize: 12, textAlign: 'center', lineHeight: 22, marginBottom: 32 }}>{loadError}</Text>
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={[{
+            width: '100%', maxWidth: 560, padding: isPhone ? 24 : 34, borderRadius: 8,
+            backgroundColor: 'rgba(10,10,14,0.82)', borderWidth: 1,
+            borderColor: 'rgba(244,63,94,0.28)', alignItems: 'center'
+          }, isWeb ? { boxShadow: '0 18px 70px rgba(244,63,94,0.12)', backdropFilter: 'blur(18px)' } : {}]}>
+            <Icons.XIcon size={isPhone ? 34 : 44} color="#f43f5e" />
+            <Text style={{ color: '#f43f5e', fontFamily: grotesk, fontSize: isPhone ? 24 : 32, fontWeight: '900', textAlign: 'center', marginTop: 16, marginBottom: 10, letterSpacing: 0.6 }}>SIGNAL LOST</Text>
+            <Text style={{ color: '#94a3b8', fontFamily: mono, fontSize: isPhone ? 14 : 16, textAlign: 'center', lineHeight: isPhone ? 22 : 25, marginBottom: 26 }}>{loadError}</Text>
+            <View style={{ flexDirection: 'row', gap: 12, flexWrap: 'wrap', justifyContent: 'center' }}>
             <TouchableOpacity style={[styles.backBtn, { borderColor: 'rgba(0,255,208,0.2)' }]} onPress={loadRiddle}>
               <Icons.ZapIcon size={12} color="#00ffd0" />
               <Text style={[styles.backBtnText, { color: '#00ffd0' }]}>RETRY</Text>
@@ -449,6 +523,7 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
               <Icons.ChevronLeftIcon size={12} color="#a78bfa" />
               <Text style={styles.backBtnText}>GO BACK</Text>
             </TouchableOpacity>
+            </View>
           </View>
         </View>
       );
@@ -495,11 +570,11 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
         </HudFrame>
 
         {/* Hint Panel */}
-        {!result && riddle?.hint && (
+        {!result && riddle && (
           <HudFrame accent={hudAccent} style={{ padding: 16 }}>
             <Text style={{ color: '#64748b', fontFamily: mono, fontSize: 10, letterSpacing: 2.2, marginBottom: 10, fontWeight: '700' }}>INFORMANT TIPS</Text>
 
-            {!hintUsed ? (
+            {!hintUsed && riddle?.hint ? (
               <TouchableOpacity
                 style={[{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 4, backgroundColor: 'rgba(251,191,36,0.06)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.15)' }, isWeb ? { cursor: 'pointer' } : {}]}
                 onPress={() => { setHintUsed(true); setHintCount(1); }}
@@ -509,10 +584,14 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
               </TouchableOpacity>
             ) : (
               <View style={{ gap: 8 }}>
-                <View style={{ padding: 10, borderRadius: 4, backgroundColor: 'rgba(251,191,36,0.04)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.1)' }}>
-                  <Text style={{ color: '#4b5563', fontFamily: mono, fontSize: 10, letterSpacing: 0.9, marginBottom: 4, fontWeight: '700' }}>TIP #1 — FREE</Text>
-                  <Text style={{ color: '#fbbf24', fontFamily: mono, fontSize: 11, lineHeight: 17 }}>{riddle?.hint}</Text>
-                </View>
+                {riddle?.hint ? (
+                  <View style={{ padding: 10, borderRadius: 4, backgroundColor: 'rgba(251,191,36,0.04)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.1)' }}>
+                    <Text style={{ color: '#4b5563', fontFamily: mono, fontSize: 10, letterSpacing: 0.9, marginBottom: 4, fontWeight: '700' }}>TIP #1 — FREE</Text>
+                    <Text style={{ color: '#fbbf24', fontFamily: mono, fontSize: 11, lineHeight: 17 }}>{riddle.hint}</Text>
+                  </View>
+                ) : (
+                  <Text style={{ color: '#4b5563', fontFamily: mono, fontSize: 10, lineHeight: 16 }}>No free tip attached to this node.</Text>
+                )}
 
                 {paidHints.map((h, i) => (
                   <View key={i} style={{ padding: 10, borderRadius: 4, backgroundColor: 'rgba(0,255,208,0.03)', borderWidth: 1, borderColor: 'rgba(0,255,208,0.08)' }}>
@@ -529,6 +608,59 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
                   <Text style={{ color: '#00ffd0', fontFamily: mono, fontSize: 10, fontWeight: '700' }}>{hintLoading ? 'LOADING...' : 'MORE INTEL — 12'}</Text>
                 </TouchableOpacity>
               </View>
+            )}
+          </HudFrame>
+        )}
+
+        {/* Live Tactical Tools */}
+        {!result && riddle && (
+          <HudFrame accent={hudAccent} style={{ padding: 16 }}>
+            <Text style={{ color: '#64748b', fontFamily: mono, fontSize: 10, letterSpacing: 2.2, marginBottom: 10, fontWeight: '700' }}>TACTICAL TOOLS</Text>
+            <TouchableOpacity
+              style={[{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                paddingVertical: 8, paddingHorizontal: 10, borderRadius: 4,
+                backgroundColor: oracleHint ? 'rgba(167,139,250,0.03)' : 'rgba(167,139,250,0.06)',
+                borderWidth: 1, borderColor: oracleHint ? 'rgba(167,139,250,0.08)' : 'rgba(167,139,250,0.15)',
+                opacity: oracleLoading || oracleHint ? 0.65 : 1
+              }, isWeb ? { cursor: oracleLoading || oracleHint ? 'default' : 'pointer' } : {}]}
+              onPress={useOracle}
+              disabled={oracleLoading || !!oracleHint}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                {oracleLoading ? <ActivityIndicator size="small" color="#a78bfa" /> : <Icons.DatabaseIcon size={10} color="#a78bfa" />}
+                <Text style={{ color: '#a78bfa', fontFamily: mono, fontSize: 10, fontWeight: '800' }}>{oracleLoading ? 'CONTACTING...' : oracleHint ? 'ORACLE USED' : 'ORACLE — 150'}</Text>
+              </View>
+              <Icons.IntelIcon size={10} color="#a78bfa" />
+            </TouchableOpacity>
+            {!!oracleHint && (
+              <View style={{ marginTop: 8, padding: 10, borderRadius: 4, backgroundColor: 'rgba(167,139,250,0.04)', borderWidth: 1, borderColor: 'rgba(167,139,250,0.1)' }}>
+                <Text style={{ color: '#a78bfa', fontFamily: mono, fontSize: 11, lineHeight: 17 }}>{oracleHint}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[{
+                flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8,
+                paddingVertical: 8, paddingHorizontal: 10, borderRadius: 4, marginTop: 8,
+                backgroundColor: panicMode ? 'rgba(255,42,42,0.06)' : 'rgba(255,255,255,0.02)',
+                borderWidth: 1, borderColor: panicMode ? 'rgba(255,42,42,0.18)' : 'rgba(255,255,255,0.08)',
+                opacity: (!panicMode || freezeLoading || freezeUsed) ? 0.55 : 1
+              }, isWeb ? { cursor: (!panicMode || freezeLoading || freezeUsed) ? 'default' : 'pointer' } : {}]}
+              onPress={useTimeFreeze}
+              disabled={!panicMode || freezeLoading || freezeUsed}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                {freezeLoading ? <ActivityIndicator size="small" color="#ff2a2a" /> : <Icons.TimerIcon size={10} color={panicMode ? '#ff2a2a' : '#64748b'} />}
+                <Text style={{ color: panicMode ? '#ff2a2a' : '#64748b', fontFamily: mono, fontSize: 10, fontWeight: '800' }}>
+                  {freezeLoading ? 'FREEZING...' : freezeUsed ? 'TIME FREEZE USED' : panicMode ? 'TIME FREEZE — 100' : 'TIME FREEZE — PANIC ONLY'}
+                </Text>
+              </View>
+              <Text style={{ color: panicMode ? '#ff2a2a' : '#64748b', fontFamily: mono, fontSize: 10, fontWeight: '900' }}>+10s</Text>
+            </TouchableOpacity>
+            {!!lifelineMsg && (
+              <Text style={{ color: lifelineMsg.includes('error') || lifelineMsg.includes('unavailable') || lifelineMsg.includes('Need') ? '#f43f5e' : '#64748b', fontFamily: mono, fontSize: 10, lineHeight: 15, marginTop: 8 }}>
+                {lifelineMsg}
+              </Text>
             )}
           </HudFrame>
         )}
@@ -611,7 +743,12 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
               )}
 
               {/* ── Question Card ── */}
-              <HudFrame accent={hudAccent} style={{ padding: isPhone ? 14 : (isMobile ? 20 : 28), marginBottom: isPhone ? 10 : 16 }}>
+              <HudFrame accent={hudAccent} style={{
+                paddingTop: isPhone ? 14 : (isMobile ? 20 : 28),
+                paddingHorizontal: isPhone ? 14 : (isMobile ? 20 : 28),
+                paddingBottom: isPhone ? 8 : (isMobile ? 10 : 12),
+                marginBottom: isPhone ? 8 : 10
+              }}>
                 {/* Header */}
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, borderBottomWidth: 1, borderColor: 'rgba(255,255,255,0.04)', paddingBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -633,8 +770,10 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
                   riddle={riddle}
                   accent={mCol}
                   questionStyle={{
-                    fontSize: isPhone ? 17 : (isMobile ? 21 : 25),
-                    lineHeight: isPhone ? 25 : (isMobile ? 31 : 37),
+                    fontSize: isPhone ? 24 : (isMobile ? 29 : 36),
+                    lineHeight: isPhone ? 31 : (isMobile ? 37 : 46),
+                    fontFamily: grotesk,
+                    fontWeight: '900',
                   }}
                 />
               </HudFrame>
@@ -650,7 +789,7 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
                     key={i}
                     style={[{
                       flexDirection: 'row', alignItems: 'center', gap: 12,
-                      padding: 14, borderRadius: 4, marginBottom: 6,
+                      padding: isPhone ? 14 : 18, borderRadius: 4, marginBottom: 8,
                       backgroundColor: right ? 'rgba(0,201,122,0.06)' : wrong ? 'rgba(244,63,94,0.06)' : picked ? `${mCol}08` : 'rgba(10,10,14,0.5)',
                       borderWidth: 1,
                       borderColor: right ? 'rgba(0,201,122,0.3)' : wrong ? 'rgba(244,63,94,0.3)' : picked ? `${mCol}25` : 'rgba(255,255,255,0.05)'
@@ -660,16 +799,16 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
                     activeOpacity={0.7}
                   >
                     <View style={[{
-                      width: 30, height: 30, borderRadius: 4, alignItems: 'center', justifyContent: 'center',
+                      width: isPhone ? 32 : 38, height: isPhone ? 32 : 38, borderRadius: 4, alignItems: 'center', justifyContent: 'center',
                       backgroundColor: right ? '#00c97a' : wrong ? '#f43f5e' : 'rgba(0,0,0,0.4)',
                       borderWidth: 1,
                       borderColor: right ? '#00c97a' : wrong ? '#f43f5e' : 'rgba(255,255,255,0.06)'
                     }, isWeb ? { boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)' } : {}]}>
-                      <Text style={{ color: right || wrong ? '#000' : '#4b5563', fontFamily: mono, fontWeight: '900', fontSize: 12 }}>{letter}</Text>
+                      <Text style={{ color: right || wrong ? '#000' : '#4b5563', fontFamily: mono, fontWeight: '900', fontSize: isPhone ? 13 : 16 }}>{letter}</Text>
                     </View>
                     <Text style={{
                       flex: 1, color: right ? '#00c97a' : wrong ? '#fca5a5' : '#e2e8f0',
-                      fontFamily: grotesk, fontSize: 13, fontWeight: '600', lineHeight: 20
+                      fontFamily: grotesk, fontSize: isPhone ? 16 : 18, fontWeight: '700', lineHeight: isPhone ? 23 : 26
                     }}>{opt}</Text>
                     {right && <Icons.TargetIcon size={14} color="#00c97a" />}
                     {wrong && <Icons.XIcon size={14} color="#f43f5e" />}
@@ -689,14 +828,14 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
                     </View>
                   )}
                   <View style={[{ position: 'relative' }, isWeb ? { transition: 'all 0.3s ease' } : {}]}>
-                    <Text style={{ position: 'absolute', left: 16, top: 18, zIndex: 10, fontFamily: mono, fontSize: 18, fontWeight: '900', color: panicMode ? 'rgba(255,42,42,0.5)' : 'rgba(0,255,208,0.4)' }}>{'>_'}</Text>
+                    <Text style={{ position: 'absolute', left: 18, top: 22, zIndex: 10, fontFamily: mono, fontSize: 20, fontWeight: '900', color: panicMode ? 'rgba(255,42,42,0.65)' : 'rgba(0,255,208,0.55)' }}>{'>_'}</Text>
                     <TextInput
                       style={[{
                         backgroundColor: 'rgba(0,0,0,0.5)', borderWidth: 1,
                         borderColor: typed ? (panicMode ? 'rgba(255,42,42,0.25)' : 'rgba(0,255,208,0.2)') : 'rgba(255,255,255,0.05)',
-                        borderRadius: 4, paddingTop: 16, paddingBottom: 16, paddingLeft: 48, paddingRight: 120,
-                        color: '#e2e8f0', fontFamily: mono, fontSize: 15, fontWeight: '900',
-                        letterSpacing: 2, textTransform: 'uppercase', minHeight: 56,
+                        borderRadius: 4, paddingTop: 18, paddingBottom: 18, paddingLeft: 54, paddingRight: 128,
+                        color: '#e2e8f0', fontFamily: mono, fontSize: isPhone ? 17 : 20, fontWeight: '900',
+                        letterSpacing: 0.8, textTransform: 'uppercase', minHeight: isPhone ? 64 : 72,
                       }, isWeb ? { outlineStyle: 'none', transition: 'border-color 0.3s ease' } : {}]}
                       placeholder="ENTER DECRYPTION KEY..."
                       placeholderTextColor="#333"
@@ -717,7 +856,7 @@ export default function GameScreen({ user, go, exitToHome, update, mode, panicMo
                     >
                       {submitting
                         ? <ActivityIndicator color="#000" size="small" />
-                        : <Text style={{ color: '#050508', fontFamily: mono, fontWeight: '900', fontSize: 11, letterSpacing: 1.6 }}>EXECUTE</Text>
+                        : <Text style={{ color: '#050508', fontFamily: mono, fontWeight: '900', fontSize: 13, letterSpacing: 1.2 }}>EXECUTE</Text>
                       }
                     </TouchableOpacity>
                   </View>

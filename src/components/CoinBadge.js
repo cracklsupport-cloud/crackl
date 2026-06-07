@@ -2,8 +2,10 @@
  * CoinBadge — Animated Intel display with pulsing glow
  */
 import React, { useEffect, useRef } from 'react';
-import { View, Text, Animated } from 'react-native';
+import { View, Text, Animated, Platform } from 'react-native';
 import Colors from '../theme/colors';
+
+const isWeb = Platform.OS === 'web';
 
 export default function CoinBadge({ amount, size = 'md', style }) {
   const pulse = useRef(new Animated.Value(1)).current;
@@ -11,8 +13,8 @@ export default function CoinBadge({ amount, size = 'md', style }) {
   useEffect(() => {
     Animated.loop(
       Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.08, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: true }),
+        Animated.timing(pulse, { toValue: 1.08, duration: 1200, useNativeDriver: !isWeb }),
+        Animated.timing(pulse, { toValue: 1, duration: 1200, useNativeDriver: !isWeb }),
       ])
     ).start();
   }, []);
@@ -27,12 +29,13 @@ export default function CoinBadge({ amount, size = 'md', style }) {
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 20,
+      elevation: 4,
+      transform: [{ scale: pulse }],
+    }, isWeb ? { boxShadow: `0 0 18px ${Colors.gold}45` } : {
       shadowColor: Colors.gold,
       shadowOffset: { width: 0, height: 0 },
       shadowOpacity: 0.35,
       shadowRadius: 12,
-      elevation: 4,
-      transform: [{ scale: pulse }],
     }, style]}>
       <Text style={{ fontSize: fontSize + 2, marginRight: 4 }}>💾</Text>
       <Text style={{

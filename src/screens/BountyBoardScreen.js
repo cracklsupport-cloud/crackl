@@ -3,12 +3,12 @@ import { View, Text, TouchableOpacity, TextInput, ScrollView, ActivityIndicator,
 import Colors from '../theme/colors';
 import { BACKEND } from '../utils/api';
 import Icons from '../components/Icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthToken } from '../utils/authSession';
 import RiddleContent from '../components/RiddleContent';
 
 const isWeb = Platform.OS === 'web';
 const mono = isWeb ? '"JetBrains Mono", monospace' : undefined;
-const grotesk = isWeb ? '"Black Ops One", sans-serif' : undefined;
+const grotesk = isWeb ? '"Space Grotesk", sans-serif' : 'Chakra Petch';
 
 function CornerBrackets() {
   const s = { position: 'absolute', width: 12, height: 12, borderColor: 'rgba(255,255,255,0.2)', zIndex: 20 };
@@ -82,7 +82,7 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
     typedRef.current = '';
 	    submitLockRef.current = false;
 	    try {
-	      const token = await AsyncStorage.getItem('crackl_token');
+	      const token = await getAuthToken();
 	      const res = await fetch(`${BACKEND}/bounty/current?panicMode=${panicMode ? 'true' : 'false'}`, {
 	        headers: token ? { Authorization: `Bearer ${token}` } : {}
       });
@@ -113,13 +113,13 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
 
   async function attempt(ans) {
     const finalAnswer = ans === '__timeout__' ? (typedRef.current.trim() || '__timeout__') : typed.trim();
-    if ((!finalAnswer && ans !== '__timeout__') || !bounty || submitLockRef.current || result?.isCorrect) return;
+    if ((!finalAnswer && ans !== '__timeout__') || !bounty || submitLockRef.current || result) return;
     submitLockRef.current = true;
     clearInterval(timerRef.current);
 	    setSubmitting(true);
 	    setErr('');
 	    try {
-	      const token = await AsyncStorage.getItem('crackl_token');
+	      const token = await getAuthToken();
 	      const res = await fetch(`${BACKEND}/bounty/attempt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
@@ -127,10 +127,14 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
       });
       const data = await res.json();
       setResult({ ...data, timedOut: finalAnswer === '__timeout__' });
-      if (data.isCorrect) {
-        update({ ...user, coins: data.newTotal ?? ((user.coins || 0) + (data.prize || bounty.prize_coins || 0)) });
-      } else if (!panicMode) {
-        submitLockRef.current = false;
+      if (data.success && (data.newTotal !== undefined || data.newXp !== undefined)) {
+        update({
+          ...user,
+          coins: data.newTotal ?? (data.isCorrect ? ((user.coins || 0) + (data.prize || bounty.prize_coins || 0)) : user.coins),
+          xp: data.newXp ?? user.xp,
+          level: data.newLevel ?? user.level,
+          streak: data.streakCount ?? user.streak
+        });
       }
     } catch {
       submitLockRef.current = false;
@@ -257,13 +261,17 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
           ) : null}
         </View>
 
-        <View style={[{ backgroundColor: 'rgba(10,10,12,0.8)', borderRadius: 24, padding: 28, borderWidth: 2, borderColor: accent + '25', marginBottom: 28, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' } : {}]}>
+        <View style={[{ backgroundColor: 'rgba(10,10,12,0.82)', borderRadius: 8, padding: 30, borderWidth: 1, borderColor: accent + '28', marginBottom: 22, position: 'relative', overflow: 'hidden' }, isWeb ? { backdropFilter: 'blur(24px)', boxShadow: `0 18px 60px rgba(0,0,0,0.5), 0 0 34px ${accent}12` } : {}]}>
           <CornerBrackets />
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 }}>
             <Icons.LockIcon size={14} color={accent} />
             <Text style={{ color: accent, fontFamily: mono, fontSize: 13, fontWeight: '900', letterSpacing: 1.8, textTransform: 'uppercase' }}>Classified Intel</Text>
           </View>
-          <RiddleContent riddle={bounty} accent={accent} questionStyle={{ fontSize: 22 }} />
+          <RiddleContent
+            riddle={bounty}
+            accent={accent}
+            questionStyle={{ fontFamily: grotesk, fontSize: 36, lineHeight: 46, fontWeight: '900' }}
+          />
         </View>
 
         <View style={[{ backgroundColor: 'rgba(10,10,12,0.6)', borderRadius: 16, padding: 24, borderWidth: 1, borderColor: Colors.rose + '25', marginBottom: 24 }, isWeb ? { backdropFilter: 'blur(12px)' } : {}]}>
@@ -276,22 +284,22 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
             <TextInput
               style={[{
                 backgroundColor: '#050505', borderWidth: 2, borderColor: typed ? '#00ffd060' : 'rgba(255,255,255,0.08)',
-                borderRadius: 16, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 20,
-                color: Colors.textPrimary, fontFamily: mono, fontSize: 18, fontWeight: '900',
-                letterSpacing: 2, textTransform: 'uppercase', minHeight: 70,
+                borderRadius: 8, paddingTop: 20, paddingBottom: 20, paddingLeft: 56, paddingRight: 20,
+                color: Colors.textPrimary, fontFamily: mono, fontSize: 20, fontWeight: '900',
+                letterSpacing: 0.8, textTransform: 'uppercase', minHeight: 76,
               }, isWeb ? { outlineStyle: 'none', transition: 'all 0.3s ease', boxShadow: typed ? '0 0 15px rgba(0,255,208,0.15)' : 'none' } : {}]}
               placeholder={panicMode ? 'ENTER ANSWER BEFORE TIMER COLLAPSES...' : 'ENTER DECRYPTION KEY...'}
               placeholderTextColor={Colors.textMuted}
               value={typed}
               onChangeText={(value) => { setTyped(value); typedRef.current = value; }}
-              editable={!(panicMode && result && !result.isCorrect)}
+              editable={!result}
             />
           </View>
           {result && !result.isCorrect ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12, backgroundColor: Colors.rose + '15', padding: 10, borderRadius: 8 }}>
               <Icons.XIcon size={14} color={Colors.rose} />
               <Text style={{ color: Colors.rose, fontFamily: mono, fontWeight: '700', fontSize: 12, letterSpacing: 0.5 }}>
-                {panicMode ? (result.timedOut ? 'Timer expired. Start a fresh bounty run to try again.' : 'Timed run failed. Re-arm Panic Mode to make another attempt.') : 'SEQUENCE INVALID. RE-CALCULATE.'}
+                {result.alreadyAttempted ? 'Attempt already spent. Wait for a fresh contract.' : result.timedOut ? 'Timer expired. This bounty attempt is spent.' : 'SEQUENCE INVALID. THIS BOUNTY ATTEMPT IS SPENT.'}
               </Text>
             </View>
           ) : null}
@@ -306,12 +314,12 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
         <TouchableOpacity style={[{
           backgroundColor: submitting ? '#666' : '#fff',
           paddingVertical: 18, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10,
-          opacity: (!typed.trim() || submitting || (panicMode && result && !result.isCorrect)) ? 0.4 : 1
-        }, isWeb ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}]} onPress={() => attempt()} disabled={!typed.trim() || submitting || (panicMode && result && !result.isCorrect)}>
+          opacity: (!typed.trim() || submitting || result) ? 0.4 : 1
+        }, isWeb ? { cursor: result ? 'not-allowed' : 'pointer', transition: 'all 0.2s ease' } : {}]} onPress={() => attempt()} disabled={!typed.trim() || submitting || !!result}>
           {submitting ? <ActivityIndicator color="#000" /> : <><Icons.TerminalIcon size={18} color="#000" /><Text style={{ color: '#000', fontFamily: 'Chakra Petch', fontWeight: '900', fontSize: 15, letterSpacing: 1.5 }}>EXECUTE SOLUTION</Text></>}
         </TouchableOpacity>
 
-        {panicMode && result && !result.isCorrect ? (
+        {result && !result.isCorrect ? (
           <TouchableOpacity style={[{
             marginTop: 14,
             paddingVertical: 16,
@@ -325,7 +333,7 @@ export default function BountyBoardScreen({ user, go, exitToHome, update, panicM
             borderColor: Colors.rose + '35'
           }, isWeb ? { cursor: 'pointer', transition: 'all 0.2s ease' } : {}]} onPress={load}>
             <Icons.TimerIcon size={16} color={Colors.rose} />
-            <Text style={{ color: Colors.rose, fontFamily: mono, fontWeight: '900', fontSize: 13, letterSpacing: 1.2 }}>RE-ARM PANIC TIMER</Text>
+            <Text style={{ color: Colors.rose, fontFamily: mono, fontWeight: '900', fontSize: 13, letterSpacing: 1.2 }}>CHECK FOR NEW CONTRACT</Text>
           </TouchableOpacity>
         ) : null}
       </ScrollView>
