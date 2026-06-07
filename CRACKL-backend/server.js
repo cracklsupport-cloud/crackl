@@ -690,8 +690,10 @@ app.post('/auth/check-username', async (req, res) => {
 
 app.post('/auth/signup', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, college } = req.body;
     if (!username || !email || !password) return res.status(400).json({ success: false, error: 'All fields required' });
+
+    const resolvedCollege = college || 'Other';
 
     const { data: existingUser } = await supabase.from('users').select('id').or(`email.eq.${email},username.ilike.${username}`).maybeSingle();
     if (existingUser) return res.status(400).json({ success: false, error: 'Email or Username already in use' });
@@ -699,13 +701,13 @@ app.post('/auth/signup', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, 10);
 
     const { data, error } = await supabase.from('users')
-      .insert({ username, email, password_hash: passwordHash, is_verified: true, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0, city: 'Global', area: 'Arena', is_admin: false })
-      .select('id, username, email, coins, streak, level, xp, is_admin').single();
+      .insert({ username, email, password_hash: passwordHash, is_verified: true, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0, city: 'Global', area: 'Arena', is_admin: false, college: resolvedCollege })
+      .select('id, username, email, coins, streak, level, xp, is_admin, college').single();
 
     if (error || !data) throw new Error(error ? error.message : 'Database error: no data returned from signup insert');
 
     const token = jwt.sign({ id: data.id, username: data.username }, JWT_SECRET, { expiresIn: '30d' });
-    console.log(`👤 New User Signed Up: ${data.username}`);
+    console.log(`👤 New User Signed Up: ${data.username} | College: ${resolvedCollege}`);
     res.json({ success: true, user: data, token });
   } catch (error) { res.status(500).json({ success: false, error: error.message }); }
 });
@@ -776,13 +778,27 @@ app.post('/auth/oauth', async (req, res) => {
     const { provider, token: oauthToken } = req.body;
     if (!provider || !oauthToken) return res.status(400).json({ success: false, error: 'Missing provider or token' });
 
+    let email, name;
     const decoded = jwt.decode(oauthToken);
-    if (!decoded || !decoded.email) {
-      return res.status(400).json({ success: false, error: 'Invalid OAuth token received' });
+    
+    if (decoded && decoded.email) {
+      email = decoded.email;
+      name = decoded.name || email.split('@')[0];
+    } else {
+      // If it's an Access Token instead of an ID Token, jwt.decode will fail.
+      // We must securely fetch the user's profile from Google API instead!
+      try {
+        const gRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${oauthToken}` }
+        });
+        const gData = await gRes.json();
+        if (!gData.email) throw new Error('No email in Google response');
+        email = gData.email;
+        name = gData.name || gData.given_name || email.split('@')[0];
+      } catch (err) {
+        return res.status(400).json({ success: false, error: 'Invalid OAuth token received' });
+      }
     }
-
-    const email = decoded.email;
-    const name = decoded.name || email.split('@')[0];
 
     let { data: user } = await supabase.from('users').select('*').eq('email', email).maybeSingle();
 
