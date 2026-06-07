@@ -3888,6 +3888,7 @@ app.post('/auth/signup', async (req, res) => {
   try {
     const username = String(req.body.username || '').trim();
     const email = String(req.body.email || '').trim().toLowerCase();
+    const college = String(req.body.college || 'Other').trim().slice(0, 160) || 'Other';
     const { password, legalAccepted } = req.body;
     if (!username || !email || !password) return res.status(400).json({ success: false, error: 'All fields required' });
     if (legalAccepted !== true) return res.status(400).json({ success: false, error: 'Accept the Terms, Privacy, Fair Play, and Rewards rules to create an account.' });
@@ -3908,8 +3909,8 @@ app.post('/auth/signup', async (req, res) => {
     const passwordHash = await bcrypt.hash(String(password), 10);
 
     const { data, error } = await supabase.from('users')
-      .insert({ username, email, password_hash: passwordHash, is_verified: true, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0, city: 'Global', area: 'Arena', is_admin: false })
-      .select('id, username, email, coins, streak, level, xp, is_admin, total_played, total_correct, city, area').single();
+      .insert({ username, email, college, password_hash: passwordHash, is_verified: true, coins: 100, streak: 0, level: 'Novice', xp: 0, total_played: 0, total_correct: 0, city: 'Global', area: 'Arena', is_admin: false })
+      .select('id, username, email, college, coins, streak, level, xp, is_admin, total_played, total_correct, city, area').single();
 
     if (error || !data) throw new Error(error ? error.message : 'Database error: no data returned from signup insert');
 
@@ -4014,17 +4015,34 @@ app.post('/auth/oauth', async (req, res) => {
     let email, name;
 
     if (provider === 'google') {
-      // Verify Google ID token cryptographically
-      const ticket = await googleClient.verifyIdToken({
-        idToken: oauthToken,
-        audience: process.env.GOOGLE_CLIENT_ID,
-      });
-      const payload = ticket.getPayload();
-      if (!payload || !payload.email) {
-        return res.status(400).json({ success: false, error: 'Invalid Google token' });
+      try {
+        // ID tokens are verified cryptographically when Google returns one.
+        const ticket = await googleClient.verifyIdToken({
+          idToken: oauthToken,
+          audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        if (!payload || !payload.email) {
+          return res.status(400).json({ success: false, error: 'Invalid Google token' });
+        }
+        email = String(payload.email).trim().toLowerCase();
+        name = payload.name || email.split('@')[0];
+      } catch {
+        // Expo web may return an access token instead. Validate it with Google,
+        // never by decoding or trusting client-provided profile data.
+        const googleResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+          headers: { Authorization: `Bearer ${oauthToken}` },
+        });
+        if (!googleResponse.ok) {
+          return res.status(400).json({ success: false, error: 'Invalid Google token' });
+        }
+        const profile = await googleResponse.json();
+        if (!profile?.email || profile.email_verified === false) {
+          return res.status(400).json({ success: false, error: 'Google email is not verified' });
+        }
+        email = String(profile.email).trim().toLowerCase();
+        name = profile.name || email.split('@')[0];
       }
-      email = String(payload.email).trim().toLowerCase();
-      name = payload.name || email.split('@')[0];
     } else if (provider === 'apple') {
       // Apple tokens: decode and verify issuer + audience claims
       const decoded = jwt.decode(oauthToken, { complete: true });

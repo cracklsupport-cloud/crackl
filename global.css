@@ -73,7 +73,7 @@ html, body, #root {
 }
 
 /* ─── CURSOR ─── */
-html { cursor: crosshair; }
+html { cursor: default; }
 a, button, [role="button"], input[type="submit"],
 [data-clickable], .clickable { cursor: pointer; }
 

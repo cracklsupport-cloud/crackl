@@ -16,16 +16,22 @@ export const GlassField = ({
   keyboardType,
   autoCapitalize,
   autoComplete,
-  textContentType,
+  autoCorrect = false,
+  enterKeyHint,
+  inputMode,
   maxLength,
-  style,
+  onBlur,
+  onFocus,
   onSubmitEditing,
+  returnKeyType,
+  style,
+  textContentType,
   icon,
   focusColor = '#a855f7',
-  nativeID,
-  name,
+  rightElement
 }) => {
   const [isFocused, setIsFocused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   
   // Helper to convert hex to rgba for backgrounds/shadows
   const hexToRgba = (hex, alpha) => {
@@ -51,20 +57,21 @@ export const GlassField = ({
       )}
       <TextInput
         style={[{
-          backgroundColor: isFocused ? focusBg : '#050505',
+          backgroundColor: isFocused ? focusBg : (isHovered ? 'rgba(255,255,255,0.03)' : '#050505'),
           borderWidth: 2,
-          borderColor: isFocused ? focusColor : 'rgba(255, 255, 255, 0.1)',
+          borderColor: isFocused ? focusColor : (isHovered ? 'rgba(255, 255, 255, 0.3)' : 'rgba(255, 255, 255, 0.1)'),
           borderRadius: 12,
           paddingVertical: 16,
           paddingLeft: icon ? 48 : 16,
-          paddingRight: 16,
+          paddingRight: rightElement ? 48 : 16,
           color: '#ffffff',
           fontSize: 14,
           fontFamily: isWeb ? '"JetBrains Mono", monospace' : undefined,
           letterSpacing: 1,
+        }, isWeb ? {
           outlineStyle: 'none',
           transition: 'all 0.3s ease',
-        }, isFocused && isWeb ? { boxShadow: `0 0 15px ${glowShadow}` } : {}]}
+        } : {}, isFocused && isWeb ? { boxShadow: `0 0 15px ${glowShadow}` } : {}]}
         placeholder={placeholder}
         placeholderTextColor="#4b5563"
         value={value}
@@ -73,14 +80,31 @@ export const GlassField = ({
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize || 'none'}
         autoComplete={autoComplete}
-        textContentType={textContentType}
-        nativeID={nativeID}
-        dataSet={isWeb && name ? { field: name } : undefined}
+        autoCorrect={autoCorrect}
+        enterKeyHint={enterKeyHint}
+        inputMode={inputMode}
         maxLength={maxLength}
         onSubmitEditing={onSubmitEditing}
-        onFocus={() => setIsFocused(true)}
-        onBlur={() => setIsFocused(false)}
+        returnKeyType={returnKeyType}
+        textContentType={textContentType}
+        onFocus={(event) => {
+          setIsFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          setIsFocused(false);
+          onBlur?.(event);
+        }}
+        {...(isWeb ? {
+          onMouseEnter: () => setIsHovered(true),
+          onMouseLeave: () => setIsHovered(false),
+        } : {})}
       />
+      {rightElement && (
+        <View style={{ position: 'absolute', right: 16, zIndex: 10, height: '100%', justifyContent: 'center' }}>
+          {rightElement}
+        </View>
+      )}
     </View>
   );
 };
