@@ -3139,7 +3139,10 @@ app.post('/admin/riddle/add', checkAdmin, requireAdminRole(ADMIN_MUTATION_ROLES)
         });
         continue;
       }
-      duplicateCorpus.push(buildComparableRiddleShape(candidatePayload));
+      duplicateCorpus.push(buildComparableRiddleShape({
+        ...candidatePayload,
+        id: `batch-item-${i + 1}`,
+      }));
       toInsert.push({
         index: i,
         data: candidatePayload

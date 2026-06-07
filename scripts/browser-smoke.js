@@ -1,12 +1,20 @@
 const fs = require('fs');
 const path = require('path');
 const { chromium } = require('playwright');
+require(path.join(__dirname, '..', 'CRACKL-backend', 'node_modules', 'dotenv')).config({
+  path: path.join(__dirname, '..', 'CRACKL-backend', '.env')
+});
+const { createClient } = require(path.join(__dirname, '..', 'CRACKL-backend', 'node_modules', '@supabase', 'supabase-js'));
 
 const FRONTEND_URL = process.env.BROWSER_SMOKE_FRONTEND_URL || 'http://localhost:8081';
 const BACKEND_URL = (process.env.BROWSER_SMOKE_BACKEND_URL || 'http://localhost:3000').replace(/\/$/, '');
 const ADMIN_URL = process.env.BROWSER_SMOKE_ADMIN_URL || `${BACKEND_URL}/admin-ui/`;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'crackl-admin-2026');
 const CHROME_PATH = process.env.CHROME_PATH || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_KEY
+);
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -23,7 +31,10 @@ async function createBrowserSmokeUser() {
   const body = {
     username: `browser_smoke_${String(stamp).slice(-12)}`,
     email: `browser-smoke-${stamp}@example.test`,
-    password: `SmokePass${stamp}!`
+    password: `SmokePass${stamp}!`,
+    college: 'Other',
+    legalAccepted: true,
+    legalVersion: 'browser-smoke',
   };
   const { res, json } = await jsonFetch(`${BACKEND_URL}/auth/signup`, {
     method: 'POST',
@@ -46,6 +57,12 @@ async function waitForAnyText(page, labels, timeout = 20000) {
   throw new Error(`Timed out waiting for any text: ${labels.join(', ')}`);
 }
 
+async function cleanupBrowserSmokeUser(userId) {
+  if (!userId) return;
+  await supabase.from('legal_acceptances').delete().eq('user_id', userId);
+  await supabase.from('users').delete().eq('id', userId);
+}
+
 async function main() {
   const health = await jsonFetch(`${BACKEND_URL}/health`);
   assert(health.res.ok && health.json.success, `Backend health failed: ${JSON.stringify(health.json)}`);
@@ -59,6 +76,7 @@ async function main() {
   const browser = await chromium.launch(launchOptions);
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const pageErrors = [];
+  let smokeUserId = null;
 
   context.on('page', (page) => {
     page.on('pageerror', (error) => pageErrors.push(error.message));
@@ -66,11 +84,12 @@ async function main() {
 
   try {
     const { user, token } = await createBrowserSmokeUser();
+    smokeUserId = user.id;
 
     const appPage = await context.newPage();
     await appPage.addInitScript(({ smokeUser, smokeToken }) => {
-      window.localStorage.setItem('crackl_user', JSON.stringify(smokeUser));
-      window.localStorage.setItem('crackl_token', smokeToken);
+      window.sessionStorage.setItem('crackl_user', JSON.stringify(smokeUser));
+      window.sessionStorage.setItem('crackl_token', smokeToken);
     }, { smokeUser: user, smokeToken: token });
 
     await appPage.goto(FRONTEND_URL, { waitUntil: 'domcontentloaded' });
@@ -102,6 +121,7 @@ async function main() {
     }, null, 2));
   } finally {
     await browser.close();
+    await cleanupBrowserSmokeUser(smokeUserId);
   }
 }
 

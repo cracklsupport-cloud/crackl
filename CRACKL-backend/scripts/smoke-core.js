@@ -191,6 +191,31 @@ async function run() {
     const bulkIds = (bulkSeed.json.results || []).filter(row => row.success).map(row => row.id);
     touched.riddleIds.push(...bulkIds);
 
+    const chainSeed = await api('/admin/riddle/add', {
+      method: 'POST',
+      headers: adminAuth(),
+      body: JSON.stringify({
+        riddles: [
+          { tier: 1, question: `Which signal opens the cobalt gate ${stamp}?`, answer: `cobalt-${stamp}` },
+          { tier: 1, question: `Decode the silent orchard coordinate ${stamp}.`, answer: `orchard-${stamp}` },
+          { tier: 3, question: `Name the missing prism in relay ${stamp}.`, answer: `prism-${stamp}` },
+          { tier: 3, question: `Resolve the midnight compass bearing ${stamp}.`, answer: `compass-${stamp}` },
+          { tier: 5, question: `Complete the final obsidian lattice ${stamp}.`, answer: `lattice-${stamp}` },
+        ].map(({ tier, question, answer }, index) => ({
+          question,
+          answer,
+          game_mode: 'chain',
+          difficulty: tier <= 1 ? 'Easy' : tier >= 5 ? 'Hard' : 'Medium',
+          difficulty_tier: tier,
+          riddle_type: 'text',
+          category: `smoke-chain-${index + 1}`,
+        }))
+      })
+    });
+    const chainSeedIds = (chainSeed.json.results || []).filter(row => row.success).map(row => row.id);
+    touched.riddleIds.push(...chainSeedIds);
+    assert(chainSeed.status === 200 && chainSeed.json.success && chainSeed.json.added === 5, 'Chain smoke seed failed', chainSeed);
+
     const safeBulkDelete = await api('/admin/riddles/delete', {
       method: 'POST',
       headers: adminAuth(),
