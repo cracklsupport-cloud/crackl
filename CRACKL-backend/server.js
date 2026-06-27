@@ -2241,8 +2241,10 @@ app.post('/auth/check-username', async (req, res) => {
 
 app.post('/auth/signup', async (req, res) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, college } = req.body;
     if (!username || !email || !password) return res.status(400).json({ success: false, error: 'All fields required' });
+
+    const resolvedCollege = college || 'Other';
 
     const { data: existingUser } = await supabase.from('users').select('id').or(`email.eq.${email},username.ilike.${username}`).maybeSingle();
     if (existingUser) return res.status(400).json({ success: false, error: 'Email or Username already in use' });
@@ -2256,7 +2258,7 @@ app.post('/auth/signup', async (req, res) => {
     if (error || !data) throw new Error(error ? error.message : 'Database error: no data returned from signup insert');
 
     const token = jwt.sign({ id: data.id, username: data.username }, JWT_SECRET, { expiresIn: '30d' });
-    console.log(`👤 New User Signed Up: ${data.username}`);
+    console.log(`👤 New User Signed Up: ${data.username} | College: ${resolvedCollege}`);
     res.json({ success: true, user: data, token });
   } catch (error) { res.status(error.statusCode || 500).json({ success: false, error: error.message }); }
 });

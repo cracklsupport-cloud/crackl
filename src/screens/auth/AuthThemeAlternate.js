@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ActivityIndicator, Animated, Platform, KeyboardAvoidingView, Image } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as THREE from 'three';
@@ -43,7 +43,7 @@ function ThreeBackground() {
       new THREE.Color('#a855f7'), // Crackl Purple
     ];
 
-    const particleCount = 2000;
+    const particleCount = 0; // Removed background static dots requested by user
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -169,6 +169,220 @@ function ThreeBackground() {
   return <div ref={containerRef} style={{ position: 'absolute', top: 0, left: 0, width: '100vw', height: '100vh', zIndex: 0, pointerEvents: 'none' }} />;
 }
 
+function ParticleLiftoff() {
+  const canvasRef = useRef(null);
+  const animFrameRef = useRef(null);
+  const stateRef = useRef({ 
+    x: -9999, y: -9999, 
+    targetX: -9999, targetY: -9999,
+    lastTargetX: -9999, lastTargetY: -9999,
+    idleTime: 0,
+    collapseProgress: 0,
+  });
+
+  useEffect(() => {
+    if (!isWeb) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      if (stateRef.current.targetX === -9999) {
+        stateRef.current.x = window.innerWidth / 2;
+        stateRef.current.y = window.innerHeight / 2;
+        stateRef.current.targetX = window.innerWidth / 2;
+        stateRef.current.targetY = window.innerHeight / 2;
+      }
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Brand hues: Brightest Shades of Green
+    const baseHues = [100, 120, 140]; 
+
+    // Pre-calculate highly randomized field
+    const rings = [];
+    const numRings = 11;
+    const ringSpacing = 28; // Max radius roughly 310px
+    const dotSpacing = 32;  // Balanced spacing without overcrowding
+
+    for (let r = 1; r <= numRings; r++) {
+      const baseRadius = r * ringSpacing;
+      const numDots = Math.max(1, Math.floor((2 * Math.PI * baseRadius) / dotSpacing));
+      const dots = [];
+      for (let i = 0; i < numDots; i++) {
+        dots.push({
+          angle: (i / numDots) * Math.PI * 2,
+          angleOffset: (Math.random() - 0.5) * 0.45, // Break concentric rigidity
+          radiusOffset: (Math.random() - 0.5) * ringSpacing * 0.45, // Organic stagger
+          baseHue: baseHues[Math.floor(Math.random() * baseHues.length)],
+          baseSize: Math.random() * 1.2 + 1.8, // Slightly larger base dots
+        });
+      }
+      rings.push({ r_index: r, baseRadius, dots });
+    }
+
+    const handler = (e) => {
+      stateRef.current.targetX = e.clientX;
+      stateRef.current.targetY = e.clientY;
+    };
+    window.addEventListener('mousemove', handler);
+
+    let time = 0;
+
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      
+      const st = stateRef.current;
+      
+      // Moderate delay (friction) so the particle mass trails slightly behind the cursor
+      st.x += (st.targetX - st.x) * 0.04;
+      st.y += (st.targetY - st.y) * 0.04;
+
+      // Track cursor idle state
+      if (st.lastTargetX !== -9999) {
+        const dx = st.targetX - st.lastTargetX;
+        const dy = st.targetY - st.lastTargetY;
+        const distMove = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distMove > 0.5) {
+          st.idleTime = 0;
+        } else {
+          st.idleTime += 0.02;
+        }
+      }
+      st.lastTargetX = st.targetX;
+      st.lastTargetY = st.targetY;
+      
+      const distToMass = Math.sqrt(Math.pow(st.targetX - st.x, 2) + Math.pow(st.targetY - st.y, 2));
+
+      // ONLY begin gathering when cursor is perfectly still AND the mass has practically reached it
+      if (st.idleTime > 0.1 && distToMass < 12.0) {
+        // Organic swarm accumulation (super slow, 8.3s total, heavily overlapping dots)
+        st.collapseProgress = Math.min(1.0, st.collapseProgress + 0.002);
+      } else {
+        // Swarm bursting outwards randomly and naturally
+        st.collapseProgress = Math.max(0.0, st.collapseProgress - 0.008); 
+      }
+      
+      time += 0.02; // Slightly faster majestic progression
+      
+      for (let r = 0; r < rings.length; r++) {
+        const ring = rings[r];
+        const depthRatio = ring.r_index / numRings; 
+        
+        // Beautiful 3D wave moving back and forth (heartbeat)
+        const wavePhase = time * 1.5 - ring.r_index * 0.6;
+        const waveFactor = Math.sin(wavePhase); // -1 (inward) to 1 (outward)
+        const waveOffset = waveFactor * (5 + 35 * Math.pow(depthRatio, 1.5)); // Inner layers barely move
+        
+        // Inner layers retain EXACTLY 100% opacity, only outer layers ever fade to 0
+        const opacityDropPhase = Math.max(0, waveFactor); 
+        const fadeMultiplier = Math.max(0, (depthRatio - 0.4) / 0.6); // 0 until 40% out, then ramps to 1
+        const baseOpacity = 1.0 - (opacityDropPhase * fadeMultiplier); 
+        
+        for (let i = 0; i < ring.dots.length; i++) {
+          const dot = ring.dots[i];
+          
+          // Individual dot organic tracking (shatters system layer appearance)
+          const stableRandom = Math.abs(Math.sin(ring.r_index * 12.34 + i * 56.78));
+          const distanceWeight = (ring.r_index - 1) / (numRings - 1); 
+          
+          // Dots start tracking inwards nearest first, but highly randomized heavily overlapping windows
+          const dotCollapseStart = distanceWeight * 0.35 + stableRandom * 0.15; // 0.0 to 0.5 start times
+          
+          // Each dot takes an enormously slow 50% of the global animation (roughly ~4.1 seconds) to majestically glide in
+          const dotDriftProgress = Math.max(0, Math.min(1, (st.collapseProgress - dotCollapseStart) / 0.5));
+          
+          // Physics glide for an intensely realistic individual drift
+          const easeDrift = dotDriftProgress * dotDriftProgress * (3 - 2 * dotDriftProgress);
+          
+          const rotSpeed = 0.03 / ring.r_index;
+          // Maintain normal slow rotation; drop straight to center without tornado spin
+          const currentAngle = dot.angle + dot.angleOffset + time * rotSpeed * (ring.r_index % 2 === 0 ? 1 : -1);
+          
+          // Gentle organic sweep so it doesn't look purely mathematical
+          const amoebaDeform = (Math.sin(currentAngle * 2 + time) + Math.cos(currentAngle * 4 - time * 0.8)) * 12 * depthRatio;
+          
+          let baseActualRadius = ring.baseRadius + dot.radiusOffset + waveOffset + amoebaDeform;
+          baseActualRadius = Math.max(12, baseActualRadius); 
+          
+          // Pulse effect tightly restrained to when fully accumulated at the core
+          const isFullyCollapsed = easeDrift === 1.0;
+          // We can base intensity on how "compressed" the whole overall system is
+          const trembleIntensity = Math.min(1.0, Math.pow(st.collapseProgress, 4));
+          const tremblePulse = isFullyCollapsed ? Math.sin(time * 60 + dot.angleOffset * 15) * 1.5 * trembleIntensity : 0;
+          
+          // Tiny core dot formatting (5-8px wide diameter maximum)
+          const targetCollapsedRadius = (ring.r_index * 0.4) + tremblePulse;
+          
+          // Lerp directly from its normal organic structural drift down to the tight core
+          let actualRadius = baseActualRadius * (1 - easeDrift) + targetCollapsedRadius * easeDrift;
+
+          // Prevent negative radius crashes
+          actualRadius = Math.max(0.1, actualRadius);
+          
+          const px = st.x + Math.cos(currentAngle) * actualRadius;
+          const py = st.y + Math.sin(currentAngle) * actualRadius;
+          
+          // Size scales up from core to outer edge
+          const dotSize = Math.max(0.1, dot.baseSize) * (0.5 + 0.9 * depthRatio);
+
+          // More circular shape (less elongated pill)
+          const radiusX = dotSize * 1.25; 
+          const radiusY = dotSize * 1.0; 
+          const rotation = currentAngle; // Radially facing outwards
+
+          // Dynamic colors bounding around the base brand hue based on time and angle
+          const currentHue = dot.baseHue + Math.sin(time + currentAngle) * 20;
+          
+          // Edge rings fade slightly more to build the sphere edge falloff
+          const depthOpacity = 1 - (depthRatio * 0.4);
+          const finalOpacity = baseOpacity * depthOpacity;
+
+          ctx.beginPath();
+          if (ctx.ellipse) {
+             ctx.ellipse(px, py, radiusX, radiusY, rotation, 0, Math.PI * 2);
+          } else {
+             ctx.arc(px, py, dotSize, 0, Math.PI * 2);
+          }
+          ctx.globalAlpha = Math.max(0, finalOpacity);
+          ctx.fillStyle = `hsl(${currentHue}, 100%, 50%)`; // Vivid bright neon green glows
+          ctx.fill();
+          ctx.globalAlpha = 1.0; // Reset for next iteration
+        }
+      }
+      
+      animFrameRef.current = requestAnimationFrame(animate);
+    };
+    animate();
+
+    return () => {
+      window.removeEventListener('resize', resize);
+      window.removeEventListener('mousemove', handler);
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+    };
+  }, []);
+
+  if (!isWeb) return null;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100vw',
+        height: '100vh',
+        pointerEvents: 'none',
+        zIndex: 5,        // above grid (0), below left pane (10), below right pane (30)
+      }}
+    />
+  );
+}
+
 /* ═══ AUTH THEME DEFAULT ═══ */
 export default function AuthThemeDefault(props) {
   const {
@@ -178,12 +392,35 @@ export default function AuthThemeDefault(props) {
     fadeAnim,
   } = props;
 
+  const [mousePos, setMousePos] = useState({ x: -9999, y: -9999 });
+
+  useEffect(() => {
+    if (!isWeb) return;
+    const fn = (e) => setMousePos({ x: e.clientX, y: e.clientY });
+    window.addEventListener('mousemove', fn);
+    return () => window.removeEventListener('mousemove', fn);
+  }, []);
+
   return (
     // Root container with relative positioning
     <View style={{ width: isWeb ? '100vw' : '100%', height: isWeb ? '100vh' : '100%', position: 'relative', backgroundColor: '#000000', overflow: 'hidden' }}>
 
+      {/* ── Mouse tracking glow ── */}
+      {isWeb && (
+        <div style={{
+          position: 'fixed', width: 600, height: 600, borderRadius: '50%',
+          backgroundColor: '#006600', opacity: 0.3,
+          filter: 'blur(160px)', mixBlendMode: 'screen',
+          pointerEvents: 'none', zIndex: 0,
+          transform: `translate(${mousePos.x - 300}px, ${mousePos.y - 300}px)`,
+          transition: 'transform 0.1s ease-out',
+        }} />
+      )}
+
       {/* 1. FULL SCREEN 3D WEBGL GALAXY - Mounted at the absolute root */}
       <ThreeBackground />
+
+      <ParticleLiftoff />
 
       {/* 2. CONTENT WRAPPER - Lays out the left and right panes OVER the background */}
       <View style={{ flex: 1, flexDirection: isWeb ? 'row' : 'column', zIndex: 10, pointerEvents: 'box-none' }}>

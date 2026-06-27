@@ -117,12 +117,8 @@ export default function AppNavigator() {
 	    setScreen(wagerNode ? 'challenge_landing' : 'home');
 	  };
 
-  const handleSignup = async (u, token) => {
-    setUser(u);
-    await AsyncStorage.setItem('crackl_user', JSON.stringify(u));
-    if (token) await AsyncStorage.setItem('crackl_token', token);
-    setScreen('onboarding');
-  };
+  // Onboarding has been removed, map handleSignup to save
+  const handleSignup = save;
 
   // Update user state + storage WITHOUT navigating (for in-game updates)
   const syncUser = async (u) => {
