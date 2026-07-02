@@ -88,3 +88,4 @@ A launch candidate is not ready until:
 - Production `ALLOWED_MEDIA_ORIGINS` includes only Supabase Storage/CDN origins used for riddle media.
 - `/health` and `/ready` are monitored.
 - A real browser/mobile click-through has passed for all modes and admin media preview.
+# cracktmkc
